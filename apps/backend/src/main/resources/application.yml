@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: venue-aggregator-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/venue_aggregator}
+    username: ${DATABASE_USERNAME:venue_app}
+    password: ${DATABASE_PASSWORD:venue_app_password}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+springdoc:
+  swagger-ui:
+    path: /docs

@@ -1,0 +1,150 @@
+create table roles (
+    id bigserial primary key,
+    name varchar(50) not null unique,
+    created_at timestamptz not null default now()
+);
+
+create table users (
+    id bigserial primary key,
+    email varchar(255) not null unique,
+    password_hash varchar(255) not null,
+    full_name varchar(160) not null,
+    phone varchar(32),
+    status varchar(40) not null default 'ACTIVE',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table user_roles (
+    user_id bigint not null references users(id) on delete cascade,
+    role_id bigint not null references roles(id) on delete cascade,
+    primary key (user_id, role_id)
+);
+
+create table halls (
+    id bigserial primary key,
+    owner_user_id bigint not null references users(id),
+    name varchar(180) not null,
+    description text,
+    city varchar(120) not null,
+    area varchar(120) not null,
+    pincode varchar(16),
+    capacity_min integer,
+    capacity_max integer,
+    status varchar(40) not null default 'PENDING_APPROVAL',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table hall_media (
+    id bigserial primary key,
+    hall_id bigint not null references halls(id) on delete cascade,
+    media_type varchar(20) not null,
+    url text not null,
+    public_id varchar(255),
+    is_primary boolean not null default false,
+    sort_order integer not null default 0,
+    created_at timestamptz not null default now()
+);
+
+create table hall_blocked_dates (
+    id bigserial primary key,
+    hall_id bigint not null references halls(id) on delete cascade,
+    event_date date not null,
+    slot_type varchar(30) not null,
+    reason varchar(255),
+    created_at timestamptz not null default now(),
+    unique (hall_id, event_date, slot_type)
+);
+
+create table bookings (
+    id bigserial primary key,
+    hall_id bigint not null references halls(id),
+    customer_user_id bigint references users(id),
+    event_date date not null,
+    slot_type varchar(30) not null,
+    status varchar(40) not null default 'ENQUIRY',
+    customer_name varchar(160) not null,
+    customer_phone varchar(32) not null,
+    customer_email varchar(255),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create unique index uq_bookings_confirmed_hall_date_slot
+    on bookings(hall_id, event_date, slot_type)
+    where status = 'CONFIRMED';
+
+create table vendor_categories (
+    id bigserial primary key,
+    name varchar(120) not null unique,
+    created_at timestamptz not null default now()
+);
+
+create table vendors (
+    id bigserial primary key,
+    user_id bigint not null references users(id),
+    category_id bigint not null references vendor_categories(id),
+    business_name varchar(180) not null,
+    description text,
+    city varchar(120) not null,
+    area varchar(120),
+    status varchar(40) not null default 'PENDING_APPROVAL',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table subscription_plans (
+    id bigserial primary key,
+    name varchar(120) not null unique,
+    price_amount numeric(12, 2) not null,
+    currency varchar(8) not null default 'INR',
+    billing_period varchar(30) not null,
+    is_active boolean not null default true,
+    created_at timestamptz not null default now()
+);
+
+create table vendor_subscriptions (
+    id bigserial primary key,
+    vendor_id bigint not null references vendors(id),
+    plan_id bigint not null references subscription_plans(id),
+    status varchar(40) not null default 'PENDING',
+    razorpay_subscription_id varchar(255),
+    starts_at timestamptz,
+    ends_at timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table enquiries (
+    id bigserial primary key,
+    hall_id bigint references halls(id),
+    vendor_id bigint references vendors(id),
+    customer_name varchar(160) not null,
+    customer_phone varchar(32) not null,
+    customer_email varchar(255),
+    event_date date,
+    message text,
+    status varchar(40) not null default 'NEW',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    constraint enquiries_target_check check (hall_id is not null or vendor_id is not null)
+);
+
+create table payments (
+    id bigserial primary key,
+    vendor_subscription_id bigint references vendor_subscriptions(id),
+    amount numeric(12, 2) not null,
+    currency varchar(8) not null default 'INR',
+    status varchar(40) not null,
+    razorpay_payment_id varchar(255),
+    razorpay_order_id varchar(255),
+    created_at timestamptz not null default now()
+);
+
+insert into roles(name) values
+    ('CUSTOMER'),
+    ('HALL_OWNER'),
+    ('VENDOR'),
+    ('ADMIN'),
+    ('SUPER_ADMIN');

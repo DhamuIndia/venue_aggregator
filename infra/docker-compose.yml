@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: venue_aggregator_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: venue_aggregator
+      POSTGRES_USER: venue_app
+      POSTGRES_PASSWORD: venue_app_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - venue_aggregator_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U venue_app -d venue_aggregator"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  venue_aggregator_postgres_data:
