@@ -2,9 +2,9 @@ spring:
   application:
     name: venue-aggregator-backend
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/venue_aggregator}
-    username: ${DATABASE_USERNAME:venue_app}
-    password: ${DATABASE_PASSWORD:venue_app_password}
+    url: jdbc:postgresql://localhost:5432/venue-aggregator
+    username: postgres
+    password: staminal
   jpa:
     hibernate:
       ddl-auto: validate
