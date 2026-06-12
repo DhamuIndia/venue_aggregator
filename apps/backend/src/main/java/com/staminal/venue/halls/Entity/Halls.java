@@ -1,13 +1,16 @@
-package com.staminal.venue.halls;
+package com.staminal.venue.halls.Entity;
 
 import java.time.Instant;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.staminal.venue.enums.HallType;
+import com.staminal.venue.enums.HallStatus;
 
 @Entity
 @Table(name = "halls")
@@ -32,7 +35,7 @@ public class Halls {
     @Column(name = "cover_image_url")
     private String coverImageUrl;
 
-    @Column(nullable = false)
+    @Column(name="address_line",nullable = false)
     private String addressLine;
 
     @Column(nullable = false)
@@ -54,14 +57,15 @@ public class Halls {
     @Column(name = "capacity_max", nullable = false)
     private int capacityMax;
 
-    @Column(name = "hallFloors")
+    @Column(name = "floors")
     private int floors;
 
-    @Column(name = "ac_nonAc")
+    @Column(name = "ac_available")
     private boolean acAvailable;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "hall_type")
-    private String hallType;
+    private HallType hallType;
 
     // @Column(name = "review")
     // private String review;
@@ -78,7 +82,7 @@ public class Halls {
     @Column(name = "bike_parking")
     private boolean bikeParking;
 
-    @Column(name = "isDiningAvailable")
+    @Column(name = "dining_available")
     private boolean isDiningAvailable;
 
     @Column(name = "dining_capacity")
@@ -99,7 +103,8 @@ public class Halls {
     @Column(name = "lift_available")
     private boolean liftAvailable;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private HallStatus status;
 
     @Column(name = "created_at")
     private Instant createdAt;

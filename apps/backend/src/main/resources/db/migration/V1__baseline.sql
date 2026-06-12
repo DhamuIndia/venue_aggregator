@@ -84,7 +84,7 @@ create table vendor_categories (
 create table vendors (
     id bigserial primary key,
     user_id bigint not null references users(id),
-    category_id bigint not null references vendor_categories(id),
+    -- category_id bigint not null references vendor_categories(id),
     business_name varchar(180) not null,
     description text,
     city varchar(120) not null,
@@ -92,6 +92,16 @@ create table vendors (
     status varchar(40) not null default 'PENDING_APPROVAL',
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
+);
+
+create table vendor_category_mapping (
+    vendor_id bigint not null,
+    category_id bigint not null,
+    primary key (vendor_id, category_id),
+    foreign key (vendor_id)
+        references vendors(id),
+    foreign key (category_id)
+        references vendor_categories(id)
 );
 
 create table subscription_plans (
