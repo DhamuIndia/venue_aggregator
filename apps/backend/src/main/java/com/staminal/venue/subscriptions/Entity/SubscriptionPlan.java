@@ -1,5 +1,6 @@
 package com.staminal.venue.subscriptions.Entity;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 import jakarta.persistence.Column;
@@ -20,7 +21,7 @@ public class SubscriptionPlan {
     private String name;
 
     @Column(name = "price_amount")
-    private double priceAmount;
+    private BigDecimal priceAmount;
 
     private String currency;
 
@@ -32,4 +33,62 @@ public class SubscriptionPlan {
 
     @Column(name = "created_at")
     private Instant createdAt;
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public BigDecimal getPriceAmount() {
+        return priceAmount;
+    }
+
+    public void setPriceAmount(BigDecimal priceAmount) {
+        this.priceAmount = priceAmount;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
+    }
+
+    public String getBillingPeriod() {
+        return billingPeriod;
+    }
+
+    public void setBillingPeriod(String billingPeriod) {
+        this.billingPeriod = billingPeriod;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    
 }

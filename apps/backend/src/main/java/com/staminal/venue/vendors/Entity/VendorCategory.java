@@ -26,4 +26,38 @@ public class VendorCategory {
 
     @ManyToMany(mappedBy = "categories")
     private Set<Vendors> vendors;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getCategoryName() {
+        return categoryName;
+    }
+
+    public void setCategoryName(String categoryName) {
+        this.categoryName = categoryName;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Set<Vendors> getVendors() {
+        return vendors;
+    }
+
+    public void setVendors(Set<Vendors> vendors) {
+        this.vendors = vendors;
+    }
+
+    
 }

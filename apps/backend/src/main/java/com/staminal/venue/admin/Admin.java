@@ -1,6 +1,7 @@
-package com.staminal.venue.users.Entity;
+package com.staminal.venue.admin;
 
 import java.time.Instant;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -9,23 +10,25 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "users")
-public class User {
+@Table(name = "admins")
+public class Admin {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private long id;
 
-    @Column(nullable = false, name = "full_name")
+    @Column(name = "full_name")
     private String fullName;
 
-    @Column(nullable = false, unique = true)
-    private String phone;
-
-    @Column(nullable = true, unique = true)
     private String email;
 
+    @Column(name="contact_number")
+    private String contactNumber;
+
     private String status;
+
+    @Column(name = "password_hash")
+    private String passwordHash;
 
     @Column(name = "created_at")
     private Instant createdAt;
@@ -33,11 +36,11 @@ public class User {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
-    public Long getId() {
+    public long getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(long id) {
         this.id = id;
     }
 
@@ -49,14 +52,6 @@ public class User {
         this.fullName = fullName;
     }
 
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
     public String getEmail() {
         return email;
     }
@@ -65,12 +60,20 @@ public class User {
         this.email = email;
     }
 
-    public String getStatus() {
-        return status;
+    public String getContactNumber() {
+        return contactNumber;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setContactNumber(String contactNumber) {
+        this.contactNumber = contactNumber;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
     public Instant getCreatedAt() {
@@ -87,6 +90,14 @@ public class User {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
 }

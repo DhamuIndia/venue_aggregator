@@ -7,7 +7,7 @@ create table roles (
 create table users (
     id bigserial primary key,
     email varchar(255) not null unique,
-    password_hash varchar(255) not null,
+    -- password_hash varchar(255) not null,
     full_name varchar(160) not null,
     phone varchar(32),
     status varchar(40) not null default 'ACTIVE',
@@ -24,14 +24,34 @@ create table user_roles (
 create table halls (
     id bigserial primary key,
     owner_user_id bigint not null references users(id),
+    owner_name varchar(100) not null,
     name varchar(180) not null,
     description text,
+    cover_image_url varchar(255) not null,
+    address_line varchar(120) not null,
     city varchar(120) not null,
     area varchar(120) not null,
     pincode varchar(16),
+    latitude double precision,
+    longitude double precision,
     capacity_min integer,
     capacity_max integer,
+    floors integer,
+    ac_available boolean,
+    hall_type varchar(50),
+    ratings float,
+    rooms integer,
+    car_parking boolean,
+    bike_parking boolean,
+    dining_available boolean,
+    amount numeric(12, 2) not null,
+    contact_number varchar(20),
+    whatsapp_number varchar(20),
+    dining_capacity integer,
+    generator_available boolean,
+    lift_available boolean,
     status varchar(40) not null default 'PENDING_APPROVAL',
+    rejection_reason varchar(120),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -85,11 +105,22 @@ create table vendors (
     id bigserial primary key,
     user_id bigint not null references users(id),
     -- category_id bigint not null references vendor_categories(id),
+    vendor_name varchar(100) not null,
+    cover_image_url varchar(255) not null,
     business_name varchar(180) not null,
     description text,
+    address_line varchar(120) not null,
     city varchar(120) not null,
     area varchar(120),
+    pincode varchar(120),
+    latitude double precision,
+    longitude double precision,
+    email varchar(50),
+    contact_number varchar(20),
+    whatsapp_number varchar(20),
+    password_hash varchar(100),
     status varchar(40) not null default 'PENDING_APPROVAL',
+    rejection_reason varchar(255),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -152,9 +183,32 @@ create table payments (
     created_at timestamptz not null default now()
 );
 
+create table admins (
+    id bigserial primary key,
+    full_name varchar(160) not null,
+    email varchar(255) not null unique,
+    password_hash varchar(255) not null,
+    contact_number varchar(20) not null,
+    status varchar(40) not null default 'ACTIVE',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
 insert into roles(name) values
     ('CUSTOMER'),
     ('HALL_OWNER'),
     ('VENDOR'),
     ('ADMIN'),
     ('SUPER_ADMIN');
+
+insert into vendor_categories(name) values
+    ('Photography'),
+    ('DJ'),
+    ('Food'),
+    ('Decoration'),
+    ('Makeup'),
+    ('Mehendi'),
+    ('Catering'),
+    ('Balloon Decoration'),
+    ('Live Music'),
+    ('Wedding Planner');
