@@ -4,7 +4,7 @@ import java.util.Set;
 
 public class CreateVendorRequest {
 
-    private long userId;
+    // private long userId;
 
     private String vendorName;
 
@@ -19,6 +19,8 @@ public class CreateVendorRequest {
     private String pincode;
 
     private String city;
+
+    private String email;
 
     private String area;
 
@@ -40,13 +42,13 @@ public class CreateVendorRequest {
         this.categoryIds = categoryIds;
     }
 
-    public long getUserId() {
-        return userId;
-    }
+    // public long getUserId() {
+    //     return userId;
+    // }
 
-    public void setUserId(long userId) {
-        this.userId = userId;
-    }
+    // public void setUserId(long userId) {
+    //     this.userId = userId;
+    // }
 
     public String getVendorName() {
         return vendorName;
@@ -54,6 +56,14 @@ public class CreateVendorRequest {
 
     public void setVendorName(String vendorName) {
         this.vendorName = vendorName;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getBusinessName() {
@@ -143,7 +153,5 @@ public class CreateVendorRequest {
     public void setWhatsAppNumber(String whatsAppNumber) {
         this.whatsAppNumber = whatsAppNumber;
     }
-
-    
 
 }

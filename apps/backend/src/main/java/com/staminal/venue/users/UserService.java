@@ -18,6 +18,9 @@ public class UserService {
 
     public User createUser(User user) {
 
+        user.setFullName(user.getFullName());
+        user.setEmail(user.getEmail());
+        user.setPhone(user.getPhone());
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         user.setStatus("ACTIVE");

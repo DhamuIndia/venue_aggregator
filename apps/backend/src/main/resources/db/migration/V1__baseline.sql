@@ -103,8 +103,7 @@ create table vendor_categories (
 
 create table vendors (
     id bigserial primary key,
-    user_id bigint not null references users(id),
-    -- category_id bigint not null references vendor_categories(id),
+    -- user_id bigint not null references users(id),
     vendor_name varchar(100) not null,
     cover_image_url varchar(255) not null,
     business_name varchar(180) not null,
@@ -119,7 +118,7 @@ create table vendors (
     contact_number varchar(20),
     whatsapp_number varchar(20),
     password_hash varchar(100),
-    status varchar(40) not null default 'PENDING_APPROVAL',
+    status varchar(40) not null default 'PENDING',
     rejection_reason varchar(255),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()

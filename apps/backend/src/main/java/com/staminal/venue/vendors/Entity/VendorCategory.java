@@ -10,6 +10,8 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "vendor_categories")
 public class VendorCategory {
@@ -25,6 +27,7 @@ public class VendorCategory {
     private Instant createdAt;
 
     @ManyToMany(mappedBy = "categories")
+    @JsonIgnore
     private Set<Vendors> vendors;
 
     public Long getId() {

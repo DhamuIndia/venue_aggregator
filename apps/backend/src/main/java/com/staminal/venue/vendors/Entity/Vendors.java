@@ -23,9 +23,6 @@ public class Vendors {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id")
-    private long userId;
-
     @Column(name = "vendor_name")
     private String vendorName;
 
@@ -93,13 +90,13 @@ public class Vendors {
         this.id = id;
     }
 
-    public long getUserId() {
-        return userId;
-    }
+    // public long getUserId() {
+    //     return userId;
+    // }
 
-    public void setUserId(long userId) {
-        this.userId = userId;
-    }
+    // public void setUserId(long userId) {
+    //     this.userId = userId;
+    // }
 
     public String getVendorName() {
         return vendorName;
@@ -228,5 +225,23 @@ public class Vendors {
     public void setCategories(Set<VendorCategory> categories) {
         this.categories = categories;
     }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    
 
 }

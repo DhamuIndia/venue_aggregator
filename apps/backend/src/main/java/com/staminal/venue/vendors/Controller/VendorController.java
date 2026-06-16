@@ -1,11 +1,11 @@
-package com.staminal.venue.vendors;
+package com.staminal.venue.vendors.Controller;
 
 import java.util.List;
-
 import org.springframework.web.bind.annotation.*;
 
-import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Dto.CreateVendorRequest;
+import com.staminal.venue.vendors.Dto.VendorResponse;
+import com.staminal.venue.vendors.Service.VendorService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -17,20 +17,20 @@ public class VendorController {
     private final VendorService vendorService;
 
     @PostMapping
-    public Vendors createVendor(
+    public VendorResponse createVendor(
             @RequestBody CreateVendorRequest request) {
 
         return vendorService.createVendor(request);
     }
 
     @GetMapping
-    public List<Vendors> getAllVendors() {
+    public List<VendorResponse> getAllVendors() {
 
         return vendorService.getAllVendors();
     }
 
     @GetMapping("/{id}")
-    public Vendors getVendorById(
+    public VendorResponse getVendorById(
             @PathVariable Long id) {
 
         return vendorService.getVendorById(id);
