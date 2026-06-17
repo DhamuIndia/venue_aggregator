@@ -35,4 +35,12 @@ public class VendorController {
 
         return vendorService.getVendorById(id);
     }
+
+    @GetMapping("/category/{categoryName}")
+    public List<VendorResponse> getVendorsByCategory(
+            @PathVariable String categoryName) {
+
+        return vendorService.getVendorsByCategory(
+                categoryName);
+    }
 }

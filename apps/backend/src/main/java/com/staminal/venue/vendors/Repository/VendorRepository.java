@@ -11,4 +11,7 @@ public interface VendorRepository
                 extends JpaRepository<Vendors, Long> {
 
         List<Vendors> findByStatus(VendorStatus status);
+
+        List<Vendors> findByCategories_CategoryName(
+                        String categoryName);
 }

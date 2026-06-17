@@ -98,4 +98,15 @@ public class VendorService {
 
         return mapToResponse(vendor);
     }
+
+    public List<VendorResponse> getVendorsByCategory(
+            String categoryName) {
+
+        List<Vendors> vendors = vendorRepository.findByCategories_CategoryName(
+                categoryName);
+
+        return vendors.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
 }

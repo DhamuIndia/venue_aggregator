@@ -124,6 +124,28 @@ create table vendors (
     updated_at timestamptz not null default now()
 );
 
+create table vendor_dj_details (
+    id bigserial primary key,
+    vendor_id bigint not null unique references vendors(id),
+    experience_years integer,
+    sound_system_available boolean,
+    travel_distance_km integer,
+    starting_price numeric(12,2),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+CREATE TABLE vendor_photography_details (
+    id BIGSERIAL PRIMARY KEY,
+    vendor_id BIGINT NOT NULL REFERENCES vendors(id),
+    experience_years INTEGER,
+    candid_photography BOOLEAN,
+    videography_available BOOLEAN,
+    drone_available BOOLEAN,
+    album_included BOOLEAN,
+    starting_price NUMERIC(12,2)
+);
+
 create table vendor_category_mapping (
     vendor_id bigint not null,
     category_id bigint not null,
@@ -191,6 +213,32 @@ create table admins (
     status varchar(40) not null default 'ACTIVE',
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
+);
+
+create table vendor_media (
+    id bigserial primary key,
+    vendor_id bigint not null references vendors(id),
+    media_url text not null,
+    is_primary boolean default false,
+    created_at timestamptz default now()
+);
+
+create table vendor_packages (
+    id bigserial primary key,
+    vendor_id bigint not null references vendors(id),
+    package_name varchar(150) not null,
+    description text,
+    price numeric(12,2),
+    created_at timestamptz default now()
+);
+
+create table vendor_blocked_dates (
+    id bigserial primary key,
+    vendor_id bigint not null references vendors(id),
+    event_date date not null,
+    slot_type varchar(30) not null,
+    reason varchar(255),
+    created_at timestamptz default now()
 );
 
 insert into roles(name) values
