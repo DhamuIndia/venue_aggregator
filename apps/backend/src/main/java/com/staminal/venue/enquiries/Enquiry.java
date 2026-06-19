@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 import com.staminal.venue.enums.EnquiryStatus;
-import com.staminal.venue.halls.Entity.Halls;
+// import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.vendors.Entity.Vendors;
 
 import jakarta.persistence.Column;
@@ -26,9 +26,9 @@ public class Enquiry {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
-    @ManyToOne
-    @JoinColumn(name = "hall_id")
-    private Halls hall;
+    // @ManyToOne
+    // @JoinColumn(name = "hall_id")
+    // private Halls hall;
 
     @ManyToOne
     @JoinColumn(name = "vendor_id")

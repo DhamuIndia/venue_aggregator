@@ -8,11 +8,21 @@ public class VendorBlockedDateResponse {
 
     private Long id;
 
+    private Long vendorId;
+
     private LocalDate eventDate;
 
     private SlotType slotType;
 
     private String reason;
+
+    public Long getVendorId() {
+        return vendorId;
+    }
+
+    public void setVendorId(Long vendorId) {
+        this.vendorId = vendorId;
+    }
 
     public Long getId() {
         return id;

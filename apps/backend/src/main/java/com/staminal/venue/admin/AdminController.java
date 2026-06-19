@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.staminal.venue.halls.Entity.Halls;
+// import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.vendors.Entity.Vendors;
 
 import lombok.RequiredArgsConstructor;
@@ -53,29 +53,29 @@ public class AdminController {
                 request.getReason());
     }
 
-    @PutMapping("/halls/{id}/approve")
-    public Halls approveHall(@PathVariable Long id) {
+    // @PutMapping("/halls/{id}/approve")
+    // public Halls approveHall(@PathVariable Long id) {
 
-        return adminService.approveHall(id);
-    }
+    //     return adminService.approveHall(id);
+    // }
 
-    @PutMapping("/halls/{id}/reject")
-    public Halls rejectHall(
-            @PathVariable Long id,
-            @RequestBody RejectRequest request) {
+    // @PutMapping("/halls/{id}/reject")
+    // public Halls rejectHall(
+    //         @PathVariable Long id,
+    //         @RequestBody RejectRequest request) {
 
-        return adminService.rejectHall(
-                id,
-                request.getReason());
-    }
+    //     return adminService.rejectHall(
+    //             id,
+    //             request.getReason());
+    // }
 
-    @GetMapping("/vendors/pending")
-    public List<Vendors> getPendingVendors() {
-        return adminService.getPendingVendors();
-    }
+    // @GetMapping("/vendors/pending")
+    // public List<Vendors> getPendingVendors() {
+    //     return adminService.getPendingVendors();
+    // }
 
-    @GetMapping("/halls/pending")
-    public List<Halls> getPendingHalls() {
-        return adminService.getPendingHalls();
-    }
+    // @GetMapping("/halls/pending")
+    // public List<Halls> getPendingHalls() {
+    //     return adminService.getPendingHalls();
+    // }
 }

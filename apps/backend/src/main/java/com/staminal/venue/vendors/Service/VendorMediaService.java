@@ -29,15 +29,19 @@ public class VendorMediaService {
         VendorMedia media = new VendorMedia();
         media.setVendor(vendor);
         media.setMediaUrl(request.getMediaUrl());
-        media.setPrimary(request.isPrimary());
+        media.setIsPrimary(request.isPrimary());
         media.setCreatedAt(Instant.now());
+        media.setServiceType(request.getServiceType());
+        media.setServiceId(request.getServiceId());
 
         VendorMedia vendorMedia = vendorMediaRepository.save(media);
 
         VendorMediaResponse response = new VendorMediaResponse();
         response.setId(vendorMedia.getId());
         response.setMediaUrl(vendorMedia.getMediaUrl());
-        response.setPrimary(vendorMedia.isPrimary());
+        response.setPrimary(vendorMedia.getIsPrimary());
+        response.setServiceType(media.getServiceType());
+        response.setServiceId(media.getServiceId());
         return response;
 
     }
@@ -51,7 +55,9 @@ public class VendorMediaService {
                     VendorMediaResponse response = new VendorMediaResponse();
                     response.setId(media.getId());
                     response.setMediaUrl(media.getMediaUrl());
-                    response.setPrimary(media.isPrimary());
+                    response.setPrimary(media.getIsPrimary());
+                    response.setServiceType(media.getServiceType());
+                    response.setServiceId(media.getServiceId());
                     return response;
                 })
                 .toList();

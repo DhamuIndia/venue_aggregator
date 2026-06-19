@@ -1,8 +1,13 @@
 package com.staminal.venue.vendors.Entity;
 
 import java.time.Instant;
+
+import com.staminal.venue.enums.VendorServiceType;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -22,13 +27,36 @@ public class VendorMedia {
     @JoinColumn(name = "vendor_id", nullable = false)
     private Vendors vendor;
 
-    @Column(name="media_url")
+    @Column(name = "media_url")
     private String mediaUrl;
 
-    @Column(name="is_primary")
+    @Column(name = "is_primary")
     private boolean isPrimary;
 
-    @Column(name="created_at")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_type")
+    private VendorServiceType serviceType;
+
+    @Column(name = "service_id")
+    private Long serviceId;
+
+    public VendorServiceType getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(VendorServiceType serviceType) {
+        this.serviceType = serviceType;
+    }
+
+    public Long getServiceId() {
+        return serviceId;
+    }
+
+    public void setServiceId(Long serviceId) {
+        this.serviceId = serviceId;
+    }
+
+    @Column(name = "created_at")
     private Instant createdAt;
 
     public Long getId() {
@@ -55,11 +83,11 @@ public class VendorMedia {
         this.mediaUrl = mediaUrl;
     }
 
-    public boolean isPrimary() {
+    public boolean getIsPrimary() {
         return isPrimary;
     }
 
-    public void setPrimary(boolean isPrimary) {
+    public void setIsPrimary(boolean isPrimary) {
         this.isPrimary = isPrimary;
     }
 
@@ -71,5 +99,8 @@ public class VendorMedia {
         this.createdAt = createdAt;
     }
 
-    
+    public void setPrimary(boolean isPrimary) {
+        this.isPrimary = isPrimary;
+    }
+
 }

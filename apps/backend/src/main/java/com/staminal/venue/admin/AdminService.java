@@ -7,8 +7,8 @@ import org.springframework.stereotype.Service;
 
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.halls.Entity.Halls;
-import com.staminal.venue.halls.Repository.HallsRepository;
+// import com.staminal.venue.halls.Entity.Halls;
+// import com.staminal.venue.halls.Repository.HallsRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 
@@ -22,7 +22,7 @@ public class AdminService {
 
     private final VendorRepository vendorRepository;
 
-    private final HallsRepository hallsRepository;
+    // private final HallsRepository hallsRepository;
 
     public Admin createAdmin(Admin admin) {
         admin.setStatus("ACTIVE");
@@ -64,34 +64,34 @@ public class AdminService {
         return vendorRepository.save(vendor);
     }
 
-    public Halls approveHall(Long hallId) {
+    // public Halls approveHall(Long hallId) {
 
-        Halls hall = hallsRepository.findById(hallId)
-                .orElseThrow(() -> new RuntimeException("Hall not found"));
+    //     Halls hall = hallsRepository.findById(hallId)
+    //             .orElseThrow(() -> new RuntimeException("Hall not found"));
 
-        hall.setStatus(HallStatus.APPROVED);
-        hall.setRejectionReason(null);
+    //     hall.setStatus(HallStatus.APPROVED);
+    //     hall.setRejectionReason(null);
 
-        return hallsRepository.save(hall);
-    }
+    //     return hallsRepository.save(hall);
+    // }
 
-    public Halls rejectHall(Long hallId, String reason) {
+    // public Halls rejectHall(Long hallId, String reason) {
 
-        Halls hall = hallsRepository.findById(hallId)
-                .orElseThrow(() -> new RuntimeException("Hall not found"));
+    //     Halls hall = hallsRepository.findById(hallId)
+    //             .orElseThrow(() -> new RuntimeException("Hall not found"));
 
-        hall.setStatus(HallStatus.REJECTED);
-        hall.setRejectionReason(reason);
+    //     hall.setStatus(HallStatus.REJECTED);
+    //     hall.setRejectionReason(reason);
 
-        return hallsRepository.save(hall);
-    }
+    //     return hallsRepository.save(hall);
+    // }
 
-    public List<Vendors> getPendingVendors() {
-        return vendorRepository.findByStatus(VendorStatus.PENDING);
-    }
+    // public List<Vendors> getPendingVendors() {
+    //     return vendorRepository.findByStatus(VendorStatus.PENDING);
+    // }
 
-    public List<Halls> getPendingHalls() {
-        return hallsRepository.findByStatus(HallStatus.PENDING);
-    }
+    // public List<Halls> getPendingHalls() {
+    //     return hallsRepository.findByStatus(HallStatus.PENDING);
+    // }
 
 }

@@ -42,6 +42,8 @@ public class VendorBlockedDateService {
                 response.setEventDate(savedBlockedDate.getEventDate());
                 response.setSlotType(savedBlockedDate.getSlotType());
                 response.setReason(savedBlockedDate.getReason());
+                response.setVendorId(
+                                savedBlockedDate.getVendor().getId());
 
                 return response;
         }
@@ -61,6 +63,8 @@ public class VendorBlockedDateService {
                                                         blockedDate.getSlotType());
                                         response.setReason(
                                                         blockedDate.getReason());
+                                        response.setVendorId(
+                                                        blockedDate.getVendor().getId());
 
                                         return response;
                                 })
