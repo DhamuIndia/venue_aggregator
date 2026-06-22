@@ -2,6 +2,8 @@ package com.staminal.venue.vendors.Dto;
 
 import java.math.BigDecimal;
 
+import com.staminal.venue.enums.VendorServiceType;
+
 public class VendorPackageResponse {
 
     private Long id;
@@ -11,6 +13,26 @@ public class VendorPackageResponse {
     private String description;
 
     private BigDecimal price;
+
+    private VendorServiceType serviceType;
+
+    private Long serviceId;
+
+    public VendorServiceType getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(VendorServiceType serviceType) {
+        this.serviceType = serviceType;
+    }
+
+    public Long getServiceId() {
+        return serviceId;
+    }
+
+    public void setServiceId(Long serviceId) {
+        this.serviceId = serviceId;
+    }
 
     public Long getId() {
         return id;

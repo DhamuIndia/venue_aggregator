@@ -5,6 +5,8 @@ spring:
     url: jdbc:postgresql://localhost:5432/venue-aggregator
     username: postgres
     password: staminal
+jwt:
+  secret: staminal-super-secret-key-for-venue-app-2026
   jpa:
     hibernate:
       ddl-auto: validate

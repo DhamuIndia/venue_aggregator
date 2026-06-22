@@ -18,53 +18,59 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class VendorPackageService {
 
-    private final VendorPackageRepository vendorPackageRepository;
-    private final VendorRepository vendorRepository;
+        private final VendorPackageRepository vendorPackageRepository;
+        private final VendorRepository vendorRepository;
 
-    public VendorPackageResponse createPackage(
-            CreateVendorPackageRequest request) {
+        public VendorPackageResponse createPackage(
+                        CreateVendorPackageRequest request) {
 
-        Vendors vendor = vendorRepository.findById(
-                request.getVendorId())
-                .orElseThrow(() -> new RuntimeException("Vendor not found"));
+                Vendors vendor = vendorRepository.findById(
+                                request.getVendorId())
+                                .orElseThrow(() -> new RuntimeException("Vendor not found"));
 
-        VendorPackage vendorPackage = new VendorPackage();
+                VendorPackage vendorPackage = new VendorPackage();
 
-        vendorPackage.setVendor(vendor);
-        vendorPackage.setPackageName(request.getPackageName());
-        vendorPackage.setDescription(request.getDescription());
-        vendorPackage.setPrice(request.getPrice());
-        vendorPackage.setCreatedAt(Instant.now());
+                vendorPackage.setVendor(vendor);
+                vendorPackage.setPackageName(request.getPackageName());
+                vendorPackage.setDescription(request.getDescription());
+                vendorPackage.setPrice(request.getPrice());
+                vendorPackage.setCreatedAt(Instant.now());
+                vendorPackage.setServiceType(request.getServiceType());
+                vendorPackage.setServiceId(request.getServiceId());
 
-        VendorPackage savedVendorPackage = vendorPackageRepository.save(vendorPackage);
+                VendorPackage savedVendorPackage = vendorPackageRepository.save(vendorPackage);
 
-        VendorPackageResponse vendorPackageResponse = new VendorPackageResponse();
-        vendorPackageResponse.setId(savedVendorPackage.getId());
-        vendorPackageResponse.setDescription(savedVendorPackage.getDescription());
-        vendorPackageResponse.setPackageName(savedVendorPackage.getPackageName());
-        vendorPackageResponse.setPrice(savedVendorPackage.getPrice());
-        return vendorPackageResponse;
-    }
+                VendorPackageResponse vendorPackageResponse = new VendorPackageResponse();
+                vendorPackageResponse.setId(savedVendorPackage.getId());
+                vendorPackageResponse.setDescription(savedVendorPackage.getDescription());
+                vendorPackageResponse.setPackageName(savedVendorPackage.getPackageName());
+                vendorPackageResponse.setPrice(savedVendorPackage.getPrice());
+                vendorPackageResponse.setServiceType(
+                                savedVendorPackage.getServiceType());
 
-    public List<VendorPackageResponse> getPackages(Long vendorId) {
+                vendorPackageResponse.setServiceId(
+                                savedVendorPackage.getServiceId());
+                return vendorPackageResponse;
+        }
 
-        List<VendorPackage> packages = vendorPackageRepository.findByVendor_Id(vendorId);
+        public List<VendorPackageResponse> getPackages(Long vendorId) {
 
-        return packages.stream()
-                .map(vendorPackage -> {
+                List<VendorPackage> packages = vendorPackageRepository.findByVendor_Id(vendorId);
 
-                    VendorPackageResponse response = new VendorPackageResponse();
+                return packages.stream()
+                                .map(vendorPackage -> {
 
-                    response.setId(vendorPackage.getId());
-                    response.setPackageName(
-                            vendorPackage.getPackageName());
-                    response.setDescription(
-                            vendorPackage.getDescription());
-                    response.setPrice(
-                            vendorPackage.getPrice());
+                                        VendorPackageResponse response = new VendorPackageResponse();
 
-                    return response;
-                })
-                .toList();
-    }
+                                        response.setId(vendorPackage.getId());
+                                        response.setPackageName(vendorPackage.getPackageName());
+                                        response.setDescription(vendorPackage.getDescription());
+                                        response.setPrice(vendorPackage.getPrice());
+                                        response.setServiceType(vendorPackage.getServiceType());
+                                        response.setServiceId(vendorPackage.getServiceId());
+
+                                        return response;
+                                })
+                                .toList();
+        }
 }

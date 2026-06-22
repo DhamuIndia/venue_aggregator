@@ -33,6 +33,8 @@ public class VendorBlockedDateService {
                 blockedDate.setSlotType(request.getSlotType());
                 blockedDate.setReason(request.getReason());
                 blockedDate.setCreatedAt(Instant.now());
+                blockedDate.setServiceType(request.getServiceType());
+                blockedDate.setServiceId(request.getServiceId());
 
                 VendorBlockedDate savedBlockedDate = vendorBlockedDateRepository.save(blockedDate);
 
@@ -42,8 +44,9 @@ public class VendorBlockedDateService {
                 response.setEventDate(savedBlockedDate.getEventDate());
                 response.setSlotType(savedBlockedDate.getSlotType());
                 response.setReason(savedBlockedDate.getReason());
-                response.setVendorId(
-                                savedBlockedDate.getVendor().getId());
+                response.setVendorId(savedBlockedDate.getVendor().getId());
+                response.setServiceType(savedBlockedDate.getServiceType());
+                response.setServiceId(savedBlockedDate.getServiceId());
 
                 return response;
         }
@@ -57,14 +60,12 @@ public class VendorBlockedDateService {
                                 .map(blockedDate -> {
                                         VendorBlockedDateResponse response = new VendorBlockedDateResponse();
                                         response.setId(blockedDate.getId());
-                                        response.setEventDate(
-                                                        blockedDate.getEventDate());
-                                        response.setSlotType(
-                                                        blockedDate.getSlotType());
-                                        response.setReason(
-                                                        blockedDate.getReason());
-                                        response.setVendorId(
-                                                        blockedDate.getVendor().getId());
+                                        response.setEventDate(blockedDate.getEventDate());
+                                        response.setSlotType(blockedDate.getSlotType());
+                                        response.setReason(blockedDate.getReason());
+                                        response.setVendorId(blockedDate.getVendor().getId());
+                                        response.setServiceType(blockedDate.getServiceType());
+                                        response.setServiceId(blockedDate.getServiceId());
 
                                         return response;
                                 })

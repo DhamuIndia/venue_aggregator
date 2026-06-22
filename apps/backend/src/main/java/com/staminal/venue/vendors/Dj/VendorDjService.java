@@ -2,6 +2,8 @@ package com.staminal.venue.vendors.Dj;
 
 import java.time.Instant;
 import org.springframework.stereotype.Service;
+
+import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,45 +25,27 @@ public class VendorDjService {
                 VendorDjDetails djDetails = new VendorDjDetails();
 
                 djDetails.setVendor(vendor);
-                djDetails.setExperienceYears(
-                                request.getExperienceYears());
-                djDetails.setSoundSystemAvailable(
-                                request.getSoundSystemAvailable());
-                djDetails.setTravelDistanceKm(
-                                request.getTravelDistanceKm());
-                djDetails.setStartingPrice(
-                                request.getStartingPrice());
-
+                djDetails.setExperienceYears(request.getExperienceYears());
+                djDetails.setSoundSystemAvailable(request.getSoundSystemAvailable());
+                djDetails.setTravelDistanceKm(request.getTravelDistanceKm());
+                djDetails.setStartingPrice(request.getStartingPrice());
                 djDetails.setCreatedAt(Instant.now());
                 djDetails.setUpdatedAt(Instant.now());
+                djDetails.setStatus(VendorStatus.PENDING);
+                djDetails.setRejectionReason(null);
 
                 VendorDjDetails savedDj = vendorDjRepository.save(djDetails);
 
                 return mapToResponse(savedDj);
         }
 
-        public VendorDjResponse getDjDetails(
-                        Long vendorId) {
+        public VendorDjResponse getDjDetails(Long vendorId) {
 
-                VendorDjDetails djDetails = vendorDjRepository.findByVendorId(vendorId)
+                VendorDjDetails djDetails = vendorDjRepository.findByVendor_Id(vendorId)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "DJ Details not found"));
 
-                VendorDjResponse response = new VendorDjResponse();
-
-                response.setId(djDetails.getId());
-                response.setVendorId(
-                                djDetails.getVendor().getId());
-                response.setExperienceYears(
-                                djDetails.getExperienceYears());
-                response.setSoundSystemAvailable(
-                                djDetails.getSoundSystemAvailable());
-                response.setTravelDistanceKm(
-                                djDetails.getTravelDistanceKm());
-                response.setStartingPrice(
-                                djDetails.getStartingPrice());
-
-                return response;
+                return mapToResponse(djDetails);
         }
 
         private VendorDjResponse mapToResponse(
@@ -70,20 +54,13 @@ public class VendorDjService {
                 VendorDjResponse response = new VendorDjResponse();
 
                 response.setId(djDetails.getId());
-                response.setVendorId(
-                                djDetails.getVendor().getId());
-
-                response.setExperienceYears(
-                                djDetails.getExperienceYears());
-
-                response.setSoundSystemAvailable(
-                                djDetails.getSoundSystemAvailable());
-
-                response.setTravelDistanceKm(
-                                djDetails.getTravelDistanceKm());
-
-                response.setStartingPrice(
-                                djDetails.getStartingPrice());
+                response.setVendorId(djDetails.getVendor().getId());
+                response.setExperienceYears(djDetails.getExperienceYears());
+                response.setSoundSystemAvailable(djDetails.getSoundSystemAvailable());
+                response.setTravelDistanceKm(djDetails.getTravelDistanceKm());
+                response.setStartingPrice(djDetails.getStartingPrice());
+                response.setStatus(djDetails.getStatus().name());
+                response.setRejectionReason(djDetails.getRejectionReason());
 
                 return response;
         }

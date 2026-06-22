@@ -40,8 +40,8 @@ public class VendorMediaService {
         response.setId(vendorMedia.getId());
         response.setMediaUrl(vendorMedia.getMediaUrl());
         response.setPrimary(vendorMedia.getIsPrimary());
-        response.setServiceType(media.getServiceType());
-        response.setServiceId(media.getServiceId());
+        response.setServiceType(vendorMedia.getServiceType());
+        response.setServiceId(vendorMedia.getServiceId());
         return response;
 
     }

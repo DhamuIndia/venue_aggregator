@@ -1,8 +1,8 @@
 package com.staminal.venue.vendors.Hall;
 
 import java.math.BigDecimal;
-
 import com.staminal.venue.enums.HallType;
+import com.staminal.venue.enums.VendorStatus;
 
 public class VendorHallResponse {
 
@@ -35,6 +35,26 @@ public class VendorHallResponse {
     private Integer diningCapacity;
 
     private BigDecimal amount;
+
+    private VendorStatus status;
+
+    private String rejectionReason;
+
+    public VendorStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(VendorStatus status) {
+        this.status = status;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
 
     public Long getId() {
         return id;

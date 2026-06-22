@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 import com.staminal.venue.enums.SlotType;
+import com.staminal.venue.enums.VendorServiceType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -37,8 +38,31 @@ public class VendorBlockedDate {
 
     private String reason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_type")
+    private VendorServiceType serviceType;
+
+    @Column(name = "service_id")
+    private Long serviceId;
+
     @Column(name = "created_at")
     private Instant createdAt;
+
+    public VendorServiceType getServiceType() {
+        return serviceType;
+    }
+
+    public void setServiceType(VendorServiceType serviceType) {
+        this.serviceType = serviceType;
+    }
+
+    public Long getServiceId() {
+        return serviceId;
+    }
+
+    public void setServiceId(Long serviceId) {
+        this.serviceId = serviceId;
+    }
 
     public Long getId() {
         return id;

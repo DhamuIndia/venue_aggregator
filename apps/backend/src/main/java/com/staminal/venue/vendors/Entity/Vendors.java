@@ -55,7 +55,7 @@ public class Vendors {
     @Column(name = "whatsapp_number")
     private String whatsAppNumber;
 
-    @Column(name="password_hash")
+    @Column(name="password_hash", nullable=false)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -89,14 +89,6 @@ public class Vendors {
     public void setId(Long id) {
         this.id = id;
     }
-
-    // public long getUserId() {
-    //     return userId;
-    // }
-
-    // public void setUserId(long userId) {
-    //     this.userId = userId;
-    // }
 
     public String getVendorName() {
         return vendorName;

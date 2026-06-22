@@ -5,11 +5,19 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.staminal.venue.enums.HallStatus;
+import com.staminal.venue.auth.service.JwtService;
+// import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.vendors.Catering.VendorCateringDetails;
+import com.staminal.venue.vendors.Catering.VendorCateringRepository;
+import com.staminal.venue.vendors.Dj.VendorDjDetails;
+import com.staminal.venue.vendors.Dj.VendorDjRepository;
+import com.staminal.venue.vendors.Dto.VendorResponse;
 // import com.staminal.venue.halls.Entity.Halls;
 // import com.staminal.venue.halls.Repository.HallsRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
+import com.staminal.venue.vendors.Hall.VendorHallDetails;
+import com.staminal.venue.vendors.Hall.VendorHallRepository;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -19,8 +27,11 @@ import lombok.RequiredArgsConstructor;
 public class AdminService {
 
     private final AdminRepository adminRepository;
-
     private final VendorRepository vendorRepository;
+    private final JwtService jwtService;
+    private final VendorHallRepository vendorHallRepository;
+    private final VendorDjRepository vendorDjRepository;
+    private final VendorCateringRepository vendorCateringRepository;
 
     // private final HallsRepository hallsRepository;
 
@@ -42,7 +53,7 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("Admin not found"));
     }
 
-    public Vendors approveVendor(Long vendorId) {
+    public VendorResponse approveVendor(Long vendorId) {
 
         Vendors vendor = vendorRepository.findById(vendorId)
                 .orElseThrow(() -> new RuntimeException("Vendor not found"));
@@ -50,10 +61,25 @@ public class AdminService {
         vendor.setStatus(VendorStatus.APPROVED);
         vendor.setRejectionReason(null);
 
-        return vendorRepository.save(vendor);
+        Vendors savedVendor = vendorRepository.save(vendor);
+
+        VendorResponse response = new VendorResponse();
+
+        response.setId(savedVendor.getId());
+        response.setVendorName(savedVendor.getVendorName());
+        response.setBusinessName(savedVendor.getBusinessName());
+        response.setDescription(savedVendor.getDescription());
+        response.setCoverImageUrl(savedVendor.getCoverImageUrl());
+        response.setCity(savedVendor.getCity());
+        response.setArea(savedVendor.getArea());
+        response.setContactNumber(savedVendor.getContactNumber());
+        response.setWhatsAppNumber(savedVendor.getWhatsAppNumber());
+        response.setStatus(savedVendor.getStatus().name());
+
+        return response;
     }
 
-    public Vendors rejectVendor(Long vendorId, String reason) {
+    public VendorResponse rejectVendor(Long vendorId, String reason) {
 
         Vendors vendor = vendorRepository.findById(vendorId)
                 .orElseThrow(() -> new RuntimeException("Vendor not found"));
@@ -61,37 +87,153 @@ public class AdminService {
         vendor.setStatus(VendorStatus.REJECTED);
         vendor.setRejectionReason(reason);
 
-        return vendorRepository.save(vendor);
+        Vendors savedVendor = vendorRepository.save(vendor);
+
+        VendorResponse response = new VendorResponse();
+
+        response.setId(savedVendor.getId());
+        response.setVendorName(savedVendor.getVendorName());
+        response.setBusinessName(savedVendor.getBusinessName());
+        response.setDescription(savedVendor.getDescription());
+        response.setCoverImageUrl(savedVendor.getCoverImageUrl());
+        response.setCity(savedVendor.getCity());
+        response.setArea(savedVendor.getArea());
+        response.setContactNumber(savedVendor.getContactNumber());
+        response.setWhatsAppNumber(savedVendor.getWhatsAppNumber());
+        response.setStatus(savedVendor.getStatus().name());
+
+        return response;
     }
 
-    // public Halls approveHall(Long hallId) {
+    public List<VendorResponse> getPendingVendors() {
 
-    //     Halls hall = hallsRepository.findById(hallId)
-    //             .orElseThrow(() -> new RuntimeException("Hall not found"));
+        List<Vendors> vendors = vendorRepository.findByStatus(VendorStatus.PENDING);
 
-    //     hall.setStatus(HallStatus.APPROVED);
-    //     hall.setRejectionReason(null);
+        return vendors.stream()
+                .map(vendor -> {
 
-    //     return hallsRepository.save(hall);
-    // }
+                    VendorResponse response = new VendorResponse();
 
-    // public Halls rejectHall(Long hallId, String reason) {
+                    response.setId(vendor.getId());
+                    response.setVendorName(vendor.getVendorName());
+                    response.setBusinessName(vendor.getBusinessName());
+                    response.setDescription(vendor.getDescription());
+                    response.setCoverImageUrl(vendor.getCoverImageUrl());
+                    response.setCity(vendor.getCity());
+                    response.setArea(vendor.getArea());
+                    response.setContactNumber(vendor.getContactNumber());
+                    response.setWhatsAppNumber(vendor.getWhatsAppNumber());
+                    response.setStatus(vendor.getStatus().name());
 
-    //     Halls hall = hallsRepository.findById(hallId)
-    //             .orElseThrow(() -> new RuntimeException("Hall not found"));
+                    return response;
+                })
+                .toList();
+    }
 
-    //     hall.setStatus(HallStatus.REJECTED);
-    //     hall.setRejectionReason(reason);
+    public AdminLoginResponse login(
+            AdminLoginRequest request) {
 
-    //     return hallsRepository.save(hall);
-    // }
+        Admin admin = adminRepository
+                .findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
 
-    // public List<Vendors> getPendingVendors() {
-    //     return vendorRepository.findByStatus(VendorStatus.PENDING);
-    // }
+        if (!admin.getPasswordHash()
+                .equals(request.getPassword())) {
 
-    // public List<Halls> getPendingHalls() {
-    //     return hallsRepository.findByStatus(HallStatus.PENDING);
-    // }
+            throw new RuntimeException(
+                    "Invalid password");
+        }
+
+        AdminLoginResponse response = new AdminLoginResponse();
+
+        String token = jwtService.generateToken(admin.getEmail(), "ADMIN");
+
+        response.setMessage("Login Successful");
+        response.setToken(token);
+
+        return response;
+    }
+
+    public VendorHallDetails approveHall(Long hallId) {
+
+        VendorHallDetails hall = vendorHallRepository.findById(hallId)
+                .orElseThrow(() -> new RuntimeException("Hall not found"));
+
+        hall.setStatus(VendorStatus.APPROVED);
+        hall.setRejectionReason(null);
+
+        return vendorHallRepository.save(hall);
+    }
+
+    public VendorHallDetails rejectHall(Long hallId, String reason) {
+
+        VendorHallDetails hall = vendorHallRepository.findById(hallId)
+                .orElseThrow(() -> new RuntimeException("Hall not found"));
+
+        hall.setStatus(VendorStatus.REJECTED);
+        hall.setRejectionReason(reason);
+
+        return vendorHallRepository.save(hall);
+    }
+
+    public List<VendorHallDetails> getPendingHalls() {
+
+        return vendorHallRepository.findByStatus(
+                VendorStatus.PENDING);
+    }
+
+    public VendorDjDetails approveDj(Long djId) {
+
+        VendorDjDetails dj = vendorDjRepository.findById(djId)
+                .orElseThrow(() -> new RuntimeException("DJ not found"));
+
+        dj.setStatus(VendorStatus.APPROVED);
+        dj.setRejectionReason(null);
+
+        return vendorDjRepository.save(dj);
+    }
+
+    public VendorDjDetails rejectDj(Long djId, String reason) {
+
+        VendorDjDetails dj = vendorDjRepository.findById(djId)
+                .orElseThrow(() -> new RuntimeException("DJ not found"));
+
+        dj.setStatus(VendorStatus.REJECTED);
+        dj.setRejectionReason(reason);
+
+        return vendorDjRepository.save(dj);
+    }
+
+    public List<VendorDjDetails> getPendingDj() {
+
+        return vendorDjRepository.findByStatus(
+                VendorStatus.PENDING);
+    }
+
+    public VendorCateringDetails approveCatering(Long cateringId) {
+        VendorCateringDetails catering = vendorCateringRepository.findById(cateringId)
+                .orElseThrow(() -> new RuntimeException("Catering not found"));
+
+        catering.setStatus(VendorStatus.APPROVED);
+        catering.setRejectionReason(null);
+        return vendorCateringRepository.save(catering);
+    }
+
+    public VendorCateringDetails rejectCatering(Long cateringId, String reason) {
+
+        VendorCateringDetails catering = vendorCateringRepository.findById(cateringId)
+                .orElseThrow(() -> new RuntimeException("Catering not found"));
+
+        catering.setStatus(VendorStatus.REJECTED);
+        catering.setRejectionReason(reason);
+
+        return vendorCateringRepository.save(catering);
+    }
+
+    public List<VendorCateringDetails> getPendingCatering() {
+
+        return vendorCateringRepository.findByStatus(
+                VendorStatus.PENDING);
+    }
 
 }
