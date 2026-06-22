@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { AuthProvider } from "@/features/auth/AuthProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Venue Aggregator",
-  description: "Find halls and event-service vendors for your next event."
+  title: {
+    default: "Venue Aggregator",
+    template: "%s | Venue Aggregator"
+  },
+  description: "Compare halls, availability, pricing, and verified customer reviews."
 };
 
 export default function RootLayout({
@@ -13,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><AuthProvider>{children}</AuthProvider></body>
     </html>
   );
 }
