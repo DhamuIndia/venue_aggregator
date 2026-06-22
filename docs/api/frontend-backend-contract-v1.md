@@ -1,0 +1,398 @@
+# Venue Aggregator API Contract v1
+
+This contract covers the current customer, hall owner, and admin UI. Spring Boot is the system of record; frontend mock data must be replaced without changing these response shapes.
+
+## Conventions
+
+- Base path: `/api/v1`
+- Content type: `application/json`
+- Authentication: `Authorization: Bearer <accessToken>`
+- Dates: `YYYY-MM-DD`; timestamps: ISO 8601 UTC
+- Currency: whole INR rupees as integers, for example `120000`
+- IDs: opaque strings; clients must not derive meaning from them
+- List responses use zero-based `page` and default `size=20`
+- Mutating requests accept `Idempotency-Key` when a retry could create duplicates
+
+### Roles
+
+`CUSTOMER`, `HALL_OWNER`, `VENDOR`, `ADMIN`, `SUPER_ADMIN`
+
+### Pagination
+
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0
+}
+```
+
+### Error response
+
+Use RFC 9457 problem details for every non-2xx response.
+
+```json
+{
+  "type": "https://venue.example/problems/validation-error",
+  "title": "Validation failed",
+  "status": 422,
+  "detail": "One or more fields are invalid.",
+  "instance": "/api/v1/public/enquiries",
+  "traceId": "01J...",
+  "fieldErrors": [{ "field": "eventDate", "message": "Date must be in the future" }]
+}
+```
+
+Expected statuses: `400`, `401`, `403`, `404`, `409`, `422`, `429`, and `500`.
+
+## Core Resources
+
+### User
+
+```json
+{
+  "id": "customer-101",
+  "fullName": "Priya Raman",
+  "phone": "9876543210",
+  "email": "priya@example.com",
+  "role": "CUSTOMER",
+  "status": "ACTIVE"
+}
+```
+
+User status: `ACTIVE`, `SUSPENDED`, `DEACTIVATED`.
+
+### Hall summary
+
+```json
+{
+  "id": "emerald-convention-centre",
+  "name": "Emerald Convention Centre",
+  "city": "Chennai",
+  "area": "ECR",
+  "capacity": 700,
+  "startingPrice": 120000,
+  "rating": 4.8,
+  "reviewCount": 126,
+  "coverImageUrl": "https://cdn.example.com/halls/emerald/cover.webp",
+  "venueType": "MARRIAGE_HALL",
+  "amenities": ["AIR_CONDITIONED", "PARKING", "DINING_HALL"],
+  "verified": true,
+  "availableThisMonth": true
+}
+```
+
+Venue type: `MARRIAGE_HALL`, `BANQUET_HALL`, `MINI_HALL`, `CONVENTION_CENTRE`.
+
+Hall listing status: `DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `REJECTED`, `SUSPENDED`.
+
+### Enquiry
+
+```json
+{
+  "id": "ENQ-022690",
+  "hallId": "emerald-convention-centre",
+  "hallName": "Emerald Convention Centre",
+  "customerId": "customer-101",
+  "eventDate": "2026-07-18",
+  "eventType": "Wedding",
+  "guestCount": 450,
+  "slot": "EVENING",
+  "notes": "Please share catering options.",
+  "status": "PENDING_OWNER_RESPONSE",
+  "submittedAt": "2026-06-22T10:30:00Z",
+  "updatedAt": "2026-06-22T10:30:00Z"
+}
+```
+
+Slots: `MORNING`, `EVENING`, `FULL_DAY`.
+
+Enquiry transitions:
+
+- `PENDING_OWNER_RESPONSE -> CONFIRMED | DECLINED`
+- `CONFIRMED -> COMPLETED` after the event or admin reconciliation
+- Terminal statuses are not changed by customers
+
+## Authentication
+
+| Method | Route | Auth | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/auth/register` | Public | Register customer or hall owner |
+| `POST` | `/auth/login` | Public | Create session |
+| `POST` | `/auth/refresh` | Refresh token | Rotate tokens |
+| `POST` | `/auth/logout` | User | Revoke refresh token |
+| `POST` | `/auth/forgot-password` | Public | Start reset flow |
+| `GET` | `/auth/me` | User | Return current user |
+
+Register request:
+
+```json
+{
+  "fullName": "Arun Kumar",
+  "phone": "9876501234",
+  "email": "arun@example.com",
+  "password": "secret-value",
+  "role": "HALL_OWNER"
+}
+```
+
+Login response:
+
+```json
+{
+  "accessToken": "jwt",
+  "refreshToken": "opaque-rotating-token",
+  "expiresInSeconds": 900,
+  "user": {
+    "id": "owner-201",
+    "fullName": "Arun Kumar",
+    "phone": "9876501234",
+    "role": "HALL_OWNER",
+    "status": "ACTIVE"
+  }
+}
+```
+
+## Public Hall Discovery
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/public/halls` | Search approved halls |
+| `GET` | `/public/halls/{hallId}` | Hall details, media, pricing, reviews |
+| `GET` | `/public/halls/{hallId}/availability?from=YYYY-MM-DD&to=YYYY-MM-DD` | Available, blocked, and booked slots |
+
+Search query parameters: `q`, `city`, `area`, `venueType`, `minCapacity`, `maxPrice`, `eventDate`, `slot`, `amenity`, `sort`, `page`, `size`.
+
+`sort`: `RELEVANCE`, `RATING_DESC`, `PRICE_ASC`, `CAPACITY_DESC`.
+
+Hall detail extends the summary with `description`, `address`, `pincode`, `gallery`, `pricing`, `ownerResponseRate`, and `listingStatus`.
+
+## Public Vendor Discovery
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/public/vendors` | Search approved vendor profiles |
+| `GET` | `/public/vendors/{vendorId}` | Vendor profile, services, packages, media, and reviews |
+| `POST` | `/public/vendor-leads` | Customer requests a quote |
+
+Vendor search query parameters: `q`, `city`, `area`, `category`, `maxPrice`, `verified`, `sort`, `page`, `size`.
+
+Vendor category: `CATERING`, `DECORATION`, `PHOTOGRAPHY`, `BRIDAL_MAKEUP`, `MUSIC_AND_DJ`, `EVENT_PLANNING`.
+
+Vendor listing status: `DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `REJECTED`, `SUSPENDED`.
+
+Create vendor lead request:
+
+```json
+{
+  "vendorId": "saffron-leaf-catering",
+  "eventDate": "2026-08-02",
+  "eventType": "Reception",
+  "location": "Velachery, Chennai",
+  "service": "Wedding catering",
+  "budget": 420000,
+  "notes": "Dinner for around 550 guests."
+}
+```
+
+The server derives customer and vendor identity. Return `201` with status `NEW`.
+
+## Customer APIs
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/public/enquiries` | Submit an authenticated enquiry |
+| `GET` | `/customer/enquiries` | Customer enquiry history |
+| `GET` | `/customer/enquiries/{enquiryId}` | Enquiry details and timeline |
+| `GET` | `/customer/saved-halls` | Saved halls |
+| `PUT` | `/customer/saved-halls/{hallId}` | Save a hall; idempotent |
+| `DELETE` | `/customer/saved-halls/{hallId}` | Remove saved hall |
+| `GET` | `/customer/review-eligibility?enquiryId={id}` | Verify completed service |
+| `POST` | `/customer/reviews` | Create a verified review |
+| `PUT` | `/customer/reviews/{reviewId}` | Edit own review |
+
+Create enquiry request:
+
+```json
+{
+  "hallId": "emerald-convention-centre",
+  "eventDate": "2026-07-18",
+  "eventType": "Wedding",
+  "guestCount": 450,
+  "slot": "EVENING",
+  "notes": "Please share catering options."
+}
+```
+
+The server derives `customerId`, `hallName`, status, and timestamps. Return `201` with the enquiry resource.
+
+Review eligibility response:
+
+```json
+{
+  "eligible": true,
+  "enquiryId": "ENQ-1884",
+  "hallId": "marigold-mini-hall",
+  "eventDate": "2026-05-10",
+  "reason": null
+}
+```
+
+Only the customer attached to a `COMPLETED` enquiry may review that hall. Enforce one active review per enquiry. Reviews created through this route have `verifiedService=true`.
+
+## Hall Owner APIs
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/owner/dashboard` | Summary counts and listing health |
+| `GET` | `/owner/halls` | Owner halls |
+| `POST` | `/owner/halls` | Create draft hall |
+| `GET` | `/owner/halls/{hallId}` | Owner-editable hall detail |
+| `PUT` | `/owner/halls/{hallId}` | Replace editable listing fields |
+| `POST` | `/owner/halls/{hallId}/submit` | Submit for admin approval |
+| `GET` | `/owner/halls/{hallId}/enquiries` | Hall enquiry inbox |
+| `PATCH` | `/owner/enquiries/{enquiryId}/status` | Confirm or decline enquiry |
+| `GET` | `/owner/halls/{hallId}/availability` | Calendar data |
+| `POST` | `/owner/halls/{hallId}/blocked-dates` | Block a slot |
+| `DELETE` | `/owner/halls/{hallId}/blocked-dates/{blockId}` | Remove owner block |
+| `POST` | `/owner/halls/{hallId}/media` | Save uploaded media metadata |
+| `PATCH` | `/owner/halls/{hallId}/media/{mediaId}` | Change caption, order, or cover |
+| `DELETE` | `/owner/halls/{hallId}/media/{mediaId}` | Remove media |
+| `GET` | `/owner/halls/{hallId}/reviews` | Hall reviews |
+
+Enquiry status request:
+
+```json
+{ "status": "CONFIRMED" }
+```
+
+Use optimistic locking (`version` field or `If-Match`) for enquiry status and listing edits. Return `409` when another actor already changed the resource.
+
+Blocked date request:
+
+```json
+{
+  "date": "2026-07-15",
+  "slot": "FULL_DAY",
+  "reason": "Maintenance"
+}
+```
+
+## Vendor APIs
+
+All routes require `VENDOR` and ownership of the vendor profile.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/vendor/dashboard` | Lead, booking, profile, and plan summary |
+| `GET` | `/vendor/profile` | Vendor-editable profile |
+| `PUT` | `/vendor/profile` | Replace business and service-area fields |
+| `POST` | `/vendor/profile/submit` | Submit profile for admin approval |
+| `GET` | `/vendor/packages` | Service packages |
+| `POST` | `/vendor/packages` | Create package |
+| `PUT` | `/vendor/packages/{packageId}` | Update package |
+| `DELETE` | `/vendor/packages/{packageId}` | Remove package |
+| `GET` | `/vendor/leads` | Vendor lead inbox |
+| `GET` | `/vendor/leads/{leadId}` | Lead detail |
+| `PATCH` | `/vendor/leads/{leadId}/status` | Update lead workflow |
+| `POST` | `/vendor/media` | Save uploaded media metadata |
+| `PATCH` | `/vendor/media/{mediaId}` | Change caption, order, or cover |
+| `DELETE` | `/vendor/media/{mediaId}` | Remove media |
+| `GET` | `/vendor/reviews` | Verified customer reviews |
+
+Vendor lead status: `NEW`, `CONTACTED`, `QUOTE_SENT`, `BOOKED`, `DECLINED`.
+
+Lead status request:
+
+```json
+{ "status": "QUOTE_SENT", "quotedAmount": 395000 }
+```
+
+Allowed transitions:
+
+- `NEW -> CONTACTED | QUOTE_SENT | DECLINED`
+- `CONTACTED -> QUOTE_SENT | BOOKED | DECLINED`
+- `QUOTE_SENT -> BOOKED | DECLINED`
+- `BOOKED` and `DECLINED` are terminal for the vendor
+
+### Vendor subscriptions
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/public/subscription-plans` | Active vendor plans |
+| `GET` | `/vendor/subscription` | Current plan and renewal state |
+| `POST` | `/vendor/subscription/orders` | Create a Razorpay order |
+| `POST` | `/vendor/subscription/verify` | Verify checkout signature |
+| `POST` | `/payments/razorpay/webhook` | Process signed payment events |
+
+The frontend sends only `planId` when creating an order. The backend owns plan pricing, creates the Razorpay order, validates signatures, handles idempotent webhooks, and activates the subscription only after a verified payment event.
+
+## Admin APIs
+
+All routes require `ADMIN` or `SUPER_ADMIN`. Every mutation writes an immutable audit event containing actor, action, resource, reason, previous state, new state, and timestamp.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/admin/dashboard` | Approval, report, and enquiry counts |
+| `GET` | `/admin/halls?status=PENDING_APPROVAL` | Hall moderation queue |
+| `GET` | `/admin/halls/{hallId}` | Submitted listing and documents |
+| `PATCH` | `/admin/halls/{hallId}/review` | Approve or reject hall |
+| `GET` | `/admin/vendors?status=PENDING_APPROVAL` | Vendor moderation queue |
+| `PATCH` | `/admin/vendors/{vendorId}/review` | Approve or reject vendor |
+| `GET` | `/admin/reviews?status=REPORTED` | Review moderation queue |
+| `PATCH` | `/admin/reviews/{reviewId}/moderation` | Publish, hide, or reject review |
+| `GET` | `/admin/enquiries` | Track enquiries across halls |
+| `GET` | `/admin/audit-events` | Search immutable audit history |
+
+Approval request:
+
+```json
+{
+  "decision": "APPROVED",
+  "reason": "All venue and ownership documents verified."
+}
+```
+
+Decision: `APPROVED`, `REJECTED`. A reason is required for rejection. Return the updated resource and `reviewedBy`, `reviewedAt`.
+
+Review moderation request:
+
+```json
+{
+  "status": "HIDDEN",
+  "reason": "Contains personal contact information."
+}
+```
+
+Review status: `PENDING`, `PUBLISHED`, `REPORTED`, `HIDDEN`, `REJECTED`.
+
+## Upload Contract
+
+Do not send large media through the Spring application.
+
+1. `POST /uploads/presign` with `fileName`, `contentType`, `sizeBytes`, and `purpose`.
+2. API returns `uploadUrl`, `storageKey`, required headers, and expiry.
+3. Frontend uploads directly to object storage.
+4. Frontend saves `storageKey`, media type, caption, and sort order through the owner media endpoint.
+
+Allowed image formats: JPEG, PNG, WebP. The backend must validate MIME type, size, ownership, and storage key before accepting metadata.
+
+## Integration Rules
+
+- CORS allows the configured frontend origins and required authorization/idempotency headers.
+- Never trust `customerId`, `ownerId`, roles, listing status, review verification, or totals supplied by the client.
+- Return field validation errors using JSON property names used in this contract.
+- Publish OpenAPI docs at `/v3/api-docs` and Swagger UI at `/swagger-ui.html` in non-production environments.
+- Seed development accounts for each role; never enable demo authentication in production.
+- Notify customers after owner status changes and owners after new enquiries. Notification delivery may be asynchronous, but the API write must succeed independently.
+
+## Frontend Integration Order
+
+1. Authentication and `/auth/me`
+2. Public hall search and detail
+3. Customer enquiry creation and history
+4. Owner listing, enquiries, and calendar
+5. Admin approval and moderation
+6. Media uploads, reviews, and notifications

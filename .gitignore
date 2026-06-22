@@ -11,6 +11,7 @@ apps/frontend/.next/
 apps/frontend/node_modules/
 apps/frontend/out/
 apps/frontend/.turbo/
+apps/frontend/*.tsbuildinfo
 
 # Backend
 apps/backend/target/
