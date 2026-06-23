@@ -7,37 +7,64 @@ import {
   Building2,
   Check,
   ImagePlus,
+  LoaderCircle,
   MapPin,
   UploadCloud,
   UsersRound
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/features/auth/AuthProvider";
 import { ownerHall } from "@/features/owner/mock-data";
+import { emptyOwnerOnboardingDraft, getOwnerOnboardingDraft, saveOwnerOnboardingDraft, submitOwnerOnboardingDraft, type OwnerOnboardingDraft } from "@/features/owner/onboarding-client";
 
 const steps = ["Venue details", "Facilities & pricing", "Photos", "Review"];
 const amenityOptions = ["Air conditioned", "Parking", "Dining hall", "Guest rooms", "Lift", "Generator", "Bridal room", "Catering kitchen"];
 
 export function OwnerOnboarding() {
+  const { accessToken } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [draftId, setDraftId] = useState<string | undefined>();
+  const [isLoadingDraft, setIsLoadingDraft] = useState(true);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [fileNames, setFileNames] = useState<string[]>([]);
-  const [amenities, setAmenities] = useState<string[]>(["Air conditioned", "Parking", "Dining hall"]);
-  const [form, setForm] = useState({
-    hallName: "",
-    venueType: "Marriage Hall",
-    description: "",
-    city: "Chennai",
-    area: "",
-    pincode: "",
-    capacity: "",
-    morningPrice: "",
-    eveningPrice: "",
-    fullDayPrice: ""
-  });
+  const [amenities, setAmenities] = useState<string[]>(emptyOwnerOnboardingDraft.amenities);
+  const [form, setForm] = useState(formFromDraft(emptyOwnerOnboardingDraft));
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadDraft() {
+      setIsLoadingDraft(true);
+      setError("");
+
+      try {
+        const draft = await getOwnerOnboardingDraft(accessToken);
+        if (!isCurrent) return;
+        setDraftId(draft.id);
+        setForm(formFromDraft(draft));
+        setAmenities(draft.amenities.length ? draft.amenities : emptyOwnerOnboardingDraft.amenities);
+        if (draft.status === "PENDING_APPROVAL") setNotice("This venue listing is already submitted for admin approval.");
+      } catch {
+        if (!isCurrent) return;
+        setError("Could not load saved venue draft.");
+      } finally {
+        if (isCurrent) setIsLoadingDraft(false);
+      }
+    }
+
+    loadDraft();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
 
   function updateField(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -45,6 +72,7 @@ export function OwnerOnboarding() {
   }
 
   function toggleAmenity(amenity: string) {
+    setError("");
     setAmenities((current) => current.includes(amenity) ? current.filter((item) => item !== amenity) : [...current, amenity]);
   }
 
@@ -61,13 +89,37 @@ export function OwnerOnboarding() {
     setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
-  function submitListing() {
+  async function saveDraft() {
+    try {
+      setError("");
+      setNotice("");
+      setIsSavingDraft(true);
+      const draft = await saveOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), accessToken);
+      setDraftId(draft.id);
+      setNotice("Draft saved.");
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "Could not save venue draft.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  async function submitListing() {
     if (!confirmed) {
       setError("Confirm that you are authorized to manage this venue.");
       return;
     }
-    window.localStorage.setItem("venue-owner-onboarding", JSON.stringify({ ...form, amenities, status: "PENDING_APPROVAL" }));
-    router.push("/owner?submitted=true");
+    try {
+      setError("");
+      setNotice("");
+      setIsSubmitting(true);
+      await submitOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), accessToken);
+      router.push("/owner?submitted=true");
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "Could not submit venue for approval.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -90,6 +142,8 @@ export function OwnerOnboarding() {
         </nav>
 
         <section className="rounded-lg border border-border bg-white p-5 shadow-sm sm:p-7">
+          {isLoadingDraft && <div className="mb-6 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-1/2 animate-pulse rounded-full bg-primary" /></div>}
+          {notice && <p className="mb-6 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700" role="status">{notice}</p>}
           {step === 0 && (
             <div><div className="flex items-center gap-3"><Building2 className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Venue details</h2><p className="mt-1 text-sm text-muted-foreground">Basic information customers will see.</p></div></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("hallName", e.target.value)} placeholder="e.g. Emerald Convention Centre" value={form.hallName} /></label><label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("venueType", e.target.value)} value={form.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label><label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><UsersRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" min="1" onChange={(e) => updateField("capacity", e.target.value)} placeholder="Guest capacity" type="number" value={form.capacity} /></span></label><label className="text-sm font-medium">City<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("city", e.target.value)} value={form.city}><option>Chennai</option><option>Coimbatore</option><option>Madurai</option><option>Bengaluru</option></select></label><label className="text-sm font-medium">Area<span className="relative mt-2 block"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("area", e.target.value)} placeholder="Locality or area" value={form.area} /></span></label><label className="text-sm font-medium">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(e) => updateField("pincode", e.target.value)} placeholder="6-digit pincode" value={form.pincode} /></label><label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(e) => updateField("description", e.target.value)} placeholder="Describe the venue, event spaces, and what makes it suitable for celebrations." value={form.description} /></label></div></div>
           )}
@@ -107,9 +161,42 @@ export function OwnerOnboarding() {
           )}
 
           {error && <p className="mt-6 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
-          <div className="mt-8 flex items-center justify-between border-t border-border pt-5"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-medium disabled:opacity-40" disabled={step === 0} onClick={() => setStep((current) => current - 1)}><ArrowLeft size={16} /> Back</button>{step < steps.length - 1 ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={continueStep}>Continue <ArrowRight size={16} /></button> : <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!confirmed} onClick={submitListing}>Submit for approval <BadgeCheck size={17} /></button>}</div>
+          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-medium disabled:opacity-40" disabled={step === 0 || isSavingDraft || isSubmitting} onClick={() => setStep((current) => current - 1)}><ArrowLeft size={16} /> Back</button><div className="flex flex-wrap gap-2"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={isLoadingDraft || isSavingDraft || isSubmitting} onClick={saveDraft}>{isSavingDraft && <LoaderCircle className="animate-spin" size={16} />} Save draft</button>{step < steps.length - 1 ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={isLoadingDraft || isSubmitting} onClick={continueStep}>Continue <ArrowRight size={16} /></button> : <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!confirmed || isSubmitting} onClick={submitListing}>{isSubmitting ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit for approval</button>}</div></div>
         </section>
       </div>
     </main>
   );
+}
+
+function formFromDraft(draft: OwnerOnboardingDraft) {
+  return {
+    hallName: draft.hallName,
+    venueType: draft.venueType,
+    description: draft.description,
+    city: draft.city,
+    area: draft.area,
+    pincode: draft.pincode,
+    capacity: draft.capacity ? String(draft.capacity) : "",
+    morningPrice: draft.morningPrice ? String(draft.morningPrice) : "",
+    eveningPrice: draft.eveningPrice ? String(draft.eveningPrice) : "",
+    fullDayPrice: draft.fullDayPrice ? String(draft.fullDayPrice) : ""
+  };
+}
+
+function draftFromForm(form: ReturnType<typeof formFromDraft>, amenities: string[], id?: string): OwnerOnboardingDraft {
+  return {
+    id,
+    hallName: form.hallName.trim(),
+    venueType: form.venueType,
+    description: form.description.trim(),
+    city: form.city,
+    area: form.area.trim(),
+    pincode: form.pincode.trim(),
+    capacity: Number(form.capacity) || 0,
+    morningPrice: Number(form.morningPrice) || 0,
+    eveningPrice: Number(form.eveningPrice) || 0,
+    fullDayPrice: Number(form.fullDayPrice) || 0,
+    amenities,
+    status: "DRAFT"
+  };
 }

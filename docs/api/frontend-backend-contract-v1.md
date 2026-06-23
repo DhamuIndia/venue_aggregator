@@ -357,6 +357,36 @@ Return `403` when the enquiry does not belong to the logged-in customer, `409` w
 | `DELETE` | `/owner/halls/{hallId}/media/{mediaId}` | Remove media |
 | `GET` | `/owner/halls/{hallId}/reviews` | Hall reviews |
 
+Create/update owner hall request:
+
+```json
+{
+  "name": "Pearl Grand Hall",
+  "hallName": "Pearl Grand Hall",
+  "venueType": "MARRIAGE_HALL",
+  "description": "Spacious wedding venue with dining and parking.",
+  "city": "Chennai",
+  "area": "Velachery",
+  "pincode": "600042",
+  "capacity": 850,
+  "capacityMax": 850,
+  "startingPrice": 145000,
+  "pricing": {
+    "morningPrice": 75000,
+    "eveningPrice": 90000,
+    "fullDayPrice": 145000
+  },
+  "amenities": ["Air conditioned", "Parking", "Dining hall"],
+  "acAvailable": true,
+  "carParking": true,
+  "diningAvailable": true,
+  "generatorAvailable": true,
+  "liftAvailable": false
+}
+```
+
+`POST /owner/halls` creates a draft and returns the saved listing with `id`, `status=DRAFT`, and `updatedAt`. `PUT /owner/halls/{hallId}` updates the draft. `POST /owner/halls/{hallId}/submit` validates the latest draft and returns `status=PENDING_APPROVAL`.
+
 Enquiry status request:
 
 ```json
