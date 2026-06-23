@@ -15,7 +15,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EnquiryPanel } from "@/components/enquiries/EnquiryPanel";
 import { SiteHeader } from "@/components/layout/SiteHeader";
-import { getHallById, halls } from "@/features/halls/mock-data";
+import { getPublicHall } from "@/features/halls/hall-client";
+import { halls } from "@/features/halls/mock-data";
 
 type HallDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -27,7 +28,7 @@ export function generateStaticParams() {
 
 export default async function HallDetailPage({ params }: HallDetailPageProps) {
   const { id } = await params;
-  const hall = getHallById(id);
+  const hall = await getPublicHall(id);
 
   if (!hall) notFound();
 

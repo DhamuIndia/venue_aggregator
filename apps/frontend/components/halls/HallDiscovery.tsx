@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  LoaderCircle,
   Map,
   MapPin,
   RotateCcw,
@@ -9,12 +10,11 @@ import {
   SlidersHorizontal,
   UsersRound
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { halls } from "@/features/halls/mock-data";
-import type { VenueType } from "@/features/halls/types";
+import { useEffect, useState } from "react";
+import { searchPublicHalls, type HallSort } from "@/features/halls/hall-client";
+import type { HallSummary, VenueType } from "@/features/halls/types";
 import { HallCard } from "./HallCard";
 
-type SortOption = "recommended" | "rating" | "price-low";
 type TypeFilter = "All venues" | VenueType;
 
 const venueTypes: TypeFilter[] = [
@@ -29,25 +29,48 @@ export function HallDiscovery() {
   const [date, setDate] = useState("");
   const [guests, setGuests] = useState(0);
   const [venueType, setVenueType] = useState<TypeFilter>("All venues");
-  const [sort, setSort] = useState<SortOption>("recommended");
+  const [sort, setSort] = useState<HallSort>("recommended");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [results, setResults] = useState<HallSummary[]>([]);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filteredHalls = useMemo(() => {
-    const query = location.trim().toLowerCase();
-    const matches = halls.filter((hall) => {
-      const matchesLocation =
-        !query ||
-        `${hall.name} ${hall.city} ${hall.area}`.toLowerCase().includes(query);
-      const matchesGuests = guests === 0 || hall.capacity >= guests;
-      const matchesType = venueType === "All venues" || hall.venueType === venueType;
-      return matchesLocation && matchesGuests && matchesType;
-    });
+  useEffect(() => {
+    let isCurrent = true;
 
-    return [...matches].sort((first, second) => {
-      if (sort === "rating") return second.rating - first.rating;
-      if (sort === "price-low") return first.startingPrice - second.startingPrice;
-      return Number(second.isVerified) - Number(first.isVerified) || second.rating - first.rating;
-    });
-  }, [guests, location, sort, venueType]);
+    async function loadHalls() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const response = await searchPublicHalls({
+          q: location.trim() || undefined,
+          eventDate: date || undefined,
+          minCapacity: guests || undefined,
+          venueType: venueType === "All venues" ? undefined : venueType,
+          sort
+        });
+
+        if (!isCurrent) return;
+        setResults(response.halls);
+        setTotal(response.total);
+      } catch {
+        if (!isCurrent) return;
+        setResults([]);
+        setTotal(0);
+        setError("Could not load venues. Please try again.");
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    }
+
+    loadHalls();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [date, guests, location, refreshKey, sort, venueType]);
 
   function resetFilters() {
     setLocation("");
@@ -55,6 +78,7 @@ export function HallDiscovery() {
     setGuests(0);
     setVenueType("All venues");
     setSort("recommended");
+    setRefreshKey((value) => value + 1);
   }
 
   return (
@@ -111,8 +135,13 @@ export function HallDiscovery() {
                 />
               </span>
             </label>
-            <button className="m-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-white hover:bg-primary/90">
-              <Search aria-hidden="true" size={18} />
+            <button
+              className="m-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+              disabled={isLoading}
+              onClick={() => setRefreshKey((value) => value + 1)}
+              type="button"
+            >
+              {isLoading ? <LoaderCircle aria-hidden="true" className="animate-spin" size={18} /> : <Search aria-hidden="true" size={18} />}
               Search
             </button>
           </div>
@@ -148,7 +177,7 @@ export function HallDiscovery() {
         <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold text-foreground">
-              {filteredHalls.length} {filteredHalls.length === 1 ? "venue" : "venues"} found
+              {total} {total === 1 ? "venue" : "venues"} found
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Verified listings with transparent starting prices
@@ -161,12 +190,13 @@ export function HallDiscovery() {
               <select
                 aria-label="Sort venues"
                 className="bg-transparent font-medium outline-none"
-                onChange={(event) => setSort(event.target.value as SortOption)}
+                onChange={(event) => setSort(event.target.value as HallSort)}
                 value={sort}
               >
                 <option value="recommended">Recommended</option>
                 <option value="rating">Top rated</option>
                 <option value="price-low">Price: low to high</option>
+                <option value="capacity">Capacity: high to low</option>
               </select>
             </label>
             <button
@@ -179,9 +209,29 @@ export function HallDiscovery() {
           </div>
         </div>
 
-        {filteredHalls.length > 0 ? (
+        {error && (
+          <p className="mt-5 rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">
+            {error}
+          </p>
+        )}
+
+        {isLoading ? (
+          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-label="Loading venues">
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+              <div className="overflow-hidden rounded-lg border border-border bg-white shadow-sm" key={item}>
+                <div className="aspect-[4/3] animate-pulse bg-muted" />
+                <div className="space-y-3 p-4">
+                  <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+                  <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
+                  <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+                  <div className="h-10 animate-pulse rounded bg-muted" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : results.length > 0 ? (
           <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredHalls.map((hall) => (
+            {results.map((hall) => (
               <HallCard hall={hall} key={hall.id} />
             ))}
           </div>
