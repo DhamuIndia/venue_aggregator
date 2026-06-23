@@ -1,10 +1,13 @@
 package com.staminal.venue.auth.service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
+
 import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -12,53 +15,76 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtService {
 
-        @Value("${jwt.secret}")
-        private String secret;
+    private static final String ACCESS_TOKEN = "access";
+    private static final String REFRESH_TOKEN = "refresh";
 
-        private SecretKey getKey() {
-                return Keys.hmacShaKeyFor(
-                                secret.getBytes());
-        }
+    private final SecretKey key;
+    private final long accessExpirationMs;
+    private final long refreshExpirationMs;
 
-        public String generateToken(String email, String role) {
+    public JwtService(
+            @Value("${jwt.secret}") String secret,
+            @Value("${jwt.access-token-expiration-ms:900000}") long accessExpirationMs,
+            @Value("${jwt.refresh-token-expiration-ms:604800000}") long refreshExpirationMs) {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.accessExpirationMs = accessExpirationMs;
+        this.refreshExpirationMs = refreshExpirationMs;
+    }
 
-                return Jwts.builder()
-                                .subject(email)
-                                .claim("role", role)
-                                .issuedAt(new Date())
-                                .expiration(
-                                                new Date(System.currentTimeMillis()
-                                                                + 86400000))
-                                .signWith(getKey())
-                                .compact();
-        }
+    public String generateAccessToken(Long userId, String role) {
+        return buildToken(userId.toString(), role, ACCESS_TOKEN, accessExpirationMs);
+    }
 
-        public String extractEmail(String token) {
+    public String generateRefreshToken(Long userId, String role) {
+        return buildToken(userId.toString(), role, REFRESH_TOKEN, refreshExpirationMs);
+    }
 
-                return Jwts.parser()
-                                .verifyWith(getKey())
-                                .build()
-                                .parseSignedClaims(token)
-                                .getPayload()
-                                .getSubject();
-        }
+    // Retained while the existing vendor and admin login modules migrate to unified users.
+    public String generateToken(String identity, String role) {
+        return buildToken(identity, role, ACCESS_TOKEN, accessExpirationMs);
+    }
 
-        private Claims extractAllClaims(String token) {
+    public String extractSubject(String token) {
+        return extractAllClaims(token).getSubject();
+    }
 
-                return Jwts.parser()
-                                .verifyWith(getKey())
-                                .build()
-                                .parseSignedClaims(token)
-                                .getPayload();
-        }
+    public String extractEmail(String token) {
+        return extractSubject(token);
+    }
 
-        public String extractRole(
-                        String token) {
+    public String extractRole(String token) {
+        return extractAllClaims(token).get("role", String.class);
+    }
 
-                Claims claims = extractAllClaims(token);
+    public boolean isAccessToken(String token) {
+        return ACCESS_TOKEN.equals(extractAllClaims(token).get("tokenType", String.class));
+    }
 
-                return claims.get(
-                                "role",
-                                String.class);
-        }
+    public boolean isRefreshToken(String token) {
+        return REFRESH_TOKEN.equals(extractAllClaims(token).get("tokenType", String.class));
+    }
+
+    public long getAccessExpirationSeconds() {
+        return accessExpirationMs / 1000;
+    }
+
+    private String buildToken(String subject, String role, String tokenType, long expirationMs) {
+        Date issuedAt = new Date();
+        return Jwts.builder()
+                .subject(subject)
+                .claim("role", role)
+                .claim("tokenType", tokenType)
+                .issuedAt(issuedAt)
+                .expiration(new Date(issuedAt.getTime() + expirationMs))
+                .signWith(key)
+                .compact();
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
 }

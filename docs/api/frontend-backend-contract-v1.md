@@ -122,7 +122,7 @@ Enquiry transitions:
 | `POST` | `/auth/register` | Public | Register customer or hall owner |
 | `POST` | `/auth/login` | Public | Create session |
 | `POST` | `/auth/refresh` | Refresh token | Rotate tokens |
-| `POST` | `/auth/logout` | User | Revoke refresh token |
+| `POST` | `/auth/logout` | User | Client logout for now; backend can revoke refresh token after token storage is added |
 | `POST` | `/auth/forgot-password` | Public | Start reset flow |
 | `GET` | `/auth/me` | User | Return current user |
 
@@ -143,7 +143,7 @@ Login response:
 ```json
 {
   "accessToken": "jwt",
-  "refreshToken": "opaque-rotating-token",
+  "refreshToken": "jwt-refresh-token",
   "expiresInSeconds": 900,
   "user": {
     "id": "owner-201",

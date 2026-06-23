@@ -1,14 +1,17 @@
 package com.staminal.venue.auth;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import java.util.List;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import com.staminal.venue.auth.service.JwtService;
+
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,24 +34,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String authHeader = request.getHeader("Authorization");
 
                 if (authHeader != null
-                                && authHeader.startsWith("Bearer ")) {
+                                && authHeader.startsWith("Bearer ")
+                                && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                         String token = authHeader.substring(7);
-                        String email = jwtService.extractEmail(token);
-                        String role = jwtService.extractRole(token);
+                        try {
+                                if (jwtService.isAccessToken(token)) {
+                                        String subject = jwtService.extractSubject(token);
+                                        String role = jwtService.extractRole(token);
 
-                        List<SimpleGrantedAuthority> authorities = List.of(
-                                        new SimpleGrantedAuthority(
-                                                        "ROLE_" + role));
+                                        List<SimpleGrantedAuthority> authorities = List.of(
+                                                        new SimpleGrantedAuthority("ROLE_" + role));
 
-                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                                        email,
-                                        null,
-                                        authorities);
+                                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                                        subject,
+                                                        null,
+                                                        authorities);
 
-                        SecurityContextHolder
-                                        .getContext()
-                                        .setAuthentication(authentication);
+                                        SecurityContextHolder
+                                                        .getContext()
+                                                        .setAuthentication(authentication);
+                                }
+                        } catch (JwtException | IllegalArgumentException exception) {
+                                SecurityContextHolder.clearContext();
+                        }
                 }
 
                 filterChain.doFilter(request, response);

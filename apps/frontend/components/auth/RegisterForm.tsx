@@ -19,8 +19,8 @@ export function RegisterForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (!form.fullName.trim() || form.phone.replace(/\D/g, "").length < 10 || form.password.length < 6 || !accepted) {
-      setError("Complete the required fields and accept the terms.");
+    if (!form.fullName.trim() || form.phone.replace(/\D/g, "").length < 10 || form.password.length < 8 || !accepted) {
+      setError("Complete the required fields, use an 8-character password, and accept the terms.");
       return;
     }
 
@@ -28,8 +28,8 @@ export function RegisterForm() {
       setIsSubmitting(true);
       await register(form);
       router.push(form.role === "VENDOR" ? "/vendor/onboarding" : form.role === "HALL_OWNER" ? "/owner/onboarding" : "/customer");
-    } catch {
-      setError("We could not create your account. Please try again.");
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "We could not create your account. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -45,7 +45,7 @@ export function RegisterForm() {
       <label className="text-sm font-medium">Full name<input autoComplete="name" className="mt-2 h-11 w-full rounded-md border border-border px-3 outline-none focus:border-primary" onChange={(e) => updateField("fullName", e.target.value)} placeholder="Your full name" value={form.fullName} /></label>
       <label className="text-sm font-medium">Mobile number<input autoComplete="tel" className="mt-2 h-11 w-full rounded-md border border-border px-3 outline-none focus:border-primary" inputMode="tel" onChange={(e) => updateField("phone", e.target.value)} placeholder="10-digit mobile number" value={form.phone} /></label>
       <label className="text-sm font-medium">Email <span className="font-normal text-muted-foreground">(optional)</span><input autoComplete="email" className="mt-2 h-11 w-full rounded-md border border-border px-3 outline-none focus:border-primary" onChange={(e) => updateField("email", e.target.value)} placeholder="you@example.com" type="email" value={form.email} /></label>
-      <label className="text-sm font-medium">Password<span className="relative mt-2 block"><input autoComplete="new-password" className="h-11 w-full rounded-md border border-border px-3 pr-11 outline-none focus:border-primary" onChange={(e) => updateField("password", e.target.value)} placeholder="At least 6 characters" type={showPassword ? "text" : "password"} value={form.password} /><button aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center text-muted-foreground" onClick={() => setShowPassword((value) => !value)} type="button">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>
+      <label className="text-sm font-medium">Password<span className="relative mt-2 block"><input autoComplete="new-password" className="h-11 w-full rounded-md border border-border px-3 pr-11 outline-none focus:border-primary" onChange={(e) => updateField("password", e.target.value)} placeholder="At least 8 characters" type={showPassword ? "text" : "password"} value={form.password} /><button aria-label={showPassword ? "Hide password" : "Show password"} className="absolute right-1 top-1/2 grid size-9 -translate-y-1/2 place-items-center text-muted-foreground" onClick={() => setShowPassword((value) => !value)} type="button">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>
       <label className="flex items-start gap-3 text-sm text-muted-foreground"><input checked={accepted} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(e) => setAccepted(e.target.checked)} type="checkbox" /><span>I agree to the terms and privacy policy.</span></label>
       {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
       <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:opacity-60" disabled={isSubmitting} type="submit">{isSubmitting && <LoaderCircle className="animate-spin" size={18} />}Create account</button>

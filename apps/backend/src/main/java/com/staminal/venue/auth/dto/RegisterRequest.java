@@ -1,41 +1,20 @@
 package com.staminal.venue.auth.dto;
 
-public class RegisterRequest {
-    private String fullName;
-    private String email;
-    private String password;
-    private String phone;
+import com.staminal.venue.enums.UserRole;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
-    public String getFullName() {
-        return fullName;
-    }
-
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
+public record RegisterRequest(
+        @NotBlank(message = "Full name is required")
+        @Size(max = 160, message = "Full name must be at most 160 characters") String fullName,
+        @NotBlank(message = "Phone is required")
+        @Pattern(regexp = "^[0-9+() -]{10,20}$", message = "Enter a valid phone number") String phone,
+        @Email(message = "Enter a valid email address")
+        @Size(max = 255, message = "Email must be at most 255 characters") String email,
+        @NotBlank(message = "Password is required")
+        @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters") String password,
+        @NotNull(message = "Role is required") UserRole role) {
 }

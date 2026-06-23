@@ -8,13 +8,18 @@ import {
   useState,
   type ReactNode
 } from "react";
-import { loginCustomer, loginDemo, registerCustomer } from "./auth-client";
-import type { AuthRole, AuthUser, LoginPayload, RegisterPayload } from "./types";
+import {
+  getCurrentUser,
+  isMockAuthMode,
+  loginCustomer,
+  loginDemo,
+  logoutSession,
+  refreshSession,
+  registerCustomer
+} from "./auth-client";
+import type { AuthRole, AuthSession, AuthUser, LoginPayload, RegisterPayload } from "./types";
 
-type StoredSession = {
-  token: string;
-  user: AuthUser;
-};
+type StoredSession = AuthSession;
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -33,17 +38,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const value = window.localStorage.getItem(SESSION_KEY);
-      if (value) setUser((JSON.parse(value) as StoredSession).user);
-    } finally {
-      setIsLoading(false);
+    let isMounted = true;
+
+    async function hydrate() {
+      try {
+        const storedSession = getStoredSession();
+        if (!storedSession) return;
+
+        if (isMockAuthMode()) {
+          if (isMounted) setUser(storedSession.user);
+          return;
+        }
+
+        const activeSession = await ensureFreshSession(storedSession);
+        const currentUser = await getCurrentUser(activeSession.accessToken);
+        if (!isMounted) return;
+        saveSession({ ...activeSession, user: currentUser });
+      } catch {
+        window.localStorage.removeItem(SESSION_KEY);
+        if (isMounted) setUser(null);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
     }
+
+    hydrate();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  async function ensureFreshSession(session: StoredSession) {
+    const expiresSoon = session.expiresAt <= Date.now() + 30_000;
+    return expiresSoon ? refreshSession(session.refreshToken) : session;
+  }
 
   function saveSession(session: StoredSession) {
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setUser(session.user);
+  }
+
+  function clearSession() {
+    window.localStorage.removeItem(SESSION_KEY);
+    setUser(null);
+  }
+
+  function getStoredSession() {
+    try {
+      const value = window.localStorage.getItem(SESSION_KEY);
+      return value ? JSON.parse(value) as StoredSession : null;
+    } catch {
+      return null;
+    }
   }
 
   const value = useMemo<AuthContextValue>(
@@ -54,8 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginDemo: async (role) => saveSession(await loginDemo(role)),
       register: async (payload) => saveSession(await registerCustomer(payload)),
       logout: () => {
-        window.localStorage.removeItem(SESSION_KEY);
-        setUser(null);
+        const session = getStoredSession();
+        if (session && !isMockAuthMode()) {
+          void logoutSession(session.accessToken).catch(() => undefined);
+        }
+        clearSession();
       }
     }),
     [isLoading, user]

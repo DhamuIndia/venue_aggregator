@@ -1,23 +1,10 @@
 package com.staminal.venue.auth.dto;
 
-public class LoginRequest {
-    private String phone;
-    private String password;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
+public record LoginRequest(
+        @NotBlank(message = "Phone is required") String phone,
+        @NotBlank(message = "Password is required")
+        @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters") String password) {
 }

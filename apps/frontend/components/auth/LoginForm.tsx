@@ -20,8 +20,8 @@ export function LoginForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (phone.replace(/\D/g, "").length < 10 || password.length < 6) {
-      setError("Enter a valid phone number and password.");
+    if (phone.replace(/\D/g, "").length < 10 || password.length < 8) {
+      setError("Enter a valid phone number and an 8-character password.");
       return;
     }
 
@@ -33,8 +33,8 @@ export function LoginForm() {
         ? nextPath as Route
         : "/customer";
       router.push(destination);
-    } catch {
-      setError("We could not sign you in. Please check your details.");
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "We could not sign you in. Please check your details.");
     } finally {
       setIsSubmitting(false);
     }

@@ -1,7 +1,9 @@
 package com.staminal.venue.enums;
 
 public enum UserRole {
-    ADMIN,
+    CUSTOMER,
+    HALL_OWNER,
     VENDOR,
-    USER
+    ADMIN,
+    SUPER_ADMIN
 }
