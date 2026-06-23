@@ -14,10 +14,12 @@ import {
   LoaderCircle,
   MapPin,
   MessageSquareText,
+  Pencil,
   Plus,
   Send,
   Sparkles,
   Store,
+  Trash2,
   X
 } from "lucide-react";
 import Image from "next/image";
@@ -25,8 +27,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-client";
+import { createVendorPackage, deleteVendorPackage, getVendorPackages, updateVendorPackage, type VendorPackagePayload } from "@/features/vendors/package-client";
 import { createSubscriptionOrder, fallbackSubscriptionPlans, fallbackVendorSubscription, getSubscriptionPlans, getVendorSubscription, type SubscriptionPlan, type VendorSubscription } from "@/features/vendors/subscription-client";
-import type { VendorLead, VendorLeadStatus } from "@/features/vendors/types";
+import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/vendors/types";
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
 
 type VendorTab = "overview" | "leads" | "services" | "portfolio" | "subscription";
@@ -63,6 +66,17 @@ function subscriptionStatusLabel(status: VendorSubscription["status"]) {
   return status.toLowerCase().replaceAll("_", " ");
 }
 
+const emptyPackageForm = { name: "", description: "", price: "", includes: "" };
+
+function packagePayload(form: typeof emptyPackageForm): VendorPackagePayload {
+  return {
+    name: form.name.trim(),
+    description: form.description.trim(),
+    price: Number(form.price) || 0,
+    includes: form.includes.split(",").map((item) => item.trim()).filter(Boolean)
+  };
+}
+
 export function VendorDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<VendorTab>("overview");
@@ -77,6 +91,14 @@ export function VendorDashboard() {
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
   const [subscriptionError, setSubscriptionError] = useState("");
   const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
+  const [packages, setPackages] = useState<VendorPackage[]>(workspaceVendor.packages);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(true);
+  const [packagesError, setPackagesError] = useState("");
+  const [isPackageEditorOpen, setIsPackageEditorOpen] = useState(false);
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+  const [packageForm, setPackageForm] = useState(emptyPackageForm);
+  const [savingPackageId, setSavingPackageId] = useState<string | null>(null);
+  const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
 
   useEffect(() => {
     let isCurrent = true;
@@ -99,6 +121,33 @@ export function VendorDashboard() {
     }
 
     loadLeads();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadPackages() {
+      setIsLoadingPackages(true);
+      setPackagesError("");
+
+      try {
+        const response = await getVendorPackages(accessToken);
+        if (!isCurrent) return;
+        setPackages(response.packages);
+      } catch {
+        if (!isCurrent) return;
+        setPackages(workspaceVendor.packages);
+        setPackagesError("Could not load packages.");
+      } finally {
+        if (isCurrent) setIsLoadingPackages(false);
+      }
+    }
+
+    loadPackages();
 
     return () => {
       isCurrent = false;
@@ -158,6 +207,61 @@ export function VendorDashboard() {
     setNotice(`${files.length} portfolio image${files.length === 1 ? "" : "s"} added.`);
   }
 
+  function openPackageEditor(packageItem?: VendorPackage) {
+    setPackagesError("");
+    setEditingPackageId(packageItem?.id ?? null);
+    setPackageForm(packageItem ? {
+      name: packageItem.name,
+      description: packageItem.description,
+      price: String(packageItem.price),
+      includes: packageItem.includes.join(", ")
+    } : emptyPackageForm);
+    setIsPackageEditorOpen(true);
+  }
+
+  function closePackageEditor() {
+    setIsPackageEditorOpen(false);
+    setEditingPackageId(null);
+    setPackageForm(emptyPackageForm);
+    setPackagesError("");
+  }
+
+  async function savePackage() {
+    const payload = packagePayload(packageForm);
+    if (!payload.name || payload.price < 1) {
+      setPackagesError("Add a package name and valid price.");
+      return;
+    }
+
+    try {
+      setSavingPackageId(editingPackageId ?? "new");
+      const savedPackage = editingPackageId
+        ? await updateVendorPackage(editingPackageId, payload, accessToken)
+        : await createVendorPackage(payload, accessToken);
+      setPackages((current) => editingPackageId ? current.map((item) => item.id === editingPackageId ? savedPackage : item) : [savedPackage, ...current]);
+      setNotice(editingPackageId ? "Package updated." : "Package added.");
+      closePackageEditor();
+    } catch (exception) {
+      setPackagesError(exception instanceof Error ? exception.message : "Could not save package.");
+    } finally {
+      setSavingPackageId(null);
+    }
+  }
+
+  async function removePackage(packageId: string) {
+    if (!window.confirm("Delete this package?")) return;
+    try {
+      setDeletingPackageId(packageId);
+      await deleteVendorPackage(packageId, accessToken);
+      setPackages((current) => current.filter((item) => item.id !== packageId));
+      setNotice("Package deleted.");
+    } catch (exception) {
+      setPackagesError(exception instanceof Error ? exception.message : "Could not delete package.");
+    } finally {
+      setDeletingPackageId(null);
+    }
+  }
+
   async function chooseSubscription(planId: string) {
     try {
       setSubscriptionError("");
@@ -197,11 +301,43 @@ export function VendorDashboard() {
           { label: "Booked events", value: bookedCount, icon: CalendarDays, color: "text-emerald-700", tab: "leads" as const },
           { label: "Profile views", value: "1,926", icon: Eye, color: "text-violet-700", tab: "portfolio" as const },
           { label: "Booked value", value: `INR ${formatMoney(bookedValue)}`, icon: IndianRupee, color: "text-amber-700", tab: "leads" as const }
-        ].map((stat) => <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}><stat.icon className={stat.color} size={21} /><p className="mt-5 text-2xl font-semibold">{stat.value}</p><p className="mt-1 text-sm text-muted-foreground">{stat.label}</p></button>)}</div><div className="mt-9 grid gap-8 lg:grid-cols-[1.45fr_1fr]"><section><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Recent leads</h2><p className="mt-1 text-sm text-muted-foreground">Respond quickly to improve conversion.</p></div><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("leads")}>View all</button></div><div className="mt-4 grid gap-3">{leads.slice(0, 3).map((lead) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={lead.id} onClick={() => setActiveTab("leads")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><BriefcaseBusiness size={20} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{lead.eventType} | {lead.service}</strong><span className="mt-1 block text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Profile strength</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 font-semibold text-emerald-700"><BadgeCheck size={18} /> Approved</span><span className="text-sm font-semibold">88%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[88%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Business and services complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Two packages published</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add three recent event photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("portfolio")}>Improve portfolio</button></div></section></div></section>}
+        ].map((stat) => <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}><stat.icon className={stat.color} size={21} /><p className="mt-5 text-2xl font-semibold">{stat.value}</p><p className="mt-1 text-sm text-muted-foreground">{stat.label}</p></button>)}</div><div className="mt-9 grid gap-8 lg:grid-cols-[1.45fr_1fr]"><section><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Recent leads</h2><p className="mt-1 text-sm text-muted-foreground">Respond quickly to improve conversion.</p></div><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("leads")}>View all</button></div><div className="mt-4 grid gap-3">{leads.slice(0, 3).map((lead) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={lead.id} onClick={() => setActiveTab("leads")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><BriefcaseBusiness size={20} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{lead.eventType} | {lead.service}</strong><span className="mt-1 block text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Profile strength</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 font-semibold text-emerald-700"><BadgeCheck size={18} /> Approved</span><span className="text-sm font-semibold">88%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[88%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Business and services complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> {packages.length} package{packages.length === 1 ? "" : "s"} published</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add three recent event photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("portfolio")}>Improve portfolio</button></div></section></div></section>}
 
         {activeTab === "leads" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Lead inbox</h2><p className="mt-1 text-sm text-muted-foreground">Qualify requests and keep the customer status current.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setLeadFilter(event.target.value as "ALL" | VendorLeadStatus)} value={leadFilter}><option value="ALL">All leads</option><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="QUOTE_SENT">Quote sent</option><option value="BOOKED">Booked</option><option value="DECLINED">Declined</option></select></label></div>{leadsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{leadsError}</p>}{isLoadingLeads ? <div className="mt-5 grid gap-4">{[1, 2, 3].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : filteredLeads.length > 0 ? <div className="mt-5 grid gap-4">{filteredLeads.map((lead) => <article className="rounded-lg border border-border bg-white p-5" key={lead.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{lead.eventType} | {lead.service}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</p></div><div className="text-right"><p className="font-semibold">INR {formatMoney(lead.budget)}</p><p className="mt-1 text-xs text-muted-foreground">Expected budget</p></div></div><div className="mt-4 grid gap-3 rounded-md bg-muted/60 p-4 text-sm sm:grid-cols-2"><p><span className="text-muted-foreground">Customer:</span> {lead.customerName}</p><p><span className="text-muted-foreground">Reference:</span> {lead.id}</p>{lead.notes && <p className="leading-6 sm:col-span-2"><span className="text-muted-foreground">Notes:</span> {lead.notes}</p>}</div>{lead.status !== "BOOKED" && lead.status !== "DECLINED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">{lead.status === "NEW" && <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => updateLead(lead.id, "CONTACTED")}><MessageSquareText size={17} /> Mark contacted</button>}{lead.status !== "QUOTE_SENT" && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "QUOTE_SENT")}><Send size={17} /> Mark quote sent</button>}<button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "BOOKED")}><Check size={17} /> Mark booked</button><button className="h-10 px-3 text-sm font-medium text-rose-700" onClick={() => updateLead(lead.id, "DECLINED")}>Decline</button></div>}</article>)}</div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No leads yet</h3><p className="mt-2 text-sm text-muted-foreground">New quote requests will appear here.</p></div>}</section>}
 
-        {activeTab === "services" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Services and packages</h2><p className="mt-1 text-sm text-muted-foreground">Transparent starting prices help customers qualify themselves.</p></div><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white"><Plus size={17} /> Add package</button></div><div className="mt-5 grid gap-4 sm:grid-cols-2">{workspaceVendor.packages.map((item) => <article className="rounded-lg border border-border bg-white p-5" key={item.id}><div className="flex items-start justify-between gap-4"><span className="grid size-10 place-items-center rounded-md bg-violet-50 text-violet-700"><Layers3 size={19} /></span><button className="text-sm font-semibold text-primary">Edit</button></div><h3 className="mt-5 text-lg font-semibold">{item.name}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p><p className="mt-4 text-xl font-semibold">INR {formatMoney(item.price)} / plate</p><div className="mt-4 flex flex-wrap gap-2">{item.includes.map((included) => <span className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground" key={included}>{included}</span>)}</div></article>)}</div></section>}
+        {activeTab === "services" && (
+          <section className="py-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div><h2 className="text-xl font-semibold">Services and packages</h2><p className="mt-1 text-sm text-muted-foreground">Transparent starting prices help customers qualify themselves.</p></div>
+              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => openPackageEditor()}><Plus size={17} /> Add package</button>
+            </div>
+
+            {packagesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{packagesError}</p>}
+
+            {isPackageEditorOpen && (
+              <div className="mt-5 rounded-lg border border-border bg-white p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="font-semibold">{editingPackageId ? "Edit package" : "Add package"}</h3><p className="mt-1 text-sm text-muted-foreground">Set a clear package name, starting price, and inclusions.</p></div><button className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-muted" onClick={closePackageEditor} type="button"><X size={17} /></button></div>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <label className="text-sm font-medium">Package name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => setPackageForm((current) => ({ ...current, name: event.target.value }))} placeholder="e.g. Wedding essentials" value={packageForm.name} /></label>
+                  <label className="text-sm font-medium">Starting price<span className="relative mt-2 block"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">INR</span><input className="h-11 w-full rounded-md border border-border pl-12 pr-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => setPackageForm((current) => ({ ...current, price: event.target.value }))} placeholder="0" type="number" value={packageForm.price} /></span></label>
+                  <label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-20 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" onChange={(event) => setPackageForm((current) => ({ ...current, description: event.target.value }))} placeholder="Short package summary" value={packageForm.description} /></label>
+                  <label className="text-sm font-medium sm:col-span-2">Inclusions<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => setPackageForm((current) => ({ ...current, includes: event.target.value }))} placeholder="Welcome drink, meal, service staff" value={packageForm.includes} /><span className="mt-1 block text-xs font-normal text-muted-foreground">Separate inclusions with commas</span></label>
+                </div>
+                <div className="mt-5 flex flex-wrap justify-end gap-2"><button className="h-10 rounded-md border border-border px-4 text-sm font-semibold" onClick={closePackageEditor} type="button">Cancel</button><button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={Boolean(savingPackageId)} onClick={savePackage} type="button">{savingPackageId && <LoaderCircle className="animate-spin" size={16} />} Save package</button></div>
+              </div>
+            )}
+
+            {isLoadingPackages ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">{[1, 2].map((item) => <div className="h-56 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
+            ) : packages.length > 0 ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {packages.map((item) => <article className="rounded-lg border border-border bg-white p-5" key={item.id}><div className="flex items-start justify-between gap-4"><span className="grid size-10 place-items-center rounded-md bg-violet-50 text-violet-700"><Layers3 size={19} /></span><div className="flex gap-1"><button aria-label={`Edit ${item.name}`} className="grid size-9 place-items-center rounded-md text-primary hover:bg-muted" onClick={() => openPackageEditor(item)} type="button"><Pencil size={16} /></button><button aria-label={`Delete ${item.name}`} className="grid size-9 place-items-center rounded-md text-rose-700 hover:bg-rose-50 disabled:opacity-50" disabled={deletingPackageId === item.id} onClick={() => removePackage(item.id)} type="button">{deletingPackageId === item.id ? <LoaderCircle className="animate-spin" size={16} /> : <Trash2 size={16} />}</button></div></div><h3 className="mt-5 text-lg font-semibold">{item.name}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p><p className="mt-4 text-xl font-semibold">INR {formatMoney(item.price)} / plate</p><div className="mt-4 flex flex-wrap gap-2">{item.includes.map((included) => <span className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground" key={included}>{included}</span>)}</div></article>)}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><Layers3 className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No packages yet</h3><p className="mt-2 text-sm text-muted-foreground">Add your first package to publish clear starting prices.</p></div>
+            )}
+          </section>
+        )}
 
         {activeTab === "portfolio" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Portfolio</h2><p className="mt-1 text-sm text-muted-foreground">Show recent, clearly photographed event work.</p></div><label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white"><ImagePlus size={17} /> Add photos<input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => addPortfolioImages(event.target.files)} type="file" /></label></div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{[workspaceVendor.imageUrl, ...portfolio].map((url, index) => <div className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={`${url}-${index}`}><Image alt={`Portfolio image ${index + 1}`} className="object-cover" fill sizes="(max-width: 640px) 50vw, 25vw" src={url} unoptimized={url.startsWith("blob:")} />{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}</div>)}</div></section>}
 

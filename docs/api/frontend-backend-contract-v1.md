@@ -447,6 +447,31 @@ Vendor profile request:
 
 Vendor profile response should return the same editable fields plus `status` (`DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `REJECTED`) and `updatedAt`. `POST /vendor/profile/submit` does not require a body; it validates the latest saved draft and returns the profile with `status=PENDING_APPROVAL`.
 
+Vendor package request:
+
+```json
+{
+  "name": "Grand wedding feast",
+  "description": "Expanded wedding menu with live counters.",
+  "price": 1050,
+  "includes": ["Two welcome drinks", "28-item meal", "Two live counters"]
+}
+```
+
+Vendor package response:
+
+```json
+{
+  "id": "PKG-C2",
+  "name": "Grand wedding feast",
+  "description": "Expanded wedding menu with live counters.",
+  "price": 1050,
+  "includes": ["Two welcome drinks", "28-item meal", "Two live counters"]
+}
+```
+
+Return `400` for invalid package name, price, or inclusions. Return `403` when the package does not belong to the logged-in vendor and `409` when a stale update conflicts.
+
 Vendor lead status: `NEW`, `CONTACTED`, `QUOTE_SENT`, `BOOKED`, `DECLINED`.
 
 Lead status request:
