@@ -11,6 +11,7 @@ import {
   ImagePlus,
   IndianRupee,
   Layers3,
+  LoaderCircle,
   MapPin,
   MessageSquareText,
   Plus,
@@ -24,6 +25,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-client";
+import { createSubscriptionOrder, fallbackSubscriptionPlans, fallbackVendorSubscription, getSubscriptionPlans, getVendorSubscription, type SubscriptionPlan, type VendorSubscription } from "@/features/vendors/subscription-client";
 import type { VendorLead, VendorLeadStatus } from "@/features/vendors/types";
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
 
@@ -53,6 +55,14 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat("en-IN").format(value);
 }
 
+function billingLabel(cycle: SubscriptionPlan["billingCycle"]) {
+  return cycle === "YEARLY" ? "year" : "month";
+}
+
+function subscriptionStatusLabel(status: VendorSubscription["status"]) {
+  return status.toLowerCase().replaceAll("_", " ");
+}
+
 export function VendorDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<VendorTab>("overview");
@@ -62,7 +72,11 @@ export function VendorDashboard() {
   const [leadFilter, setLeadFilter] = useState<"ALL" | VendorLeadStatus>("ALL");
   const [notice, setNotice] = useState("");
   const [portfolio, setPortfolio] = useState(workspaceVendor.galleryUrls);
-  const [plan, setPlan] = useState<"STARTER" | "GROWTH">("STARTER");
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(fallbackSubscriptionPlans);
+  const [subscription, setSubscription] = useState<VendorSubscription>(fallbackVendorSubscription);
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
+  const [subscriptionError, setSubscriptionError] = useState("");
+  const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     let isCurrent = true;
@@ -91,6 +105,38 @@ export function VendorDashboard() {
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSubscription() {
+      setIsLoadingSubscription(true);
+      setSubscriptionError("");
+
+      try {
+        const [plans, currentSubscription] = await Promise.all([
+          getSubscriptionPlans(),
+          getVendorSubscription(accessToken)
+        ]);
+        if (!isCurrent) return;
+        setSubscriptionPlans(plans);
+        setSubscription(currentSubscription);
+      } catch {
+        if (!isCurrent) return;
+        setSubscriptionPlans(fallbackSubscriptionPlans);
+        setSubscription(fallbackVendorSubscription);
+        setSubscriptionError("Could not load subscription details.");
+      } finally {
+        if (isCurrent) setIsLoadingSubscription(false);
+      }
+    }
+
+    loadSubscription();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
   const newCount = leads.filter((lead) => lead.status === "NEW").length;
   const bookedCount = leads.filter((lead) => lead.status === "BOOKED").length;
   const bookedValue = leads.filter((lead) => lead.status === "BOOKED").reduce((total, lead) => total + lead.budget, 0);
@@ -110,6 +156,26 @@ export function VendorDashboard() {
     if (!files?.length) return;
     setPortfolio((current) => [...Array.from(files).map((file) => URL.createObjectURL(file)), ...current]);
     setNotice(`${files.length} portfolio image${files.length === 1 ? "" : "s"} added.`);
+  }
+
+  async function chooseSubscription(planId: string) {
+    try {
+      setSubscriptionError("");
+      setCheckoutPlanId(planId);
+      const order = await createSubscriptionOrder(planId, accessToken);
+      setSubscription((current) => ({
+        ...current,
+        planId,
+        status: order.status === "ACTIVE" ? "ACTIVE" : "PENDING_PAYMENT",
+        pendingOrderId: order.orderId
+      }));
+      setNotice(`Payment order ${order.orderId} created.`);
+      if (order.checkoutUrl) window.location.assign(order.checkoutUrl);
+    } catch (exception) {
+      setSubscriptionError(exception instanceof Error ? exception.message : "Could not create payment order.");
+    } finally {
+      setCheckoutPlanId(null);
+    }
   }
 
   const tabBadge: Partial<Record<VendorTab, number>> = { leads: newCount };
@@ -139,10 +205,7 @@ export function VendorDashboard() {
 
         {activeTab === "portfolio" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Portfolio</h2><p className="mt-1 text-sm text-muted-foreground">Show recent, clearly photographed event work.</p></div><label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white"><ImagePlus size={17} /> Add photos<input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => addPortfolioImages(event.target.files)} type="file" /></label></div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{[workspaceVendor.imageUrl, ...portfolio].map((url, index) => <div className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={`${url}-${index}`}><Image alt={`Portfolio image ${index + 1}`} className="object-cover" fill sizes="(max-width: 640px) 50vw, 25vw" src={url} unoptimized={url.startsWith("blob:")} />{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}</div>)}</div></section>}
 
-        {activeTab === "subscription" && <section className="py-7"><div><h2 className="text-xl font-semibold">Subscription</h2><p className="mt-1 text-sm text-muted-foreground">Choose how prominently your business appears and how many leads you can receive.</p></div><div className="mt-5 grid gap-5 lg:grid-cols-2">{[
-          { id: "STARTER" as const, name: "Starter", price: 999, description: "For a growing local service business.", features: ["Public verified profile", "Up to 20 leads per month", "Two service packages", "Standard marketplace ranking"] },
-          { id: "GROWTH" as const, name: "Growth", price: 2499, description: "For teams ready to expand across the city.", features: ["Unlimited customer leads", "Unlimited packages", "Priority marketplace placement", "Lead performance analytics"] }
-        ].map((item) => <article className={`rounded-lg border bg-white p-6 ${plan === item.id ? "border-primary" : "border-border"}`} key={item.id}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-semibold">{item.name}</h3><p className="mt-1 text-sm text-muted-foreground">{item.description}</p></div>{plan === item.id && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Current plan</span>}</div><p className="mt-6 text-3xl font-semibold">INR {formatMoney(item.price)} <span className="text-sm font-normal text-muted-foreground">/ month</span></p><div className="mt-6 grid gap-3 text-sm">{item.features.map((feature) => <p className="flex items-center gap-2" key={feature}><Check className="text-emerald-700" size={16} />{feature}</p>)}</div><button className={`mt-7 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold ${plan === item.id ? "border border-border text-muted-foreground" : "bg-primary text-white"}`} disabled={plan === item.id} onClick={() => { setPlan(item.id); setNotice(`${item.name} plan selected. Payment integration will complete activation.`); }}>{plan === item.id ? "Active plan" : <>Choose {item.name} <ArrowUpRight size={17} /></>}</button></article>)}</div><p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><Sparkles className="text-amber-600" size={17} /> Payments will be handled through the backend Razorpay order and webhook flow.</p></section>}
+        {activeTab === "subscription" && <section className="py-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Subscription</h2><p className="mt-1 text-sm text-muted-foreground">Choose how prominently your business appears and how many leads you can receive.</p></div><div className="rounded-md border border-border bg-white px-4 py-3 text-sm"><span className="text-muted-foreground">Current status</span><strong className="ml-2 capitalize">{subscriptionStatusLabel(subscription.status)}</strong>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-muted-foreground">Renews {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(subscription.currentPeriodEnd))}</p>}{subscription.pendingOrderId && <p className="mt-1 text-xs text-muted-foreground">Order {subscription.pendingOrderId}</p>}</div></div>{subscriptionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{subscriptionError}</p>}{isLoadingSubscription ? <div className="mt-5 grid gap-5 lg:grid-cols-2">{[1, 2].map((item) => <div className="h-72 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : <div className="mt-5 grid gap-5 lg:grid-cols-2">{subscriptionPlans.map((item) => { const isActive = subscription.planId === item.id && subscription.status === "ACTIVE"; const isPending = subscription.planId === item.id && subscription.status === "PENDING_PAYMENT"; return <article className={`rounded-lg border bg-white p-6 ${isActive || isPending ? "border-primary" : "border-border"}`} key={item.id}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-semibold">{item.name}</h3><p className="mt-1 text-sm text-muted-foreground">{item.description}</p></div>{isActive && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Current plan</span>}{isPending && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Payment pending</span>}{item.isPopular && !isActive && !isPending && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">Popular</span>}</div><p className="mt-6 text-3xl font-semibold">INR {formatMoney(item.price)} <span className="text-sm font-normal text-muted-foreground">/ {billingLabel(item.billingCycle)}</span></p><div className="mt-6 grid gap-3 text-sm">{item.features.map((feature) => <p className="flex items-center gap-2" key={feature}><Check className="text-emerald-700" size={16} />{feature}</p>)}</div><button className={`mt-7 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${isActive ? "border border-border text-muted-foreground" : "bg-primary text-white"}`} disabled={isActive || checkoutPlanId === item.id} onClick={() => chooseSubscription(item.id)}>{checkoutPlanId === item.id ? <><LoaderCircle className="animate-spin" size={17} /> Creating order</> : isActive ? "Active plan" : isPending ? <>Retry payment <ArrowUpRight size={17} /></> : <>Choose {item.name} <ArrowUpRight size={17} /></>}</button></article>; })}</div>}<p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><Sparkles className="text-amber-600" size={17} /> Razorpay order creation and payment verification are handled by the backend.</p></section>}
       </div>
     </main>
   );

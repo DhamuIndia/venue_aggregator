@@ -446,6 +446,55 @@ Allowed transitions:
 
 The frontend sends only `planId` when creating an order. The backend owns plan pricing, creates the Razorpay order, validates signatures, handles idempotent webhooks, and activates the subscription only after a verified payment event.
 
+Subscription plan response item:
+
+```json
+{
+  "id": "GROWTH",
+  "name": "Growth",
+  "price": 2499,
+  "currency": "INR",
+  "billingCycle": "MONTHLY",
+  "description": "For teams ready to expand across the city.",
+  "features": ["Unlimited customer leads", "Unlimited packages"],
+  "leadLimit": null,
+  "isPopular": true
+}
+```
+
+Vendor subscription response:
+
+```json
+{
+  "planId": "STARTER",
+  "status": "ACTIVE",
+  "currentPeriodEnd": "2026-07-23T00:00:00Z",
+  "pendingOrderId": null
+}
+```
+
+Create subscription order request:
+
+```json
+{ "planId": "GROWTH" }
+```
+
+Create subscription order response:
+
+```json
+{
+  "orderId": "order_RZP_123",
+  "planId": "GROWTH",
+  "amount": 2499,
+  "currency": "INR",
+  "status": "CREATED",
+  "keyId": "rzp_test_xxxxx",
+  "checkoutUrl": null
+}
+```
+
+Return `400` for invalid plans, `403` when the vendor profile cannot subscribe, and `409` when an active order already exists for the same plan.
+
 ## Admin APIs
 
 All routes require `ADMIN` or `SUPER_ADMIN`. Every mutation writes an immutable audit event containing actor, action, resource, reason, previous state, new state, and timestamp.
