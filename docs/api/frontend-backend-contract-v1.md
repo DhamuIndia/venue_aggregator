@@ -411,6 +411,31 @@ Approval request:
 
 Decision: `APPROVED`, `REJECTED`. A reason is required for rejection. Return the updated resource and `reviewedBy`, `reviewedAt`.
 
+Hall moderation list items should include:
+
+```json
+{
+  "id": "HALL-3201",
+  "name": "Pearl Grand Hall",
+  "ownerName": "Suresh Babu",
+  "ownerPhone": "9840012233",
+  "location": "Velachery, Chennai",
+  "venueType": "Marriage Hall",
+  "capacity": 850,
+  "startingPrice": 145000,
+  "submittedAt": "2026-06-22T08:45:00Z",
+  "imageUrl": "https://example.com/hall.jpg",
+  "status": "PENDING_APPROVAL",
+  "documents": {
+    "ownership": true,
+    "identity": true,
+    "address": true
+  }
+}
+```
+
+Vendor moderation list items should include `id`, `businessName`, `contactName`, `category`, `city`, `submittedAt`, and `status`.
+
 Review moderation request:
 
 ```json
@@ -421,6 +446,8 @@ Review moderation request:
 ```
 
 Review status: `PENDING`, `PUBLISHED`, `REPORTED`, `HIDDEN`, `REJECTED`.
+
+Reported review list items should include `id`, `hallName`, `customerName`, `rating`, `comment`, `reportReason`, `verifiedService`, and `status`.
 
 ## Upload Contract
 

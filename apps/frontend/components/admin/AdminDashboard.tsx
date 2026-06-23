@@ -16,11 +16,13 @@ import {
   XCircle
 } from "lucide-react";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor } from "@/features/admin/admin-client";
 import {
   adminEnquiries,
-  auditEvents,
+  auditEvents as initialAuditEvents,
   initialReportedReviews,
   initialVendorApplications,
   initialVenueApplications,
@@ -65,10 +67,15 @@ function formatPrice(value: number) {
 }
 
 export function AdminDashboard() {
+  const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [venues, setVenues] = useState<VenueApplication[]>(initialVenueApplications);
   const [vendors, setVendors] = useState<VendorApplication[]>(initialVendorApplications);
   const [reviews, setReviews] = useState<ReportedReview[]>(initialReportedReviews);
+  const [enquiries, setEnquiries] = useState(adminEnquiries);
+  const [auditEvents, setAuditEvents] = useState(initialAuditEvents);
+  const [isLoadingQueues, setIsLoadingQueues] = useState(true);
+  const [adminError, setAdminError] = useState("");
   const [venueFilter, setVenueFilter] = useState<"ALL" | ModerationStatus>("PENDING_APPROVAL");
   const [enquiryFilter, setEnquiryFilter] = useState<"ALL" | EnquiryStatus>("ALL");
   const [rejectTarget, setRejectTarget] = useState<RejectTarget | null>(null);
@@ -77,37 +84,83 @@ export function AdminDashboard() {
   const pendingVenueCount = venues.filter((venue) => venue.status === "PENDING_APPROVAL").length;
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
   const reportedReviewCount = reviews.filter((review) => review.status === "REPORTED").length;
-  const pendingEnquiryCount = adminEnquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
+  const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
 
   const filteredVenues = useMemo(
     () => venueFilter === "ALL" ? venues : venues.filter((venue) => venue.status === venueFilter),
     [venueFilter, venues]
   );
   const filteredEnquiries = useMemo(
-    () => enquiryFilter === "ALL" ? adminEnquiries : adminEnquiries.filter((enquiry) => enquiry.status === enquiryFilter),
-    [enquiryFilter]
+    () => enquiryFilter === "ALL" ? enquiries : enquiries.filter((enquiry) => enquiry.status === enquiryFilter),
+    [enquiries, enquiryFilter]
   );
 
-  function updateVenue(id: string, status: Exclude<ModerationStatus, "PENDING_APPROVAL">) {
-    setVenues((current) => current.map((venue) => venue.id === id ? { ...venue, status } : venue));
-    setNotice(status === "APPROVED" ? "Venue approved and queued for publication." : "Venue rejected with feedback for the owner.");
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadAdminQueues() {
+      setIsLoadingQueues(true);
+      setAdminError("");
+
+      try {
+        const response = await getAdminQueues(accessToken);
+        if (!isCurrent) return;
+        setVenues(response.venues);
+        setVendors(response.vendors);
+        setReviews(response.reviews);
+        setEnquiries(response.enquiries);
+        setAuditEvents(response.auditEvents);
+      } catch {
+        if (!isCurrent) return;
+        setAdminError("Could not load latest admin queues.");
+      } finally {
+        if (isCurrent) setIsLoadingQueues(false);
+      }
+    }
+
+    loadAdminQueues();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  async function updateVenue(id: string, status: Exclude<ModerationStatus, "PENDING_APPROVAL">, reason = "All venue and ownership documents verified.") {
+    try {
+      const updatedVenue = await reviewAdminHall(id, status, reason, accessToken);
+      setVenues((current) => current.map((venue) => venue.id === id ? { ...venue, ...updatedVenue, status } : venue));
+      setNotice(status === "APPROVED" ? "Venue approved and queued for publication." : "Venue rejected with feedback for the owner.");
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not update venue approval.");
+    }
   }
 
-  function updateVendor(id: string, status: Exclude<ModerationStatus, "PENDING_APPROVAL">) {
-    setVendors((current) => current.map((vendor) => vendor.id === id ? { ...vendor, status } : vendor));
-    setNotice(status === "APPROVED" ? "Vendor approved and notified." : "Vendor rejected with correction guidance.");
+  async function updateVendor(id: string, status: Exclude<ModerationStatus, "PENDING_APPROVAL">, reason = "Business identity and service details verified.") {
+    try {
+      const updatedVendor = await reviewAdminVendor(id, status, reason, accessToken);
+      setVendors((current) => current.map((vendor) => vendor.id === id ? { ...vendor, ...updatedVendor, status } : vendor));
+      setNotice(status === "APPROVED" ? "Vendor approved and notified." : "Vendor rejected with correction guidance.");
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not update vendor approval.");
+    }
   }
 
   function rejectWithReason(_reason: string) {
     if (!rejectTarget) return;
-    if (rejectTarget.kind === "venue") updateVenue(rejectTarget.id, "REJECTED");
-    else updateVendor(rejectTarget.id, "REJECTED");
+    if (rejectTarget.kind === "venue") void updateVenue(rejectTarget.id, "REJECTED", _reason);
+    else void updateVendor(rejectTarget.id, "REJECTED", _reason);
     setRejectTarget(null);
   }
 
-  function moderateReview(id: string, status: "PUBLISHED" | "HIDDEN") {
-    setReviews((current) => current.map((review) => review.id === id ? { ...review, status } : review));
-    setNotice(status === "HIDDEN" ? "Review hidden and the moderation action was logged." : "Report dismissed and review kept published.");
+  async function moderateReview(id: string, status: "PUBLISHED" | "HIDDEN") {
+    const reason = status === "HIDDEN" ? "Contains content that violates marketplace review rules." : "Report dismissed after moderation review.";
+    try {
+      const updatedReview = await moderateAdminReview(id, status, reason, accessToken);
+      setReviews((current) => current.map((review) => review.id === id ? { ...review, ...updatedReview, status } : review));
+      setNotice(status === "HIDDEN" ? "Review hidden and the moderation action was logged." : "Report dismissed and review kept published.");
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not update review moderation.");
+    }
   }
 
   const tabBadge: Partial<Record<AdminTab, number>> = {
@@ -133,6 +186,7 @@ export function AdminDashboard() {
         </div>
 
         {notice && <div className="mt-6 flex items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status"><BadgeCheck size={18} /><span className="flex-1">{notice}</span><button aria-label="Dismiss notification" className="grid size-8 place-items-center rounded-md hover:bg-emerald-100" onClick={() => setNotice("")}><X size={16} /></button></div>}
+        {adminError && <div className="mt-6 rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">{adminError}</div>}
 
         <div className="mt-7 overflow-x-auto border-b border-border">
           <div aria-label="Admin dashboard" className="flex min-w-max gap-7" role="tablist">
@@ -155,7 +209,7 @@ export function AdminDashboard() {
               <section>
                 <div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Venue approval queue</h2><p className="mt-1 text-sm text-muted-foreground">Oldest complete applications first.</p></div><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("venues")}>Review all</button></div>
                 <div className="mt-4 grid gap-3">
-                  {venues.filter((venue) => venue.status === "PENDING_APPROVAL").map((venue) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={venue.id} onClick={() => setActiveTab("venues")}><span className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted"><Image alt="" className="object-cover" fill sizes="56px" src={venue.imageUrl} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{venue.name}</strong><span className="mt-1 block truncate text-sm text-muted-foreground">{venue.location} | {venue.capacity} guests</span></span><span className="hidden text-xs text-muted-foreground sm:block">{venue.id}</span><ChevronRight className="shrink-0" size={18} /></button>)}
+                  {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[88px] animate-pulse rounded-lg border border-border bg-white" key={item} />) : venues.filter((venue) => venue.status === "PENDING_APPROVAL").map((venue) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={venue.id} onClick={() => setActiveTab("venues")}><span className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted"><Image alt="" className="object-cover" fill sizes="56px" src={venue.imageUrl} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{venue.name}</strong><span className="mt-1 block truncate text-sm text-muted-foreground">{venue.location} | {venue.capacity} guests</span></span><span className="hidden text-xs text-muted-foreground sm:block">{venue.id}</span><ChevronRight className="shrink-0" size={18} /></button>)}
                 </div>
               </section>
 
@@ -187,7 +241,7 @@ export function AdminDashboard() {
             <div><h2 className="text-xl font-semibold">Vendor applications</h2><p className="mt-1 text-sm text-muted-foreground">Review service category and business identity.</p></div>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[1.4fr_1fr_1fr_120px_220px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
-              {vendors.map((vendor) => <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px_220px] md:items-center" key={vendor.id}><div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div><p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p><p className="text-sm text-muted-foreground">{vendor.submittedAt}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>{vendor.status === "PENDING_APPROVAL" ? <div className="flex gap-2 md:justify-end"><button aria-label={`Reject ${vendor.businessName}`} className="grid size-9 place-items-center rounded-md border border-rose-200 text-rose-700" onClick={() => setRejectTarget({ kind: "vendor", id: vendor.id, name: vendor.contactName })} title="Reject"><X size={17} /></button><button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" onClick={() => updateVendor(vendor.id, "APPROVED")}><Check size={16} /> Approve</button></div> : <span />}</article>)}
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px_220px] md:items-center" key={vendor.id}><div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div><p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p><p className="text-sm text-muted-foreground">{vendor.submittedAt}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>{vendor.status === "PENDING_APPROVAL" ? <div className="flex gap-2 md:justify-end"><button aria-label={`Reject ${vendor.businessName}`} className="grid size-9 place-items-center rounded-md border border-rose-200 text-rose-700" onClick={() => setRejectTarget({ kind: "vendor", id: vendor.id, name: vendor.contactName })} title="Reject"><X size={17} /></button><button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" onClick={() => updateVendor(vendor.id, "APPROVED")}><Check size={16} /> Approve</button></div> : <span />}</article>)}
             </div>
           </section>
         )}
