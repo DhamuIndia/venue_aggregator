@@ -397,6 +397,26 @@ All routes require `VENDOR` and ownership of the vendor profile.
 | `DELETE` | `/vendor/media/{mediaId}` | Remove media |
 | `GET` | `/vendor/reviews` | Verified customer reviews |
 
+Vendor profile request:
+
+```json
+{
+  "businessName": "Saffron Leaf Catering",
+  "category": "CATERING",
+  "city": "Chennai",
+  "area": "Adyar",
+  "serviceRadius": 25,
+  "yearsInBusiness": 5,
+  "description": "South Indian celebration menus with trained event service staff.",
+  "services": ["Wedding catering", "Live counters", "Traditional meals"],
+  "packageName": "Classic celebration",
+  "startingPrice": 650,
+  "packageDescription": "A balanced vegetarian menu for intimate events."
+}
+```
+
+Vendor profile response should return the same editable fields plus `status` (`DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `REJECTED`) and `updatedAt`. `POST /vendor/profile/submit` does not require a body; it validates the latest saved draft and returns the profile with `status=PENDING_APPROVAL`.
+
 Vendor lead status: `NEW`, `CONTACTED`, `QUOTE_SENT`, `BOOKED`, `DECLINED`.
 
 Lead status request:
