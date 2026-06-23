@@ -49,6 +49,7 @@ import {
   updateOwnerMedia,
   type OwnerMediaItem
 } from "@/features/owner/media-client";
+import { getOwnerHallReviews, type OwnerReview } from "@/features/owner/review-client";
 import { fallbackOwnerEnquiries, initialBlockedDates, ownerHall, ownerReviews } from "@/features/owner/mock-data";
 import type { VenueType } from "@/features/halls/types";
 import { BlockDateDialog } from "./BlockDateDialog";
@@ -165,6 +166,17 @@ function normalizeMediaCover(media: OwnerMediaItem[]) {
   return media.map((item, index) => ({ ...item, isCover: coverIndex >= 0 ? index === coverIndex : index === 0 }));
 }
 
+function reviewCounts(reviews: OwnerReview[]) {
+  return [5, 4, 3, 2, 1].map((rating) => {
+    const count = reviews.filter((review) => Math.round(review.rating) === rating).length;
+    return {
+      rating,
+      count,
+      percentage: reviews.length ? Math.round((count / reviews.length) * 100) : 0
+    };
+  });
+}
+
 export function OwnerDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<OwnerTab>("overview");
@@ -189,6 +201,11 @@ export function OwnerDashboard() {
   const [mediaError, setMediaError] = useState("");
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [updatingMediaId, setUpdatingMediaId] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<OwnerReview[]>(ownerReviews);
+  const [averageRating, setAverageRating] = useState(ownerHall.rating);
+  const [totalReviews, setTotalReviews] = useState(ownerHall.reviewCount);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("submitted") === "true") setNotice("Your venue was submitted for admin approval.");
@@ -284,6 +301,37 @@ export function OwnerDashboard() {
     }
 
     loadAvailability();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadReviews() {
+      setIsLoadingReviews(true);
+      setReviewsError("");
+
+      try {
+        const response = await getOwnerHallReviews(ownerHall.id, accessToken, ownerReviews);
+        if (!isCurrent) return;
+        setReviews(response.reviews);
+        setAverageRating(response.averageRating || ownerHall.rating);
+        setTotalReviews(response.totalReviews || response.reviews.length);
+      } catch {
+        if (!isCurrent) return;
+        setReviews(ownerReviews);
+        setAverageRating(ownerHall.rating);
+        setTotalReviews(ownerHall.reviewCount);
+        setReviewsError("Could not load latest reviews.");
+      } finally {
+        if (isCurrent) setIsLoadingReviews(false);
+      }
+    }
+
+    loadReviews();
 
     return () => {
       isCurrent = false;
@@ -494,7 +542,7 @@ export function OwnerDashboard() {
           {tabs.map((tab) => <button aria-selected={activeTab === tab.id} className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}{tab.id === "enquiries" && pendingCount > 0 && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{pendingCount}</span>}</button>)}
         </div>
 
-        {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">4.8</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
+        {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
 
         {activeTab === "enquiries" && (
           <section className="py-7">
@@ -805,7 +853,63 @@ export function OwnerDashboard() {
           </section>
         )}
 
-        {activeTab === "reviews" && <section className="py-7"><div><h2 className="text-xl font-semibold">Customer reviews</h2><p className="mt-1 text-sm text-muted-foreground">Verified feedback from completed events.</p></div><div className="mt-5 grid gap-6 lg:grid-cols-[280px_1fr]"><div className="h-fit rounded-lg border border-border bg-white p-6 text-center"><p className="text-5xl font-semibold">4.8</p><div className="mt-3 flex justify-center gap-1 text-amber-400">{[1, 2, 3, 4, 5].map((star) => <Star className="fill-current" key={star} size={18} />)}</div><p className="mt-2 text-sm text-muted-foreground">Based on {ownerHall.reviewCount} verified reviews</p><div className="mt-6 grid gap-2">{[5, 4, 3, 2, 1].map((rating) => <div className="grid grid-cols-[14px_1fr_28px] items-center gap-2 text-xs" key={rating}><span>{rating}</span><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-amber-400" style={{ width: `${rating === 5 ? 82 : rating === 4 ? 14 : 2}%` }} /></div><span className="text-muted-foreground">{rating === 5 ? "82%" : rating === 4 ? "14%" : "2%"}</span></div>)}</div></div><div className="grid gap-3">{ownerReviews.map((review) => <article className="rounded-lg border border-border bg-white p-5" key={review.id}><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{review.name}</h3><BadgeCheck className="text-emerald-700" size={16} /></div><p className="mt-1 text-xs text-muted-foreground">{review.event} | {review.date}</p></div><div className="flex gap-1 text-amber-400">{Array.from({ length: review.rating }, (_, index) => <Star className="fill-current" key={index} size={14} />)}</div></div><p className="mt-4 text-sm leading-6 text-muted-foreground">{review.comment}</p><button className="mt-4 text-sm font-semibold text-primary">Reply</button></article>)}</div></div></section>}
+        {activeTab === "reviews" && (
+          <section className="py-7">
+            <div>
+              <h2 className="text-xl font-semibold">Customer reviews</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Verified feedback from completed events.</p>
+            </div>
+
+            {reviewsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{reviewsError}</p>}
+
+            {isLoadingReviews ? (
+              <div className="mt-5 grid gap-6 lg:grid-cols-[280px_1fr]">
+                <div className="h-72 animate-pulse rounded-lg border border-border bg-white" />
+                <div className="grid gap-3">
+                  {[1, 2, 3].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}
+                </div>
+              </div>
+            ) : reviews.length > 0 ? (
+              <div className="mt-5 grid gap-6 lg:grid-cols-[280px_1fr]">
+                <div className="h-fit rounded-lg border border-border bg-white p-6 text-center">
+                  <p className="text-5xl font-semibold">{averageRating.toFixed(1)}</p>
+                  <div className="mt-3 flex justify-center gap-1 text-amber-400">{[1, 2, 3, 4, 5].map((star) => <Star className="fill-current" key={star} size={18} />)}</div>
+                  <p className="mt-2 text-sm text-muted-foreground">Based on {totalReviews} verified reviews</p>
+                  <div className="mt-6 grid gap-2">
+                    {reviewCounts(reviews).map((item) => (
+                      <div className="grid grid-cols-[14px_1fr_36px] items-center gap-2 text-xs" key={item.rating}>
+                        <span>{item.rating}</span>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-amber-400" style={{ width: `${item.percentage}%` }} /></div>
+                        <span className="text-right text-muted-foreground">{item.percentage}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  {reviews.map((review) => (
+                    <article className="rounded-lg border border-border bg-white p-5" key={review.id}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2"><h3 className="font-semibold">{review.customerName}</h3>{review.verifiedService && <BadgeCheck className="text-emerald-700" size={16} />}</div>
+                          <p className="mt-1 text-xs text-muted-foreground">{review.eventType} | {review.eventDate}</p>
+                        </div>
+                        <div className="flex gap-1 text-amber-400">{Array.from({ length: Math.round(review.rating) }, (_, index) => <Star className="fill-current" key={index} size={14} />)}</div>
+                      </div>
+                      <p className="mt-4 text-sm leading-6 text-muted-foreground">{review.comment}</p>
+                      {review.reply && <p className="mt-4 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">Owner reply: {review.reply}</p>}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center">
+                <Star className="mx-auto text-muted-foreground" size={30} />
+                <h3 className="mt-4 font-semibold">No reviews yet</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Verified customer feedback will appear here after completed events.</p>
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
       <BlockDateDialog onAdd={addBlockedDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
