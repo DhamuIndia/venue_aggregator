@@ -422,6 +422,7 @@ All routes require `VENDOR` and ownership of the vendor profile.
 | `GET` | `/vendor/leads` | Vendor lead inbox |
 | `GET` | `/vendor/leads/{leadId}` | Lead detail |
 | `PATCH` | `/vendor/leads/{leadId}/status` | Update lead workflow |
+| `GET` | `/vendor/media` | Vendor portfolio media |
 | `POST` | `/vendor/media` | Save uploaded media metadata |
 | `PATCH` | `/vendor/media/{mediaId}` | Change caption, order, or cover |
 | `DELETE` | `/vendor/media/{mediaId}` | Remove media |
@@ -471,6 +472,25 @@ Vendor package response:
 ```
 
 Return `400` for invalid package name, price, or inclusions. Return `403` when the package does not belong to the logged-in vendor and `409` when a stale update conflicts.
+
+Vendor media request:
+
+```json
+{
+  "url": "https://cdn.example.com/vendors/saffron/portfolio-1.jpg",
+  "mediaUrl": "https://cdn.example.com/vendors/saffron/portfolio-1.jpg",
+  "storageKey": "vendors/saffron/portfolio-1.jpg",
+  "fileName": "portfolio-1.jpg",
+  "caption": "Reception buffet setup",
+  "isCover": false,
+  "primary": false,
+  "sortOrder": 2,
+  "mediaType": "IMAGE",
+  "type": "IMAGE"
+}
+```
+
+Vendor media response should include `id`, `url`, `caption`, `isCover`, `sortOrder`, and optional `storageKey`. Cover updates should normalize the previous cover to `isCover=false`.
 
 Vendor lead status: `NEW`, `CONTACTED`, `QUOTE_SENT`, `BOOKED`, `DECLINED`.
 

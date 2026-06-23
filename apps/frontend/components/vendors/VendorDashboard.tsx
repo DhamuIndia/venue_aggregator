@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-client";
+import { deleteVendorMedia, getVendorMedia, mediaFromVendor, setVendorMediaCover, type VendorMediaItem, uploadAndCreateVendorMedia } from "@/features/vendors/media-client";
 import { createVendorPackage, deleteVendorPackage, getVendorPackages, updateVendorPackage, type VendorPackagePayload } from "@/features/vendors/package-client";
 import { createSubscriptionOrder, fallbackSubscriptionPlans, fallbackVendorSubscription, getSubscriptionPlans, getVendorSubscription, type SubscriptionPlan, type VendorSubscription } from "@/features/vendors/subscription-client";
 import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/vendors/types";
@@ -85,7 +86,11 @@ export function VendorDashboard() {
   const [leadsError, setLeadsError] = useState("");
   const [leadFilter, setLeadFilter] = useState<"ALL" | VendorLeadStatus>("ALL");
   const [notice, setNotice] = useState("");
-  const [portfolio, setPortfolio] = useState(workspaceVendor.galleryUrls);
+  const [portfolio, setPortfolio] = useState<VendorMediaItem[]>(mediaFromVendor(workspaceVendor));
+  const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(true);
+  const [portfolioError, setPortfolioError] = useState("");
+  const [isUploadingPortfolio, setIsUploadingPortfolio] = useState(false);
+  const [updatingMediaId, setUpdatingMediaId] = useState<string | null>(null);
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(fallbackSubscriptionPlans);
   const [subscription, setSubscription] = useState<VendorSubscription>(fallbackVendorSubscription);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
@@ -121,6 +126,33 @@ export function VendorDashboard() {
     }
 
     loadLeads();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadPortfolio() {
+      setIsLoadingPortfolio(true);
+      setPortfolioError("");
+
+      try {
+        const media = await getVendorMedia(accessToken, mediaFromVendor(workspaceVendor));
+        if (!isCurrent) return;
+        setPortfolio(media);
+      } catch {
+        if (!isCurrent) return;
+        setPortfolio(mediaFromVendor(workspaceVendor));
+        setPortfolioError("Could not load portfolio photos.");
+      } finally {
+        if (isCurrent) setIsLoadingPortfolio(false);
+      }
+    }
+
+    loadPortfolio();
 
     return () => {
       isCurrent = false;
@@ -201,10 +233,47 @@ export function VendorDashboard() {
     }
   }
 
-  function addPortfolioImages(files: FileList | null) {
+  async function addPortfolioImages(files: FileList | null) {
     if (!files?.length) return;
-    setPortfolio((current) => [...Array.from(files).map((file) => URL.createObjectURL(file)), ...current]);
-    setNotice(`${files.length} portfolio image${files.length === 1 ? "" : "s"} added.`);
+    try {
+      setPortfolioError("");
+      setIsUploadingPortfolio(true);
+      const currentLength = portfolio.length;
+      const uploaded = await Promise.all(Array.from(files).map((file, index) => uploadAndCreateVendorMedia(file, currentLength + index, accessToken)));
+      setPortfolio((current) => [...uploaded, ...current]);
+      setNotice(`${files.length} portfolio image${files.length === 1 ? "" : "s"} added.`);
+    } catch (exception) {
+      setPortfolioError(exception instanceof Error ? exception.message : "Could not upload portfolio photos.");
+    } finally {
+      setIsUploadingPortfolio(false);
+    }
+  }
+
+  async function makePortfolioCover(mediaId: string) {
+    try {
+      setUpdatingMediaId(mediaId);
+      await setVendorMediaCover(mediaId, accessToken);
+      setPortfolio((current) => current.map((item) => ({ ...item, isCover: item.id === mediaId })));
+      setNotice("Cover photo updated.");
+    } catch (exception) {
+      setPortfolioError(exception instanceof Error ? exception.message : "Could not update cover photo.");
+    } finally {
+      setUpdatingMediaId(null);
+    }
+  }
+
+  async function removePortfolioImage(mediaId: string) {
+    if (!window.confirm("Delete this portfolio photo?")) return;
+    try {
+      setUpdatingMediaId(mediaId);
+      await deleteVendorMedia(mediaId, accessToken);
+      setPortfolio((current) => current.filter((item) => item.id !== mediaId));
+      setNotice("Portfolio photo deleted.");
+    } catch (exception) {
+      setPortfolioError(exception instanceof Error ? exception.message : "Could not delete portfolio photo.");
+    } finally {
+      setUpdatingMediaId(null);
+    }
   }
 
   function openPackageEditor(packageItem?: VendorPackage) {
@@ -339,7 +408,25 @@ export function VendorDashboard() {
           </section>
         )}
 
-        {activeTab === "portfolio" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Portfolio</h2><p className="mt-1 text-sm text-muted-foreground">Show recent, clearly photographed event work.</p></div><label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white"><ImagePlus size={17} /> Add photos<input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => addPortfolioImages(event.target.files)} type="file" /></label></div><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{[workspaceVendor.imageUrl, ...portfolio].map((url, index) => <div className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={`${url}-${index}`}><Image alt={`Portfolio image ${index + 1}`} className="object-cover" fill sizes="(max-width: 640px) 50vw, 25vw" src={url} unoptimized={url.startsWith("blob:")} />{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}</div>)}</div></section>}
+        {activeTab === "portfolio" && (
+          <section className="py-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div><h2 className="text-xl font-semibold">Portfolio</h2><p className="mt-1 text-sm text-muted-foreground">Show recent, clearly photographed event work.</p></div>
+              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"><ImagePlus size={17} /> {isUploadingPortfolio ? "Uploading" : "Add photos"}<input accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={isUploadingPortfolio} multiple onChange={(event) => addPortfolioImages(event.target.files)} type="file" /></label>
+            </div>
+            {portfolioError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{portfolioError}</p>}
+            {isUploadingPortfolio && <p className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700"><LoaderCircle className="animate-spin" size={16} /> Uploading photos</p>}
+            {isLoadingPortfolio ? (
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div className="aspect-[4/3] animate-pulse rounded-lg bg-white" key={item} />)}</div>
+            ) : portfolio.length > 0 ? (
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {portfolio.map((media, index) => <div className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={media.id}><Image alt={media.caption ?? `Portfolio image ${index + 1}`} className="object-cover" fill sizes="(max-width: 640px) 50vw, 25vw" src={media.url} unoptimized={media.url.startsWith("blob:")} />{media.isCover && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}<div className="absolute inset-x-2 bottom-2 flex justify-end gap-1 opacity-0 transition group-hover:opacity-100"><button className="h-8 rounded-md bg-white px-2 text-xs font-semibold text-primary shadow-sm disabled:opacity-50" disabled={media.isCover || updatingMediaId === media.id} onClick={() => makePortfolioCover(media.id)} type="button">Cover</button><button aria-label="Delete photo" className="grid size-8 place-items-center rounded-md bg-white text-rose-700 shadow-sm disabled:opacity-50" disabled={updatingMediaId === media.id} onClick={() => removePortfolioImage(media.id)} type="button">{updatingMediaId === media.id ? <LoaderCircle className="animate-spin" size={15} /> : <Trash2 size={15} />}</button></div></div>)}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><ImagePlus className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No portfolio photos yet</h3><p className="mt-2 text-sm text-muted-foreground">Add clear examples of your recent event work.</p></div>
+            )}
+          </section>
+        )}
 
         {activeTab === "subscription" && <section className="py-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Subscription</h2><p className="mt-1 text-sm text-muted-foreground">Choose how prominently your business appears and how many leads you can receive.</p></div><div className="rounded-md border border-border bg-white px-4 py-3 text-sm"><span className="text-muted-foreground">Current status</span><strong className="ml-2 capitalize">{subscriptionStatusLabel(subscription.status)}</strong>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-muted-foreground">Renews {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(subscription.currentPeriodEnd))}</p>}{subscription.pendingOrderId && <p className="mt-1 text-xs text-muted-foreground">Order {subscription.pendingOrderId}</p>}</div></div>{subscriptionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{subscriptionError}</p>}{isLoadingSubscription ? <div className="mt-5 grid gap-5 lg:grid-cols-2">{[1, 2].map((item) => <div className="h-72 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : <div className="mt-5 grid gap-5 lg:grid-cols-2">{subscriptionPlans.map((item) => { const isActive = subscription.planId === item.id && subscription.status === "ACTIVE"; const isPending = subscription.planId === item.id && subscription.status === "PENDING_PAYMENT"; return <article className={`rounded-lg border bg-white p-6 ${isActive || isPending ? "border-primary" : "border-border"}`} key={item.id}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-semibold">{item.name}</h3><p className="mt-1 text-sm text-muted-foreground">{item.description}</p></div>{isActive && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Current plan</span>}{isPending && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Payment pending</span>}{item.isPopular && !isActive && !isPending && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">Popular</span>}</div><p className="mt-6 text-3xl font-semibold">INR {formatMoney(item.price)} <span className="text-sm font-normal text-muted-foreground">/ {billingLabel(item.billingCycle)}</span></p><div className="mt-6 grid gap-3 text-sm">{item.features.map((feature) => <p className="flex items-center gap-2" key={feature}><Check className="text-emerald-700" size={16} />{feature}</p>)}</div><button className={`mt-7 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${isActive ? "border border-border text-muted-foreground" : "bg-primary text-white"}`} disabled={isActive || checkoutPlanId === item.id} onClick={() => chooseSubscription(item.id)}>{checkoutPlanId === item.id ? <><LoaderCircle className="animate-spin" size={17} /> Creating order</> : isActive ? "Active plan" : isPending ? <>Retry payment <ArrowUpRight size={17} /></> : <>Choose {item.name} <ArrowUpRight size={17} /></>}</button></article>; })}</div>}<p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><Sparkles className="text-amber-600" size={17} /> Razorpay order creation and payment verification are handled by the backend.</p></section>}
       </div>
