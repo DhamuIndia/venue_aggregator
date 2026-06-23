@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
+import { getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
 import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
@@ -44,12 +45,25 @@ function statusLabel(status: keyof typeof statusStyles) {
   return status.toLowerCase().replace(/_/g, " ");
 }
 
+const fallbackReviewEligibility: ReviewEligibility = {
+  eligible: reviewEligibleBooking.verified,
+  enquiryId: reviewEligibleBooking.enquiryId,
+  hallId: reviewEligibleBooking.hallId,
+  hallName: reviewEligibleBooking.venue,
+  eventDate: reviewEligibleBooking.eventDate,
+  eventType: reviewEligibleBooking.serviceType,
+  reason: null
+};
+
 export function CustomerDashboard() {
   const { accessToken, logout, user } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewEligibility, setReviewEligibility] = useState<ReviewEligibility>(fallbackReviewEligibility);
+  const [isLoadingReviewEligibility, setIsLoadingReviewEligibility] = useState(true);
+  const [reviewError, setReviewError] = useState("");
   const [enquiries, setEnquiries] = useState<CustomerEnquiry[]>(customerEnquiries);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
@@ -89,9 +103,58 @@ export function CustomerDashboard() {
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadReviewEligibility() {
+      setIsLoadingReviewEligibility(true);
+      setReviewError("");
+
+      try {
+        const eligibility = await getCustomerReviewEligibility(reviewEligibleBooking.enquiryId, accessToken, fallbackReviewEligibility);
+        if (!isCurrent) return;
+        setReviewEligibility(eligibility);
+        setReviewSubmitted(Boolean(eligibility.submittedReviewId));
+      } catch {
+        if (!isCurrent) return;
+        setReviewEligibility(fallbackReviewEligibility);
+        setReviewError("Could not load review eligibility.");
+      } finally {
+        if (isCurrent) setIsLoadingReviewEligibility(false);
+      }
+    }
+
+    loadReviewEligibility();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
   function signOut() {
     logout();
     router.push("/");
+  }
+
+  async function submitReview(payload: { rating: number; comment: string }) {
+    if (!reviewEligibility.eligible) {
+      throw new Error(reviewEligibility.reason ?? "This completed service is not eligible for review.");
+    }
+
+    const review = await submitCustomerReview({
+      enquiryId: reviewEligibility.enquiryId,
+      hallId: reviewEligibility.hallId,
+      rating: payload.rating,
+      comment: payload.comment
+    }, accessToken);
+    setReviewSubmitted(true);
+    setReviewEligibility((current) => ({
+      ...current,
+      eligible: false,
+      reason: "You already submitted a review for this completed service.",
+      submittedReviewId: review.id
+    }));
+    setReviewOpen(false);
   }
 
   return (
@@ -132,7 +195,7 @@ export function CustomerDashboard() {
               <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">Recent activity</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("reviews")}>View reviews</button></div>
               <button className="mt-4 flex w-full items-center gap-4 rounded-lg border border-border bg-white p-5 text-left hover:border-primary" onClick={() => setActiveTab("reviews")}>
                 <span className="grid size-11 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-600"><Star size={21} /></span>
-                <span className="min-w-0 flex-1"><strong className="block">Review Marigold Mini Hall</strong><span className="mt-1 block text-sm text-muted-foreground">Your completed event is eligible for a verified review.</span></span>
+                <span className="min-w-0 flex-1"><strong className="block">{reviewSubmitted ? "Review submitted" : `Review ${reviewEligibility.hallName ?? reviewEligibleBooking.venue}`}</strong><span className="mt-1 block text-sm text-muted-foreground">{reviewSubmitted ? "Your verified review is pending moderation." : "Your completed event is eligible for a verified review."}</span></span>
                 <ChevronRight className="text-muted-foreground" size={19} />
               </button>
             </section>
@@ -150,19 +213,24 @@ export function CustomerDashboard() {
         {activeTab === "reviews" && (
           <section className="py-7">
             <h2 className="text-xl font-semibold">Your reviews</h2><p className="mt-1 text-sm text-muted-foreground">Only completed bookings can receive a verified review.</p>
-            {reviewSubmitted ? (
-              <div className="mt-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-5"><CheckCircle2 className="mt-0.5 shrink-0 text-emerald-700" size={21} /><div><h3 className="font-semibold">Review submitted</h3><p className="mt-1 text-sm text-muted-foreground">Your verified review for {reviewEligibleBooking.venue} is pending moderation.</p></div></div>
-            ) : (
+            {reviewError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{reviewError}</p>}
+            {isLoadingReviewEligibility ? (
+              <div className="mt-5 h-28 animate-pulse rounded-lg border border-border bg-white" />
+            ) : reviewSubmitted ? (
+              <div className="mt-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-5"><CheckCircle2 className="mt-0.5 shrink-0 text-emerald-700" size={21} /><div><h3 className="font-semibold">Review submitted</h3><p className="mt-1 text-sm text-muted-foreground">Your verified review for {reviewEligibility.hallName ?? reviewEligibleBooking.venue} is pending moderation.</p></div></div>
+            ) : reviewEligibility.eligible ? (
               <article className="mt-5 rounded-lg border border-border bg-white p-5">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><span className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><BadgeCheck size={23} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold">{reviewEligibleBooking.venue}</h3><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Verified service</span></div><p className="mt-2 text-sm text-muted-foreground">{reviewEligibleBooking.serviceType} | {reviewEligibleBooking.eventDate}</p></div><button className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => setReviewOpen(true)}>Write review</button></div>
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><span className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><BadgeCheck size={23} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold">{reviewEligibility.hallName ?? reviewEligibleBooking.venue}</h3><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Verified service</span></div><p className="mt-2 text-sm text-muted-foreground">{reviewEligibility.eventType ?? reviewEligibleBooking.serviceType} | {reviewEligibility.eventDate}</p></div><button className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => setReviewOpen(true)}>Write review</button></div>
               </article>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-6"><h3 className="font-semibold">No review available</h3><p className="mt-2 text-sm text-muted-foreground">{reviewEligibility.reason ?? "Completed eligible services will appear here."}</p></div>
             )}
             <div className="mt-8 flex items-center gap-3 border-t border-border pt-6 text-sm text-muted-foreground"><Clock3 size={18} /><span>Reviews appear publicly after moderation.</span></div>
           </section>
         )}
       </main>
 
-      <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={() => { setReviewSubmitted(true); setReviewOpen(false); }} open={reviewOpen} venueName={reviewEligibleBooking.venue} />
+      <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={submitReview} open={reviewOpen} venueName={reviewEligibility.hallName ?? reviewEligibleBooking.venue} />
     </>
   );
 }

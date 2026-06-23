@@ -235,12 +235,42 @@ Review eligibility response:
   "eligible": true,
   "enquiryId": "ENQ-1884",
   "hallId": "marigold-mini-hall",
+  "hallName": "Marigold Mini Hall",
   "eventDate": "2026-05-10",
+  "eventType": "Birthday celebration",
   "reason": null
 }
 ```
 
 Only the customer attached to a `COMPLETED` enquiry may review that hall. Enforce one active review per enquiry. Reviews created through this route have `verifiedService=true`.
+
+Create verified review request:
+
+```json
+{
+  "enquiryId": "ENQ-1884",
+  "hallId": "marigold-mini-hall",
+  "rating": 5,
+  "comment": "The hall was clean, well managed, and the team coordinated everything smoothly."
+}
+```
+
+Create verified review response:
+
+```json
+{
+  "id": "REV-1884",
+  "enquiryId": "ENQ-1884",
+  "hallId": "marigold-mini-hall",
+  "rating": 5,
+  "comment": "The hall was clean, well managed, and the team coordinated everything smoothly.",
+  "submittedAt": "2026-06-23T10:30:00Z",
+  "verifiedService": true,
+  "status": "PENDING_MODERATION"
+}
+```
+
+Return `403` when the enquiry does not belong to the logged-in customer, `409` when a review already exists for the enquiry, and `400` for invalid rating or comment length.
 
 ## Hall Owner APIs
 
