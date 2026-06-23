@@ -49,6 +49,7 @@ const moderationStyle: Record<ModerationStatus, string> = {
 };
 
 const enquiryStyle: Record<EnquiryStatus, string> = {
+  NEW: "bg-blue-50 text-blue-700",
   PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-800",
   DECLINED: "bg-rose-50 text-rose-700",

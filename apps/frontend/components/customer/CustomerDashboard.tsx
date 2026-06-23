@@ -17,7 +17,8 @@ import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
-import { getLocalEnquiries } from "@/features/enquiries/enquiry-client";
+import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
+import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
 import { ReviewDialog } from "./ReviewDialog";
 
@@ -31,6 +32,7 @@ const tabs: Array<{ id: DashboardTab; label: string }> = [
 ];
 
 const statusStyles = {
+  NEW: "bg-blue-50 text-blue-700",
   PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
   AWAITING_RESPONSE: "bg-amber-50 text-amber-700",
@@ -43,27 +45,49 @@ function statusLabel(status: keyof typeof statusStyles) {
 }
 
 export function CustomerDashboard() {
-  const { logout, user } = useAuth();
+  const { accessToken, logout, user } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [enquiries, setEnquiries] = useState<CustomerEnquiry[]>(customerEnquiries);
+  const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
+  const [enquiriesError, setEnquiriesError] = useState("");
   const savedHalls = halls.slice(0, 2);
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
     if (tabs.some((tab) => tab.id === requestedTab)) setActiveTab(requestedTab as DashboardTab);
-
-    const localEnquiries: CustomerEnquiry[] = getLocalEnquiries().map((enquiry) => ({
-      id: enquiry.id,
-      venue: enquiry.hallName,
-      eventDate: new Intl.DateTimeFormat("en-IN", { dateStyle: "long" }).format(new Date(`${enquiry.eventDate}T00:00:00`)),
-      submittedAt: enquiry.submittedAt,
-      status: enquiry.status
-    }));
-    setEnquiries([...localEnquiries, ...customerEnquiries]);
   }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadEnquiries() {
+      setIsLoadingEnquiries(true);
+      setEnquiriesError("");
+
+      try {
+        const response = await getCustomerEnquiries(accessToken);
+        if (!isCurrent) return;
+
+        const apiEnquiries = response.enquiries.map(toCustomerEnquiry);
+        setEnquiries(response.source === "api" ? apiEnquiries : [...apiEnquiries, ...customerEnquiries]);
+      } catch {
+        if (!isCurrent) return;
+        setEnquiries(customerEnquiries);
+        setEnquiriesError("Could not load latest enquiries.");
+      } finally {
+        if (isCurrent) setIsLoadingEnquiries(false);
+      }
+    }
+
+    loadEnquiries();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
 
   function signOut() {
     logout();
@@ -116,7 +140,7 @@ export function CustomerDashboard() {
         )}
 
         {activeTab === "enquiries" && (
-          <section className="py-7"><h2 className="text-xl font-semibold">Your enquiries</h2><p className="mt-1 text-sm text-muted-foreground">Track responses and confirmed event details.</p><div className="mt-5 grid gap-3">{enquiries.map((enquiry) => <article className="grid gap-4 rounded-lg border border-border bg-white p-5 sm:grid-cols-[1fr_auto] sm:items-center" key={enquiry.id}><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{enquiry.venue}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[enquiry.status]}`}>{statusLabel(enquiry.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">Event: {enquiry.eventDate} | Enquiry {enquiry.id}</p></div><button className="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:border-primary">View details <ChevronRight size={16} /></button></article>)}</div></section>
+          <section className="py-7"><h2 className="text-xl font-semibold">Your enquiries</h2><p className="mt-1 text-sm text-muted-foreground">Track responses and confirmed event details.</p>{enquiriesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{enquiriesError}</p>}{isLoadingEnquiries ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? <div className="mt-5 grid gap-3">{enquiries.map((enquiry) => <article className="grid gap-4 rounded-lg border border-border bg-white p-5 sm:grid-cols-[1fr_auto] sm:items-center" key={enquiry.id}><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{enquiry.venue}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[enquiry.status]}`}>{statusLabel(enquiry.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">Event: {enquiry.eventDate} | Enquiry {enquiry.id}</p></div><button className="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:border-primary">View details <ChevronRight size={16} /></button></article>)}</div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No enquiries yet</h3><p className="mt-2 text-sm text-muted-foreground">Browse venues and send your first enquiry.</p></div>}</section>
         )}
 
         {activeTab === "saved" && (
@@ -141,4 +165,14 @@ export function CustomerDashboard() {
       <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={() => { setReviewSubmitted(true); setReviewOpen(false); }} open={reviewOpen} venueName={reviewEligibleBooking.venue} />
     </>
   );
+}
+
+function toCustomerEnquiry(enquiry: StoredEnquiry): CustomerEnquiry {
+  return {
+    id: enquiry.id,
+    venue: enquiry.hallName,
+    eventDate: new Intl.DateTimeFormat("en-IN", { dateStyle: "long" }).format(new Date(`${enquiry.eventDate}T00:00:00`)),
+    submittedAt: enquiry.submittedAt,
+    status: enquiry.status
+  };
 }

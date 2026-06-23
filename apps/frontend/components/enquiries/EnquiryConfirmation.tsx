@@ -3,7 +3,8 @@
 import { CalendarDays, Check, CheckCircle2, Clock3, MapPin, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getLocalEnquiry } from "@/features/enquiries/enquiry-client";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { getEnquiry } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
 
 function formatDate(value: string) {
@@ -15,13 +16,27 @@ function formatSlot(value: string) {
 }
 
 export function EnquiryConfirmation({ enquiryId }: { enquiryId: string }) {
+  const { accessToken } = useAuth();
   const [enquiry, setEnquiry] = useState<StoredEnquiry | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setEnquiry(getLocalEnquiry(enquiryId) ?? null);
-    setIsLoading(false);
-  }, [enquiryId]);
+    let isCurrent = true;
+
+    async function loadEnquiry() {
+      setIsLoading(true);
+      const result = await getEnquiry(enquiryId, accessToken);
+      if (!isCurrent) return;
+      setEnquiry(result ?? null);
+      setIsLoading(false);
+    }
+
+    loadEnquiry();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken, enquiryId]);
 
   if (isLoading) return <div className="min-h-80 animate-pulse rounded-lg bg-muted" />;
 

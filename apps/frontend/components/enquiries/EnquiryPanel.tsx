@@ -11,7 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { createLocalEnquiry } from "@/features/enquiries/enquiry-client";
+import { createEnquiry } from "@/features/enquiries/enquiry-client";
 import type { EnquirySlot } from "@/features/enquiries/types";
 import type { HallSummary } from "@/features/halls/types";
 
@@ -28,7 +28,7 @@ const slots: Array<{ value: EnquirySlot; label: string }> = [
 ];
 
 export function EnquiryPanel({ hall }: EnquiryPanelProps) {
-  const { user } = useAuth();
+  const { accessToken, user } = useAuth();
   const router = useRouter();
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
@@ -69,7 +69,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     setAvailability("idle");
   }
 
-  function submitEnquiry(event: FormEvent<HTMLFormElement>) {
+  async function submitEnquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!user) {
@@ -87,18 +87,24 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
       return;
     }
 
-    setIsSubmitting(true);
-    const enquiry = createLocalEnquiry({
-      hallId: hall.id,
-      hallName: hall.name,
-      customerId: user.id,
-      eventDate,
-      eventType,
-      guestCount: Number(guestCount),
-      slot,
-      notes: notes.trim() || undefined
-    });
-    router.push(`/enquiries/confirmation/${enquiry.id}`);
+    try {
+      setIsSubmitting(true);
+      const enquiry = await createEnquiry({
+        hallId: hall.id,
+        hallName: hall.name,
+        customerId: user.id,
+        eventDate,
+        eventType,
+        guestCount: Number(guestCount),
+        slot,
+        notes: notes.trim() || undefined
+      }, accessToken);
+      router.push(`/enquiries/confirmation/${enquiry.id}`);
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "Could not send enquiry. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
