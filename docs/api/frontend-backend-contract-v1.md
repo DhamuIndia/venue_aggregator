@@ -199,6 +199,28 @@ Create vendor lead request:
 
 The server derives customer and vendor identity. Return `201` with status `NEW`.
 
+Create vendor lead response:
+
+```json
+{
+  "id": "LEAD-804231",
+  "vendorId": "saffron-leaf-catering",
+  "vendorName": "Saffron Leaf Catering",
+  "customerId": "customer-411",
+  "customerName": "Deepa Raj",
+  "eventDate": "2026-08-02",
+  "eventType": "Reception",
+  "location": "Velachery, Chennai",
+  "service": "Wedding catering",
+  "budget": 420000,
+  "notes": "Dinner for around 550 guests.",
+  "status": "NEW",
+  "submittedAt": "2026-06-23T10:30:00Z"
+}
+```
+
+Return `401` when the user is not logged in, `403` when the logged-in user is not a customer, and `400` for invalid event date, service, location, or budget.
+
 ## Customer APIs
 
 | Method | Route | Purpose |
@@ -337,8 +359,10 @@ Vendor lead status: `NEW`, `CONTACTED`, `QUOTE_SENT`, `BOOKED`, `DECLINED`.
 Lead status request:
 
 ```json
-{ "status": "QUOTE_SENT", "quotedAmount": 395000 }
+{ "status": "QUOTE_SENT" }
 ```
+
+Return the updated lead resource. Return `403` when the lead does not belong to the logged-in vendor and `409` when a stale update conflicts.
 
 Allowed transitions:
 
