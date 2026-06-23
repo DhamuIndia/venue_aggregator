@@ -1,5 +1,6 @@
 import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
+import type { BlockedDate } from "./availability-client";
 
 export const ownerHall = halls[0];
 
@@ -37,7 +38,7 @@ export const ownerReviews = [
   { id: "REV-31", name: "Meena V.", rating: 5, event: "Engagement", comment: "Everything was ready on time and the staff were helpful throughout.", date: "10 May 2026" }
 ];
 
-export const initialBlockedDates = [
+export const initialBlockedDates: BlockedDate[] = [
   { id: "BLOCK-1", date: "2026-07-15", slot: "FULL_DAY", reason: "Maintenance" },
   { id: "BLOCK-2", date: "2026-07-22", slot: "EVENING", reason: "Private event" }
 ];
