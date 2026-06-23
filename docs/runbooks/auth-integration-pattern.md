@@ -2,6 +2,24 @@
 
 Use the authentication slice as the reference pattern for the next backend modules.
 
+## Completed Integration
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/logout`
+- User registration for `CUSTOMER`, `HALL_OWNER`, and `VENDOR`.
+- BCrypt password hashing.
+- JWT access tokens and refresh tokens.
+- Role-based security for protected routes.
+- CORS for local frontend URLs.
+- Global `application/problem+json` error responses.
+- Frontend API auth client and session storage.
+- Frontend session hydration through `/auth/me`.
+- Frontend refresh-token flow when access token is near expiry.
+- Auth service unit tests.
+
 ## Backend
 
 - Base route: `/api/v1`.
@@ -18,6 +36,34 @@ Use the authentication slice as the reference pattern for the next backend modul
 - Set `NEXT_PUBLIC_AUTH_MODE=api` for backend integration.
 - Auth responses are stored as `accessToken`, `refreshToken`, `expiresInSeconds`, `expiresAt`, and `user`.
 - UI-only work can still use mock auth by setting `NEXT_PUBLIC_AUTH_MODE=mock`.
+
+## Test Login
+
+No real backend test user is seeded in the database yet.
+
+For API mode, create a user from the frontend register page or call `/api/v1/auth/register`. Login uses phone number and password.
+
+Suggested local test account:
+
+```text
+Role: CUSTOMER
+Full name: Test Customer
+Phone: 9876543210
+Email: test.customer@example.com
+Password: Password123
+```
+
+Mock mode is frontend-only. If `NEXT_PUBLIC_AUTH_MODE=mock`, the demo buttons use these phone numbers:
+
+```text
+CUSTOMER: 9876543210
+HALL_OWNER: 9876501234
+VENDOR: 9884012345
+ADMIN: 9000000001
+SUPER_ADMIN: 9000000002
+```
+
+The mock accounts are not stored in PostgreSQL and should not be used for backend testing.
 
 ## Current Limit
 

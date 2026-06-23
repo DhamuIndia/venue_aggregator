@@ -23,6 +23,54 @@ These are the best next modules because they are focused, independent, and cover
 - Do not change frontend UI design unless needed for API integration.
 - Update `docs/api/frontend-backend-contract-v1.md` if the API shape changes.
 
+## Run Locally
+
+Prerequisite: Docker Desktop must be running.
+
+Start PostgreSQL:
+
+```bash
+cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/infra
+docker compose up -d postgres
+docker compose ps
+```
+
+Start backend:
+
+```bash
+cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/apps/backend
+mvn spring-boot:run
+```
+
+Check backend:
+
+```bash
+curl http://localhost:8080/api/actuator/health
+```
+
+Start frontend in another terminal:
+
+```bash
+cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/apps/frontend
+cp .env.example .env.local
+npm install
+npm run dev -- -p 3001
+```
+
+Open:
+
+```text
+http://localhost:3001
+http://localhost:8080/api/docs
+```
+
+Stop PostgreSQL:
+
+```bash
+cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/infra
+docker compose down
+```
+
 ## Public Hall Discovery and Hall Detail
 
 ### Goal
