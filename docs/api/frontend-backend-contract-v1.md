@@ -183,6 +183,49 @@ Vendor category: `CATERING`, `DECORATION`, `PHOTOGRAPHY`, `BRIDAL_MAKEUP`, `MUSI
 
 Vendor listing status: `DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `REJECTED`, `SUSPENDED`.
 
+Vendor search/detail response items should include:
+
+```json
+{
+  "id": "saffron-leaf-catering",
+  "businessName": "Saffron Leaf Catering",
+  "ownerName": "Manoj Krishnan",
+  "category": "CATERING",
+  "city": "Chennai",
+  "area": "Adyar",
+  "rating": 4.9,
+  "reviewCount": 84,
+  "startingPrice": 650,
+  "imageUrl": "https://example.com/vendor-cover.jpg",
+  "galleryUrls": ["https://example.com/vendor-1.jpg"],
+  "verified": true,
+  "responseTime": "Within 2 hours",
+  "completedEvents": 212,
+  "services": ["Wedding catering", "Live counters"],
+  "description": "South Indian celebration menus with transparent per-plate pricing.",
+  "packages": [
+    {
+      "id": "PKG-C1",
+      "name": "Classic celebration",
+      "description": "A balanced vegetarian menu for intimate events.",
+      "price": 650,
+      "includes": ["Welcome drink", "18-item meal"]
+    }
+  ],
+  "reviews": [
+    {
+      "id": "VREV-81",
+      "customerName": "Harini S.",
+      "rating": 5,
+      "eventType": "Wedding",
+      "comment": "The service team was smooth for all guests.",
+      "eventDate": "2026-05-12",
+      "verifiedService": true
+    }
+  ]
+}
+```
+
 Create vendor lead request:
 
 ```json
