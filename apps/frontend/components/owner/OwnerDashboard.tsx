@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  CreditCard,
   Eye,
   ImagePlus,
   LoaderCircle,
@@ -22,7 +23,18 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
+import { fallbackOwnerAnalytics, getOwnerAnalytics, type OwnerAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
+import {
+  bookingFromEnquiry as lifecycleBookingFromEnquiry,
+  getOwnerBookings,
+  updateOwnerBookingStatus,
+  upsertLocalBooking,
+  type BookingItem,
+  type BookingPaymentStatus,
+  type BookingStatus
+} from "@/features/bookings/booking-client";
 import { getOwnerHallEnquiries, updateOwnerEnquiryStatus } from "@/features/enquiries/enquiry-client";
 import type { EnquiryStatus, StoredEnquiry } from "@/features/enquiries/types";
 import {
@@ -49,19 +61,23 @@ import {
   updateOwnerMedia,
   type OwnerMediaItem
 } from "@/features/owner/media-client";
+import { getOwnerHallReviews, type OwnerReview } from "@/features/owner/review-client";
 import { fallbackOwnerEnquiries, initialBlockedDates, ownerHall, ownerReviews } from "@/features/owner/mock-data";
 import type { VenueType } from "@/features/halls/types";
 import { BlockDateDialog } from "./BlockDateDialog";
 
-type OwnerTab = "overview" | "enquiries" | "availability" | "listing" | "media" | "reviews";
+type OwnerTab = "overview" | "enquiries" | "bookings" | "reports" | "availability" | "listing" | "media" | "reviews" | "activity";
 
 const tabs: Array<{ id: OwnerTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "enquiries", label: "Enquiries" },
+  { id: "bookings", label: "Bookings" },
+  { id: "reports", label: "Reports" },
   { id: "availability", label: "Availability" },
   { id: "listing", label: "Listing" },
   { id: "media", label: "Media" },
-  { id: "reviews", label: "Reviews" }
+  { id: "reviews", label: "Reviews" },
+  { id: "activity", label: "Activity" }
 ];
 
 const statusStyle: Record<EnquiryStatus, string> = {
@@ -70,6 +86,20 @@ const statusStyle: Record<EnquiryStatus, string> = {
   CONFIRMED: "bg-emerald-50 text-emerald-700",
   DECLINED: "bg-rose-50 text-rose-700",
   COMPLETED: "bg-muted text-muted-foreground"
+};
+
+const bookingStatusStyle: Record<BookingStatus, string> = {
+  REQUESTED: "bg-blue-50 text-blue-700",
+  CONFIRMED: "bg-emerald-50 text-emerald-700",
+  CANCELLED: "bg-rose-50 text-rose-700",
+  COMPLETED: "bg-muted text-muted-foreground"
+};
+
+const paymentStatusStyle: Record<BookingPaymentStatus, string> = {
+  NOT_STARTED: "bg-slate-100 text-slate-700",
+  ADVANCE_PENDING: "bg-amber-50 text-amber-700",
+  ADVANCE_PAID: "bg-emerald-50 text-emerald-700",
+  REFUNDED: "bg-violet-50 text-violet-700"
 };
 
 const listingStatusStyle: Record<OwnerListingStatus, string> = {
@@ -101,6 +131,14 @@ function formatStatus(status: EnquiryStatus) {
   return status.toLowerCase().replace(/_/g, " ");
 }
 
+function formatBookingStatus(status: BookingStatus) {
+  return status.toLowerCase().replace(/_/g, " ");
+}
+
+function formatPaymentStatus(status: BookingPaymentStatus) {
+  return status.toLowerCase().replace(/_/g, " ");
+}
+
 function formatListingStatus(status: OwnerListingStatus) {
   return status.toLowerCase().replace(/_/g, " ");
 }
@@ -113,6 +151,10 @@ function formatSlot(value: string) {
   return value.toLowerCase().replace("_", " ");
 }
 
+function formatCompactMoney(value: number) {
+  return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
+}
+
 function bookingFromEnquiry(enquiry: StoredEnquiry): AvailabilityBooking {
   return {
     id: enquiry.id,
@@ -121,6 +163,18 @@ function bookingFromEnquiry(enquiry: StoredEnquiry): AvailabilityBooking {
     slot: enquiry.slot,
     eventType: enquiry.eventType,
     guestCount: enquiry.guestCount
+  };
+}
+
+function availabilityBookingFromLifecycle(booking: BookingItem): AvailabilityBooking {
+  return {
+    id: booking.id,
+    enquiryId: booking.enquiryId,
+    eventDate: booking.eventDate,
+    slot: booking.slot,
+    eventType: booking.eventType,
+    guestCount: booking.guestCount,
+    customerName: booking.customerName
   };
 }
 
@@ -165,6 +219,17 @@ function normalizeMediaCover(media: OwnerMediaItem[]) {
   return media.map((item, index) => ({ ...item, isCover: coverIndex >= 0 ? index === coverIndex : index === 0 }));
 }
 
+function reviewCounts(reviews: OwnerReview[]) {
+  return [5, 4, 3, 2, 1].map((rating) => {
+    const count = reviews.filter((review) => Math.round(review.rating) === rating).length;
+    return {
+      rating,
+      count,
+      percentage: reviews.length ? Math.round((count / reviews.length) * 100) : 0
+    };
+  });
+}
+
 export function OwnerDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<OwnerTab>("overview");
@@ -178,6 +243,10 @@ export function OwnerDashboard() {
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
   const [updatingEnquiryId, setUpdatingEnquiryId] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<BookingItem[]>(() => fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+  const [bookingsError, setBookingsError] = useState("");
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>(initialBlockedDates);
   const [availabilityBookings, setAvailabilityBookings] = useState<AvailabilityBooking[]>([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
@@ -189,10 +258,45 @@ export function OwnerDashboard() {
   const [mediaError, setMediaError] = useState("");
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [updatingMediaId, setUpdatingMediaId] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<OwnerReview[]>(ownerReviews);
+  const [averageRating, setAverageRating] = useState(ownerHall.rating);
+  const [totalReviews, setTotalReviews] = useState(ownerHall.reviewCount);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
+  const [analytics, setAnalytics] = useState<OwnerAnalytics>(fallbackOwnerAnalytics);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState("");
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("submitted") === "true") setNotice("Your venue was submitted for admin approval.");
   }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadAnalytics() {
+      setIsLoadingAnalytics(true);
+      setAnalyticsError("");
+
+      try {
+        const response = await getOwnerAnalytics(ownerHall.id, accessToken);
+        if (!isCurrent) return;
+        setAnalytics(response);
+      } catch {
+        if (!isCurrent) return;
+        setAnalytics(fallbackOwnerAnalytics);
+        setAnalyticsError("Could not load latest reports.");
+      } finally {
+        if (isCurrent) setIsLoadingAnalytics(false);
+      }
+    }
+
+    loadAnalytics();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -219,6 +323,36 @@ export function OwnerDashboard() {
     }
 
     loadListing();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadBookings() {
+      setIsLoadingBookings(true);
+      setBookingsError("");
+
+      try {
+        const fallbackBookings = fallbackOwnerEnquiries
+          .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
+          .map(lifecycleBookingFromEnquiry);
+        const response = await getOwnerBookings(ownerHall.id, accessToken, fallbackBookings);
+        if (!isCurrent) return;
+        setBookings(response.bookings);
+      } catch {
+        if (!isCurrent) return;
+        setBookings(fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
+        setBookingsError("Could not load latest bookings.");
+      } finally {
+        if (isCurrent) setIsLoadingBookings(false);
+      }
+    }
+
+    loadBookings();
 
     return () => {
       isCurrent = false;
@@ -290,11 +424,47 @@ export function OwnerDashboard() {
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadReviews() {
+      setIsLoadingReviews(true);
+      setReviewsError("");
+
+      try {
+        const response = await getOwnerHallReviews(ownerHall.id, accessToken, ownerReviews);
+        if (!isCurrent) return;
+        setReviews(response.reviews);
+        setAverageRating(response.averageRating || ownerHall.rating);
+        setTotalReviews(response.totalReviews || response.reviews.length);
+      } catch {
+        if (!isCurrent) return;
+        setReviews(ownerReviews);
+        setAverageRating(ownerHall.rating);
+        setTotalReviews(ownerHall.reviewCount);
+        setReviewsError("Could not load latest reviews.");
+      } finally {
+        if (isCurrent) setIsLoadingReviews(false);
+      }
+    }
+
+    loadReviews();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
   const pendingCount = enquiries.filter((enquiry) => enquiry.status === "NEW" || enquiry.status === "PENDING_OWNER_RESPONSE").length;
-  const confirmedCount = enquiries.filter((enquiry) => enquiry.status === "CONFIRMED").length;
+  const activeBookingCount = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED").length;
+  const confirmedCount = bookings.filter((booking) => booking.status === "CONFIRMED").length;
   const confirmedBookings = useMemo(() => {
     const bookingMap = new Map<string, AvailabilityBooking>();
     availabilityBookings.forEach((booking) => bookingMap.set(booking.enquiryId ?? booking.id, booking));
+    bookings
+      .filter((booking) => booking.status === "CONFIRMED")
+      .map(availabilityBookingFromLifecycle)
+      .forEach((booking) => bookingMap.set(booking.enquiryId ?? booking.id, booking));
     enquiries
       .filter((enquiry) => enquiry.status === "CONFIRMED")
       .map(bookingFromEnquiry)
@@ -302,12 +472,13 @@ export function OwnerDashboard() {
         if (!bookingMap.has(booking.enquiryId ?? booking.id)) bookingMap.set(booking.enquiryId ?? booking.id, booking);
       });
     return Array.from(bookingMap.values()).sort((first, second) => first.eventDate.localeCompare(second.eventDate));
-  }, [availabilityBookings, enquiries]);
+  }, [availabilityBookings, bookings, enquiries]);
   const confirmedDays = useMemo(() => new Set(confirmedBookings.filter((booking) => booking.eventDate.startsWith("2026-07")).map((booking) => Number(booking.eventDate.slice(-2)))), [confirmedBookings]);
   const blockedDays = new Set(blockedDates.filter((date) => date.date.startsWith("2026-07")).map((date) => Number(date.date.slice(-2))));
 
   async function respondToEnquiry(id: string, status: EnquiryStatus) {
-    const previousStatus = enquiries.find((enquiry) => enquiry.id === id)?.status;
+    const currentEnquiry = enquiries.find((enquiry) => enquiry.id === id);
+    const previousStatus = currentEnquiry?.status;
 
     try {
       setUpdatingEnquiryId(id);
@@ -316,7 +487,13 @@ export function OwnerDashboard() {
       if (updated) {
         setEnquiries((current) => current.map((enquiry) => enquiry.id === id ? updated : enquiry));
       }
-      setNotice(status === "CONFIRMED" ? "Enquiry confirmed. The customer can now see the updated status." : "Enquiry declined and the customer status was updated.");
+      const confirmedEnquiry = updated ?? currentEnquiry;
+      if (status === "CONFIRMED" && confirmedEnquiry) {
+        const booking = upsertLocalBooking(lifecycleBookingFromEnquiry({ ...confirmedEnquiry, status: "CONFIRMED" }));
+        setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+        setAvailabilityBookings((current) => [availabilityBookingFromLifecycle(booking), ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+      }
+      setNotice(status === "CONFIRMED" ? "Enquiry confirmed and booking created." : "Enquiry declined and the customer status was updated.");
     } catch (exception) {
       if (previousStatus) {
         setEnquiries((current) => current.map((enquiry) => enquiry.id === id ? { ...enquiry, status: previousStatus } : enquiry));
@@ -324,6 +501,28 @@ export function OwnerDashboard() {
       setNotice(exception instanceof Error ? exception.message : "Could not update enquiry status. Please try again.");
     } finally {
       setUpdatingEnquiryId(null);
+    }
+  }
+
+  async function changeBookingStatus(bookingId: string, status: BookingStatus) {
+    const previousBookings = bookings;
+
+    try {
+      setUpdatingBookingId(bookingId);
+      setBookings((current) => current.map((booking) => booking.id === bookingId ? { ...booking, status, updatedAt: new Date().toISOString() } : booking));
+      const updated = await updateOwnerBookingStatus(bookingId, status, accessToken);
+      if (updated) {
+        setBookings((current) => current.map((booking) => booking.id === bookingId ? updated : booking));
+        if (status === "COMPLETED" && updated.enquiryId) {
+          setEnquiries((current) => current.map((enquiry) => enquiry.id === updated.enquiryId ? { ...enquiry, status: "COMPLETED" } : enquiry));
+        }
+      }
+      setNotice(status === "COMPLETED" ? "Booking marked completed. Customer can now be eligible for review." : status === "CANCELLED" ? "Booking cancelled." : "Booking status updated.");
+    } catch (exception) {
+      setBookings(previousBookings);
+      setNotice(exception instanceof Error ? exception.message : "Could not update booking.");
+    } finally {
+      setUpdatingBookingId(null);
     }
   }
 
@@ -485,16 +684,79 @@ export function OwnerDashboard() {
       <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div><div className="flex items-center gap-2 text-sm font-semibold text-primary"><BadgeCheck size={17} /> Owner workspace</div><h1 className="mt-2 text-3xl font-semibold">{listing.name}</h1><p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listing.area}, {listing.city}</p></div>
-          <div className="flex gap-2"><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link><Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
+          <div className="flex flex-wrap items-center gap-2"><NotificationBell /><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link><Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
         </div>
 
         {notice && <div className="mt-6 flex items-start justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><span className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0" size={18} />{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")}><X size={17} /></button></div>}
 
         <div className="mt-8 flex gap-1 overflow-x-auto border-b border-border" role="tablist" aria-label="Owner dashboard">
-          {tabs.map((tab) => <button aria-selected={activeTab === tab.id} className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}{tab.id === "enquiries" && pendingCount > 0 && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{pendingCount}</span>}</button>)}
+          {tabs.map((tab) => <button aria-selected={activeTab === tab.id} className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}{tab.id === "enquiries" && pendingCount > 0 && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{pendingCount}</span>}{tab.id === "bookings" && activeBookingCount > 0 && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{activeBookingCount}</span>}</button>)}
         </div>
 
-        {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">4.8</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
+        {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
+
+        {activeTab === "activity" && <NotificationActivity />}
+
+        {activeTab === "reports" && (
+          <section className="py-7">
+            <div>
+              <h2 className="text-xl font-semibold">Hall reports</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Enquiries, confirmed events, revenue, and review performance.</p>
+            </div>
+
+            {analyticsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{analyticsError}</p>}
+
+            {isLoadingAnalytics ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[1, 2, 3, 4].map((item) => <div className="h-28 animate-pulse rounded-lg border border-border bg-white" key={item} />)}
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ReportMetric label="Total enquiries" value={analytics.enquiries.toLocaleString("en-IN")} />
+                  <ReportMetric label="Confirmed bookings" value={analytics.confirmedBookings.toLocaleString("en-IN")} />
+                  <ReportMetric label="Estimated revenue" value={formatCompactMoney(analytics.estimatedRevenue)} />
+                  <ReportMetric label="Conversion rate" value={`${analytics.conversionRate}%`} />
+                  <ReportMetric label="Completed events" value={analytics.completedBookings.toLocaleString("en-IN")} />
+                  <ReportMetric label="Average rating" value={analytics.averageRating.toFixed(1)} />
+                  <ReportMetric label="Occupancy rate" value={`${analytics.occupancyRate}%`} />
+                </div>
+
+                <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4">
+                      <h3 className="font-semibold">Monthly trend</h3>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {analytics.trends.map((point) => (
+                        <div className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[80px_1fr_1fr_1fr]" key={point.label}>
+                          <strong>{point.label}</strong>
+                          <span>{point.enquiries} enquiries</span>
+                          <span>{point.bookings} bookings</span>
+                          <span className="font-medium">{formatCompactMoney(point.revenue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4">
+                      <h3 className="font-semibold">Event mix</h3>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {analytics.eventMix.map((item) => (
+                        <div className="flex items-center justify-between gap-4 px-5 py-4" key={item.eventType}>
+                          <p className="font-medium">{item.eventType}</p>
+                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">{item.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </>
+            )}
+          </section>
+        )}
 
         {activeTab === "enquiries" && (
           <section className="py-7">
@@ -562,6 +824,70 @@ export function OwnerDashboard() {
                 <MessageSquareText className="mx-auto text-muted-foreground" size={28} />
                 <h3 className="mt-4 font-semibold">No enquiries yet</h3>
                 <p className="mt-2 text-sm text-muted-foreground">New customer requests will appear here.</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "bookings" && (
+          <section className="py-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">Booking lifecycle</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Manage confirmed events through cancellation and completion.</p>
+              </div>
+              <span className="rounded-md border border-border bg-white px-3 py-2 text-sm text-muted-foreground">{bookings.length} total</span>
+            </div>
+
+            {bookingsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{bookingsError}</p>}
+
+            {isLoadingBookings ? (
+              <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
+            ) : bookings.length > 0 ? (
+              <div className="mt-5 grid gap-4">
+                {bookings.map((booking) => {
+                  const isUpdating = updatingBookingId === booking.id;
+                  const canComplete = booking.status === "CONFIRMED";
+                  const canCancel = booking.status === "REQUESTED" || booking.status === "CONFIRMED";
+
+                  return (
+                    <article className="rounded-lg border border-border bg-white p-5" key={booking.id}>
+                      <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+                        <div className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><CalendarDays size={22} /></div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold">{booking.eventType}</h3>
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bookingStatusStyle[booking.status]}`}>{formatBookingStatus(booking.status)}</span>
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">{formatDate(booking.eventDate)} | {formatSlot(booking.slot)} | {booking.guestCount} guests</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{booking.customerName ?? booking.customerId ?? "Customer"} | Booking {booking.id}</p>
+                          <p className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${paymentStatusStyle[booking.paymentStatus]}`}><CreditCard size={13} /> {formatPaymentStatus(booking.paymentStatus)}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {canComplete && (
+                            <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isUpdating} onClick={() => changeBookingStatus(booking.id, "COMPLETED")} type="button">
+                              {isUpdating ? <LoaderCircle className="animate-spin" size={16} /> : <CheckCircle2 size={16} />} Complete
+                            </button>
+                          )}
+                          {canCancel && (
+                            <button className="inline-flex h-10 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={isUpdating} onClick={() => changeBookingStatus(booking.id, "CANCELLED")} type="button">
+                              {isUpdating ? <LoaderCircle className="animate-spin" size={16} /> : <Ban size={16} />} Cancel
+                            </button>
+                          )}
+                          {!canComplete && !canCancel && (
+                            <span className="inline-flex h-10 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">No action needed</span>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center">
+                <CalendarDays className="mx-auto text-muted-foreground" size={28} />
+                <h3 className="mt-4 font-semibold">No bookings yet</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Confirm an enquiry to create the first booking.</p>
               </div>
             )}
           </section>
@@ -805,10 +1131,75 @@ export function OwnerDashboard() {
           </section>
         )}
 
-        {activeTab === "reviews" && <section className="py-7"><div><h2 className="text-xl font-semibold">Customer reviews</h2><p className="mt-1 text-sm text-muted-foreground">Verified feedback from completed events.</p></div><div className="mt-5 grid gap-6 lg:grid-cols-[280px_1fr]"><div className="h-fit rounded-lg border border-border bg-white p-6 text-center"><p className="text-5xl font-semibold">4.8</p><div className="mt-3 flex justify-center gap-1 text-amber-400">{[1, 2, 3, 4, 5].map((star) => <Star className="fill-current" key={star} size={18} />)}</div><p className="mt-2 text-sm text-muted-foreground">Based on {ownerHall.reviewCount} verified reviews</p><div className="mt-6 grid gap-2">{[5, 4, 3, 2, 1].map((rating) => <div className="grid grid-cols-[14px_1fr_28px] items-center gap-2 text-xs" key={rating}><span>{rating}</span><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-amber-400" style={{ width: `${rating === 5 ? 82 : rating === 4 ? 14 : 2}%` }} /></div><span className="text-muted-foreground">{rating === 5 ? "82%" : rating === 4 ? "14%" : "2%"}</span></div>)}</div></div><div className="grid gap-3">{ownerReviews.map((review) => <article className="rounded-lg border border-border bg-white p-5" key={review.id}><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{review.name}</h3><BadgeCheck className="text-emerald-700" size={16} /></div><p className="mt-1 text-xs text-muted-foreground">{review.event} | {review.date}</p></div><div className="flex gap-1 text-amber-400">{Array.from({ length: review.rating }, (_, index) => <Star className="fill-current" key={index} size={14} />)}</div></div><p className="mt-4 text-sm leading-6 text-muted-foreground">{review.comment}</p><button className="mt-4 text-sm font-semibold text-primary">Reply</button></article>)}</div></div></section>}
+        {activeTab === "reviews" && (
+          <section className="py-7">
+            <div>
+              <h2 className="text-xl font-semibold">Customer reviews</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Verified feedback from completed events.</p>
+            </div>
+
+            {reviewsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{reviewsError}</p>}
+
+            {isLoadingReviews ? (
+              <div className="mt-5 grid gap-6 lg:grid-cols-[280px_1fr]">
+                <div className="h-72 animate-pulse rounded-lg border border-border bg-white" />
+                <div className="grid gap-3">
+                  {[1, 2, 3].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}
+                </div>
+              </div>
+            ) : reviews.length > 0 ? (
+              <div className="mt-5 grid gap-6 lg:grid-cols-[280px_1fr]">
+                <div className="h-fit rounded-lg border border-border bg-white p-6 text-center">
+                  <p className="text-5xl font-semibold">{averageRating.toFixed(1)}</p>
+                  <div className="mt-3 flex justify-center gap-1 text-amber-400">{[1, 2, 3, 4, 5].map((star) => <Star className="fill-current" key={star} size={18} />)}</div>
+                  <p className="mt-2 text-sm text-muted-foreground">Based on {totalReviews} verified reviews</p>
+                  <div className="mt-6 grid gap-2">
+                    {reviewCounts(reviews).map((item) => (
+                      <div className="grid grid-cols-[14px_1fr_36px] items-center gap-2 text-xs" key={item.rating}>
+                        <span>{item.rating}</span>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-amber-400" style={{ width: `${item.percentage}%` }} /></div>
+                        <span className="text-right text-muted-foreground">{item.percentage}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid gap-3">
+                  {reviews.map((review) => (
+                    <article className="rounded-lg border border-border bg-white p-5" key={review.id}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2"><h3 className="font-semibold">{review.customerName}</h3>{review.verifiedService && <BadgeCheck className="text-emerald-700" size={16} />}</div>
+                          <p className="mt-1 text-xs text-muted-foreground">{review.eventType} | {review.eventDate}</p>
+                        </div>
+                        <div className="flex gap-1 text-amber-400">{Array.from({ length: Math.round(review.rating) }, (_, index) => <Star className="fill-current" key={index} size={14} />)}</div>
+                      </div>
+                      <p className="mt-4 text-sm leading-6 text-muted-foreground">{review.comment}</p>
+                      {review.reply && <p className="mt-4 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">Owner reply: {review.reply}</p>}
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center">
+                <Star className="mx-auto text-muted-foreground" size={30} />
+                <h3 className="mt-4 font-semibold">No reviews yet</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Verified customer feedback will appear here after completed events.</p>
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
       <BlockDateDialog onAdd={addBlockedDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
     </>
+  );
+}
+
+function ReportMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-white p-5">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
   );
 }

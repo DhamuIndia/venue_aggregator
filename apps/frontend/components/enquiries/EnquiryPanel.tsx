@@ -108,7 +108,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   }
 
   return (
-    <aside className="h-fit rounded-lg border border-border bg-white p-5 shadow-sm lg:sticky lg:top-24">
+    <aside className="h-fit rounded-lg border border-border bg-white p-5 shadow-sm lg:sticky lg:top-24" id="enquiry">
       <p className="text-sm text-muted-foreground">Starting from</p>
       <p className="mt-1 text-2xl font-semibold">INR {new Intl.NumberFormat("en-IN").format(hall.startingPrice)}</p>
       <p className="mt-1 text-xs text-muted-foreground">Final price depends on date, slot, and package.</p>

@@ -1,5 +1,6 @@
 import { halls } from "@/features/halls/mock-data";
 import type { EnquiryStatus } from "@/features/enquiries/types";
+import type { AuthRole } from "@/features/auth/types";
 
 export type ModerationStatus = "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 
@@ -46,6 +47,20 @@ export type AdminEnquiry = {
   eventDate: string;
   submittedAt: string;
   status: EnquiryStatus;
+};
+
+export type AdminUserStatus = "ACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION";
+
+export type AdminUser = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string;
+  role: AuthRole;
+  status: AdminUserStatus;
+  joinedAt: string;
+  lastActiveAt?: string;
+  city?: string;
 };
 
 export const initialVenueApplications: VenueApplication[] = [
@@ -109,6 +124,14 @@ export const adminEnquiries: AdminEnquiry[] = [
   { id: "ENQ-519842", hallName: "Emerald Convention Centre", customerName: "Deepa Raj", eventDate: "2 Aug 2026", submittedAt: "21 Jun 2026, 15:00", status: "PENDING_OWNER_RESPONSE" },
   { id: "ENQ-519117", hallName: "The Grand Pavilion", customerName: "Karthik S.", eventDate: "9 Aug 2026", submittedAt: "21 Jun 2026, 09:15", status: "DECLINED" },
   { id: "ENQ-518022", hallName: "Marigold Mini Hall", customerName: "Meena V.", eventDate: "14 Jun 2026", submittedAt: "18 Jun 2026, 12:40", status: "COMPLETED" }
+];
+
+export const adminUsers: AdminUser[] = [
+  { id: "customer-101", fullName: "Priya Raman", phone: "9876543210", email: "priya@example.com", role: "CUSTOMER", status: "ACTIVE", joinedAt: "2026-06-12T09:30:00Z", lastActiveAt: "2026-06-24T08:45:00Z", city: "Chennai" },
+  { id: "owner-201", fullName: "Arun Kumar", phone: "9876501234", email: "arun@example.com", role: "HALL_OWNER", status: "ACTIVE", joinedAt: "2026-06-10T11:15:00Z", lastActiveAt: "2026-06-23T19:20:00Z", city: "Chennai" },
+  { id: "vendor-301", fullName: "Manoj Krishnan", phone: "9884012345", email: "manoj@example.com", role: "VENDOR", status: "PENDING_VERIFICATION", joinedAt: "2026-06-21T10:00:00Z", lastActiveAt: "2026-06-23T15:00:00Z", city: "Chennai" },
+  { id: "customer-422", fullName: "Deepa Raj", phone: "9840012345", role: "CUSTOMER", status: "SUSPENDED", joinedAt: "2026-05-28T07:40:00Z", lastActiveAt: "2026-06-18T14:25:00Z", city: "Velachery" },
+  { id: "admin-001", fullName: "Ananya Iyer", phone: "9000000001", email: "admin@example.com", role: "ADMIN", status: "ACTIVE", joinedAt: "2026-05-01T09:00:00Z", lastActiveAt: "2026-06-24T09:10:00Z", city: "Chennai" }
 ];
 
 export const auditEvents = [
