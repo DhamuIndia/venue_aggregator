@@ -24,6 +24,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
+import { fallbackOwnerAnalytics, getOwnerAnalytics, type OwnerAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   bookingFromEnquiry as lifecycleBookingFromEnquiry,
@@ -65,12 +66,13 @@ import { fallbackOwnerEnquiries, initialBlockedDates, ownerHall, ownerReviews } 
 import type { VenueType } from "@/features/halls/types";
 import { BlockDateDialog } from "./BlockDateDialog";
 
-type OwnerTab = "overview" | "enquiries" | "bookings" | "availability" | "listing" | "media" | "reviews" | "activity";
+type OwnerTab = "overview" | "enquiries" | "bookings" | "reports" | "availability" | "listing" | "media" | "reviews" | "activity";
 
 const tabs: Array<{ id: OwnerTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "enquiries", label: "Enquiries" },
   { id: "bookings", label: "Bookings" },
+  { id: "reports", label: "Reports" },
   { id: "availability", label: "Availability" },
   { id: "listing", label: "Listing" },
   { id: "media", label: "Media" },
@@ -147,6 +149,10 @@ function formatDate(value: string) {
 
 function formatSlot(value: string) {
   return value.toLowerCase().replace("_", " ");
+}
+
+function formatCompactMoney(value: number) {
+  return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
 }
 
 function bookingFromEnquiry(enquiry: StoredEnquiry): AvailabilityBooking {
@@ -257,10 +263,40 @@ export function OwnerDashboard() {
   const [totalReviews, setTotalReviews] = useState(ownerHall.reviewCount);
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [reviewsError, setReviewsError] = useState("");
+  const [analytics, setAnalytics] = useState<OwnerAnalytics>(fallbackOwnerAnalytics);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState("");
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("submitted") === "true") setNotice("Your venue was submitted for admin approval.");
   }, []);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadAnalytics() {
+      setIsLoadingAnalytics(true);
+      setAnalyticsError("");
+
+      try {
+        const response = await getOwnerAnalytics(ownerHall.id, accessToken);
+        if (!isCurrent) return;
+        setAnalytics(response);
+      } catch {
+        if (!isCurrent) return;
+        setAnalytics(fallbackOwnerAnalytics);
+        setAnalyticsError("Could not load latest reports.");
+      } finally {
+        if (isCurrent) setIsLoadingAnalytics(false);
+      }
+    }
+
+    loadAnalytics();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -660,6 +696,67 @@ export function OwnerDashboard() {
         {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
 
         {activeTab === "activity" && <NotificationActivity />}
+
+        {activeTab === "reports" && (
+          <section className="py-7">
+            <div>
+              <h2 className="text-xl font-semibold">Hall reports</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Enquiries, confirmed events, revenue, and review performance.</p>
+            </div>
+
+            {analyticsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{analyticsError}</p>}
+
+            {isLoadingAnalytics ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[1, 2, 3, 4].map((item) => <div className="h-28 animate-pulse rounded-lg border border-border bg-white" key={item} />)}
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ReportMetric label="Total enquiries" value={analytics.enquiries.toLocaleString("en-IN")} />
+                  <ReportMetric label="Confirmed bookings" value={analytics.confirmedBookings.toLocaleString("en-IN")} />
+                  <ReportMetric label="Estimated revenue" value={formatCompactMoney(analytics.estimatedRevenue)} />
+                  <ReportMetric label="Conversion rate" value={`${analytics.conversionRate}%`} />
+                  <ReportMetric label="Completed events" value={analytics.completedBookings.toLocaleString("en-IN")} />
+                  <ReportMetric label="Average rating" value={analytics.averageRating.toFixed(1)} />
+                  <ReportMetric label="Occupancy rate" value={`${analytics.occupancyRate}%`} />
+                </div>
+
+                <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4">
+                      <h3 className="font-semibold">Monthly trend</h3>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {analytics.trends.map((point) => (
+                        <div className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[80px_1fr_1fr_1fr]" key={point.label}>
+                          <strong>{point.label}</strong>
+                          <span>{point.enquiries} enquiries</span>
+                          <span>{point.bookings} bookings</span>
+                          <span className="font-medium">{formatCompactMoney(point.revenue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4">
+                      <h3 className="font-semibold">Event mix</h3>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {analytics.eventMix.map((item) => (
+                        <div className="flex items-center justify-between gap-4 px-5 py-4" key={item.eventType}>
+                          <p className="font-medium">{item.eventType}</p>
+                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">{item.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </>
+            )}
+          </section>
+        )}
 
         {activeTab === "enquiries" && (
           <section className="py-7">
@@ -1095,5 +1192,14 @@ export function OwnerDashboard() {
 
       <BlockDateDialog onAdd={addBlockedDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
     </>
+  );
+}
+
+function ReportMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-white p-5">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
   );
 }

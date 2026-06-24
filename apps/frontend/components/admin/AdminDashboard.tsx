@@ -15,6 +15,7 @@ import {
   ShieldBan,
   ShieldCheck,
   Store,
+  TrendingUp,
   UserCog,
   X,
   XCircle
@@ -23,6 +24,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { fallbackAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
 import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus } from "@/features/admin/admin-client";
 import {
   adminEnquiries,
@@ -41,7 +43,7 @@ import {
 import type { AuthRole } from "@/features/auth/types";
 import type { EnquiryStatus } from "@/features/enquiries/types";
 
-type AdminTab = "overview" | "venues" | "vendors" | "users" | "reviews" | "enquiries";
+type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "enquiries";
 type RejectTarget = { kind: "venue" | "vendor"; id: string; name: string };
 
 const tabs: { id: AdminTab; label: string }[] = [
@@ -49,6 +51,7 @@ const tabs: { id: AdminTab; label: string }[] = [
   { id: "venues", label: "Venue approvals" },
   { id: "vendors", label: "Vendor approvals" },
   { id: "users", label: "Users" },
+  { id: "reports", label: "Reports" },
   { id: "reviews", label: "Reviews" },
   { id: "enquiries", label: "Enquiries" }
 ];
@@ -89,6 +92,10 @@ function formatPrice(value: number) {
   return `INR ${new Intl.NumberFormat("en-IN").format(value)}`;
 }
 
+function formatCompactMoney(value: number) {
+  return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
+}
+
 export function AdminDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
@@ -97,6 +104,9 @@ export function AdminDashboard() {
   const [reviews, setReviews] = useState<ReportedReview[]>(initialReportedReviews);
   const [enquiries, setEnquiries] = useState(adminEnquiries);
   const [users, setUsers] = useState<AdminUser[]>(initialAdminUsers);
+  const [analytics, setAnalytics] = useState<AdminAnalytics>(fallbackAdminAnalytics);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState("");
   const [auditEvents, setAuditEvents] = useState(initialAuditEvents);
   const [isLoadingQueues, setIsLoadingQueues] = useState(true);
   const [adminError, setAdminError] = useState("");
@@ -159,6 +169,33 @@ export function AdminDashboard() {
     }
 
     loadAdminQueues();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadAnalytics() {
+      setIsLoadingAnalytics(true);
+      setAnalyticsError("");
+
+      try {
+        const response = await getAdminAnalytics(accessToken);
+        if (!isCurrent) return;
+        setAnalytics(response);
+      } catch {
+        if (!isCurrent) return;
+        setAnalytics(fallbackAdminAnalytics);
+        setAnalyticsError("Could not load latest reports.");
+      } finally {
+        if (isCurrent) setIsLoadingAnalytics(false);
+      }
+    }
+
+    loadAnalytics();
 
     return () => {
       isCurrent = false;
@@ -260,8 +297,9 @@ export function AdminDashboard() {
                 { label: "Pending venues", value: pendingVenueCount, icon: Building2, color: "text-blue-700", tab: "venues" as const },
                 { label: "Pending vendors", value: pendingVendorCount, icon: Store, color: "text-violet-700", tab: "vendors" as const },
                 { label: "User actions", value: suspendedUserCount + pendingUserCount, icon: UserCog, color: "text-slate-700", tab: "users" as const },
+                { label: "Conversion rate", value: `${analytics.conversionRate}%`, icon: TrendingUp, color: "text-emerald-700", tab: "reports" as const },
                 { label: "Reported reviews", value: reportedReviewCount, icon: MessageSquareWarning, color: "text-rose-700", tab: "reviews" as const },
-                { label: "Enquiries this month", value: 284, icon: Activity, color: "text-emerald-700", tab: "enquiries" as const }
+                { label: "Enquiries this month", value: analytics.monthlyEnquiries, icon: Activity, color: "text-emerald-700", tab: "enquiries" as const }
               ].map((stat) => <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}><stat.icon className={stat.color} size={21} /><p className="mt-5 text-2xl font-semibold">{stat.value}</p><p className="mt-1 text-sm text-muted-foreground">{stat.label}</p></button>)}
             </div>
 
@@ -379,6 +417,54 @@ export function AdminDashboard() {
           </section>
         )}
 
+        {activeTab === "reports" && (
+          <section className="py-7">
+            <div>
+              <h2 className="text-xl font-semibold">Platform reports</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Marketplace growth, conversion, and revenue signals.</p>
+            </div>
+            {analyticsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{analyticsError}</p>}
+            {isLoadingAnalytics ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[1, 2, 3, 4].map((item) => <div className="h-28 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
+            ) : (
+              <>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ReportMetric label="Total users" value={analytics.totalUsers.toLocaleString("en-IN")} />
+                  <ReportMetric label="Active listings" value={analytics.activeListings.toLocaleString("en-IN")} />
+                  <ReportMetric label="Booking revenue" value={formatCompactMoney(analytics.bookingRevenue)} />
+                  <ReportMetric label="Vendor revenue" value={formatCompactMoney(analytics.vendorRevenue)} />
+                </div>
+                <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4"><h3 className="font-semibold">Monthly trend</h3></div>
+                    <div className="divide-y divide-border">
+                      {analytics.trends.map((point) => (
+                        <div className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[80px_1fr_1fr_1fr]" key={point.label}>
+                          <strong>{point.label}</strong>
+                          <span>{point.enquiries} enquiries</span>
+                          <span>{point.bookings} bookings</span>
+                          <span className="font-medium">{formatCompactMoney(point.revenue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4"><h3 className="font-semibold">Top cities</h3></div>
+                    <div className="divide-y divide-border">
+                      {analytics.topCities.map((city) => (
+                        <div className="flex items-center justify-between gap-4 px-5 py-4" key={city.city}>
+                          <div><p className="font-medium">{city.city}</p><p className="mt-1 text-sm text-muted-foreground">{city.enquiries} enquiries</p></div>
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-800">{city.bookings} bookings</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
         {activeTab === "reviews" && (
           <section className="py-7">
             <div><h2 className="text-xl font-semibold">Reported reviews</h2><p className="mt-1 text-sm text-muted-foreground">Moderate reports while preserving verified customer feedback.</p></div>
@@ -401,5 +487,14 @@ export function AdminDashboard() {
 
       {rejectTarget && <RejectionDialog onClose={() => setRejectTarget(null)} onReject={rejectWithReason} subject={rejectTarget.name} />}
     </main>
+  );
+}
+
+function ReportMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-white p-5">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
   );
 }

@@ -450,6 +450,7 @@ Return `403` when the enquiry does not belong to the logged-in customer, `409` w
 | `PATCH` | `/owner/enquiries/{enquiryId}/status` | Confirm or decline enquiry |
 | `GET` | `/owner/halls/{hallId}/bookings` | Hall booking lifecycle list |
 | `PATCH` | `/owner/bookings/{bookingId}/status` | Complete or cancel booking |
+| `GET` | `/owner/halls/{hallId}/reports/summary` | Hall performance reports |
 | `GET` | `/owner/halls/{hallId}/availability` | Calendar data |
 | `POST` | `/owner/halls/{hallId}/blocked-dates` | Block a slot |
 | `DELETE` | `/owner/halls/{hallId}/blocked-dates/{blockId}` | Remove owner block |
@@ -542,6 +543,7 @@ All routes require `VENDOR` and ownership of the vendor profile.
 | `GET` | `/vendor/leads` | Vendor lead inbox |
 | `GET` | `/vendor/leads/{leadId}` | Lead detail |
 | `PATCH` | `/vendor/leads/{leadId}/status` | Update lead workflow |
+| `GET` | `/vendor/reports/summary?vendorId={vendorId}` | Vendor lead and booking reports |
 | `GET` | `/vendor/media` | Vendor portfolio media |
 | `POST` | `/vendor/media` | Save uploaded media metadata |
 | `PATCH` | `/vendor/media/{mediaId}` | Change caption, order, or cover |
@@ -747,6 +749,7 @@ All routes require `ADMIN` or `SUPER_ADMIN`. Every mutation writes an immutable 
 | `GET` | `/admin/enquiries` | Track enquiries across halls |
 | `GET` | `/admin/users` | Search and filter platform users |
 | `PATCH` | `/admin/users/{userId}/status` | Activate or suspend a user |
+| `GET` | `/admin/reports/summary` | Platform analytics summary |
 | `GET` | `/admin/audit-events` | Search immutable audit history |
 
 Approval request:
@@ -831,6 +834,72 @@ User status request:
 ```
 
 Return the updated user. Return `403` when the admin is not allowed to change that user, `404` when the user does not exist, and `409` when attempting an invalid transition such as self-suspending, suspending the last active super admin, or activating a user whose required verification is incomplete.
+
+## Reports and Analytics
+
+Report endpoints return already-aggregated numbers for the UI. The backend owns all calculations and must derive owner/vendor access from the authenticated user.
+
+Shared trend item:
+
+```json
+{
+  "label": "Jun",
+  "enquiries": 284,
+  "bookings": 74,
+  "revenue": 8420000
+}
+```
+
+Admin report response:
+
+```json
+{
+  "totalUsers": 1248,
+  "activeListings": 186,
+  "monthlyEnquiries": 284,
+  "confirmedBookings": 74,
+  "bookingRevenue": 8420000,
+  "vendorRevenue": 284000,
+  "conversionRate": 26,
+  "trends": [{ "label": "Jun", "enquiries": 284, "bookings": 74, "revenue": 8420000 }],
+  "topCities": [{ "city": "Chennai", "enquiries": 148, "bookings": 42 }]
+}
+```
+
+Owner hall report response:
+
+```json
+{
+  "enquiries": 42,
+  "confirmedBookings": 11,
+  "completedBookings": 5,
+  "estimatedRevenue": 1385000,
+  "conversionRate": 26,
+  "averageRating": 4.8,
+  "occupancyRate": 62,
+  "trends": [{ "label": "Jun", "enquiries": 9, "bookings": 2, "revenue": 260000 }],
+  "eventMix": [{ "eventType": "Wedding", "count": 6 }]
+}
+```
+
+Vendor report response:
+
+```json
+{
+  "leads": 34,
+  "contacted": 24,
+  "quotesSent": 18,
+  "booked": 7,
+  "bookedValue": 2140000,
+  "conversionRate": 21,
+  "averageBudget": 305714,
+  "responseRate": 71,
+  "trends": [{ "label": "Jun", "enquiries": 9, "bookings": 2, "revenue": 500000 }],
+  "serviceMix": [{ "service": "Wedding catering", "count": 13 }]
+}
+```
+
+Return `403` when the requested owner hall or vendor profile is outside the logged-in user's ownership. Return zeros and empty arrays when there is no activity yet.
 
 ## Upload Contract
 

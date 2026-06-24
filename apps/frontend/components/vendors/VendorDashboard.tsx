@@ -25,6 +25,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { fallbackVendorAnalytics, getVendorAnalytics, type VendorAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-client";
 import { deleteVendorMedia, getVendorMedia, mediaFromVendor, setVendorMediaCover, type VendorMediaItem, uploadAndCreateVendorMedia } from "@/features/vendors/media-client";
@@ -33,11 +34,12 @@ import { createSubscriptionOrder, fallbackSubscriptionPlans, fallbackVendorSubsc
 import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/vendors/types";
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
 
-type VendorTab = "overview" | "leads" | "services" | "portfolio" | "subscription";
+type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "subscription";
 
 const tabs: { id: VendorTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "leads", label: "Leads" },
+  { id: "reports", label: "Reports" },
   { id: "services", label: "Services" },
   { id: "portfolio", label: "Portfolio" },
   { id: "subscription", label: "Subscription" }
@@ -57,6 +59,10 @@ function readableStatus(status: string) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-IN").format(value);
+}
+
+function formatCompactMoney(value: number) {
+  return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
 }
 
 function billingLabel(cycle: SubscriptionPlan["billingCycle"]) {
@@ -104,6 +110,36 @@ export function VendorDashboard() {
   const [packageForm, setPackageForm] = useState(emptyPackageForm);
   const [savingPackageId, setSavingPackageId] = useState<string | null>(null);
   const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<VendorAnalytics>(fallbackVendorAnalytics);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState("");
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadAnalytics() {
+      setIsLoadingAnalytics(true);
+      setAnalyticsError("");
+
+      try {
+        const response = await getVendorAnalytics(workspaceVendor.id, accessToken);
+        if (!isCurrent) return;
+        setAnalytics(response);
+      } catch {
+        if (!isCurrent) return;
+        setAnalytics(fallbackVendorAnalytics);
+        setAnalyticsError("Could not load latest reports.");
+      } finally {
+        if (isCurrent) setIsLoadingAnalytics(false);
+      }
+    }
+
+    loadAnalytics();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -372,6 +408,68 @@ export function VendorDashboard() {
           { label: "Booked value", value: `INR ${formatMoney(bookedValue)}`, icon: IndianRupee, color: "text-amber-700", tab: "leads" as const }
         ].map((stat) => <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}><stat.icon className={stat.color} size={21} /><p className="mt-5 text-2xl font-semibold">{stat.value}</p><p className="mt-1 text-sm text-muted-foreground">{stat.label}</p></button>)}</div><div className="mt-9 grid gap-8 lg:grid-cols-[1.45fr_1fr]"><section><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Recent leads</h2><p className="mt-1 text-sm text-muted-foreground">Respond quickly to improve conversion.</p></div><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("leads")}>View all</button></div><div className="mt-4 grid gap-3">{leads.slice(0, 3).map((lead) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={lead.id} onClick={() => setActiveTab("leads")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><BriefcaseBusiness size={20} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{lead.eventType} | {lead.service}</strong><span className="mt-1 block text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Profile strength</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 font-semibold text-emerald-700"><BadgeCheck size={18} /> Approved</span><span className="text-sm font-semibold">88%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[88%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Business and services complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> {packages.length} package{packages.length === 1 ? "" : "s"} published</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add three recent event photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("portfolio")}>Improve portfolio</button></div></section></div></section>}
 
+        {activeTab === "reports" && (
+          <section className="py-7">
+            <div>
+              <h2 className="text-xl font-semibold">Vendor reports</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Lead funnel, quote conversion, and booked value.</p>
+            </div>
+
+            {analyticsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{analyticsError}</p>}
+
+            {isLoadingAnalytics ? (
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[1, 2, 3, 4].map((item) => <div className="h-28 animate-pulse rounded-lg border border-border bg-white" key={item} />)}
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <ReportMetric label="Total leads" value={analytics.leads.toLocaleString("en-IN")} />
+                  <ReportMetric label="Contacted" value={analytics.contacted.toLocaleString("en-IN")} />
+                  <ReportMetric label="Quotes sent" value={analytics.quotesSent.toLocaleString("en-IN")} />
+                  <ReportMetric label="Booked" value={analytics.booked.toLocaleString("en-IN")} />
+                  <ReportMetric label="Booked value" value={formatCompactMoney(analytics.bookedValue)} />
+                  <ReportMetric label="Conversion rate" value={`${analytics.conversionRate}%`} />
+                  <ReportMetric label="Average budget" value={formatCompactMoney(analytics.averageBudget)} />
+                  <ReportMetric label="Response rate" value={`${analytics.responseRate}%`} />
+                </div>
+
+                <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4">
+                      <h3 className="font-semibold">Monthly trend</h3>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {analytics.trends.map((point) => (
+                        <div className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[80px_1fr_1fr_1fr]" key={point.label}>
+                          <strong>{point.label}</strong>
+                          <span>{point.enquiries} leads</span>
+                          <span>{point.bookings} bookings</span>
+                          <span className="font-medium">{formatCompactMoney(point.revenue)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-border bg-white">
+                    <div className="border-b border-border px-5 py-4">
+                      <h3 className="font-semibold">Service mix</h3>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {analytics.serviceMix.map((item) => (
+                        <div className="flex items-center justify-between gap-4 px-5 py-4" key={item.service}>
+                          <p className="font-medium">{item.service}</p>
+                          <span className="rounded-full bg-violet-50 px-2.5 py-1 text-sm font-semibold text-violet-700">{item.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
         {activeTab === "leads" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Lead inbox</h2><p className="mt-1 text-sm text-muted-foreground">Qualify requests and keep the customer status current.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setLeadFilter(event.target.value as "ALL" | VendorLeadStatus)} value={leadFilter}><option value="ALL">All leads</option><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="QUOTE_SENT">Quote sent</option><option value="BOOKED">Booked</option><option value="DECLINED">Declined</option></select></label></div>{leadsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{leadsError}</p>}{isLoadingLeads ? <div className="mt-5 grid gap-4">{[1, 2, 3].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : filteredLeads.length > 0 ? <div className="mt-5 grid gap-4">{filteredLeads.map((lead) => <article className="rounded-lg border border-border bg-white p-5" key={lead.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{lead.eventType} | {lead.service}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</p></div><div className="text-right"><p className="font-semibold">INR {formatMoney(lead.budget)}</p><p className="mt-1 text-xs text-muted-foreground">Expected budget</p></div></div><div className="mt-4 grid gap-3 rounded-md bg-muted/60 p-4 text-sm sm:grid-cols-2"><p><span className="text-muted-foreground">Customer:</span> {lead.customerName}</p><p><span className="text-muted-foreground">Reference:</span> {lead.id}</p>{lead.notes && <p className="leading-6 sm:col-span-2"><span className="text-muted-foreground">Notes:</span> {lead.notes}</p>}</div>{lead.status !== "BOOKED" && lead.status !== "DECLINED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">{lead.status === "NEW" && <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => updateLead(lead.id, "CONTACTED")}><MessageSquareText size={17} /> Mark contacted</button>}{lead.status !== "QUOTE_SENT" && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "QUOTE_SENT")}><Send size={17} /> Mark quote sent</button>}<button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "BOOKED")}><Check size={17} /> Mark booked</button><button className="h-10 px-3 text-sm font-medium text-rose-700" onClick={() => updateLead(lead.id, "DECLINED")}>Decline</button></div>}</article>)}</div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No leads yet</h3><p className="mt-2 text-sm text-muted-foreground">New quote requests will appear here.</p></div>}</section>}
 
         {activeTab === "services" && (
@@ -431,5 +529,14 @@ export function VendorDashboard() {
         {activeTab === "subscription" && <section className="py-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Subscription</h2><p className="mt-1 text-sm text-muted-foreground">Choose how prominently your business appears and how many leads you can receive.</p></div><div className="rounded-md border border-border bg-white px-4 py-3 text-sm"><span className="text-muted-foreground">Current status</span><strong className="ml-2 capitalize">{subscriptionStatusLabel(subscription.status)}</strong>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-muted-foreground">Renews {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(subscription.currentPeriodEnd))}</p>}{subscription.pendingOrderId && <p className="mt-1 text-xs text-muted-foreground">Order {subscription.pendingOrderId}</p>}</div></div>{subscriptionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{subscriptionError}</p>}{isLoadingSubscription ? <div className="mt-5 grid gap-5 lg:grid-cols-2">{[1, 2].map((item) => <div className="h-72 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : <div className="mt-5 grid gap-5 lg:grid-cols-2">{subscriptionPlans.map((item) => { const isActive = subscription.planId === item.id && subscription.status === "ACTIVE"; const isPending = subscription.planId === item.id && subscription.status === "PENDING_PAYMENT"; return <article className={`rounded-lg border bg-white p-6 ${isActive || isPending ? "border-primary" : "border-border"}`} key={item.id}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-semibold">{item.name}</h3><p className="mt-1 text-sm text-muted-foreground">{item.description}</p></div>{isActive && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Current plan</span>}{isPending && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Payment pending</span>}{item.isPopular && !isActive && !isPending && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">Popular</span>}</div><p className="mt-6 text-3xl font-semibold">INR {formatMoney(item.price)} <span className="text-sm font-normal text-muted-foreground">/ {billingLabel(item.billingCycle)}</span></p><div className="mt-6 grid gap-3 text-sm">{item.features.map((feature) => <p className="flex items-center gap-2" key={feature}><Check className="text-emerald-700" size={16} />{feature}</p>)}</div><button className={`mt-7 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${isActive ? "border border-border text-muted-foreground" : "bg-primary text-white"}`} disabled={isActive || checkoutPlanId === item.id} onClick={() => chooseSubscription(item.id)}>{checkoutPlanId === item.id ? <><LoaderCircle className="animate-spin" size={17} /> Creating order</> : isActive ? "Active plan" : isPending ? <>Retry payment <ArrowUpRight size={17} /></> : <>Choose {item.name} <ArrowUpRight size={17} /></>}</button></article>; })}</div>}<p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><Sparkles className="text-amber-600" size={17} /> Razorpay order creation and payment verification are handled by the backend.</p></section>}
       </div>
     </main>
+  );
+}
+
+function ReportMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-white p-5">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
   );
 }
