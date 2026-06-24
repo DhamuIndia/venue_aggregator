@@ -745,6 +745,8 @@ All routes require `ADMIN` or `SUPER_ADMIN`. Every mutation writes an immutable 
 | `GET` | `/admin/reviews?status=REPORTED` | Review moderation queue |
 | `PATCH` | `/admin/reviews/{reviewId}/moderation` | Publish, hide, or reject review |
 | `GET` | `/admin/enquiries` | Track enquiries across halls |
+| `GET` | `/admin/users` | Search and filter platform users |
+| `PATCH` | `/admin/users/{userId}/status` | Activate or suspend a user |
 | `GET` | `/admin/audit-events` | Search immutable audit history |
 
 Approval request:
@@ -795,6 +797,40 @@ Review moderation request:
 Review status: `PENDING`, `PUBLISHED`, `REPORTED`, `HIDDEN`, `REJECTED`.
 
 Reported review list items should include `id`, `hallName`, `customerName`, `rating`, `comment`, `reportReason`, `verifiedService`, and `status`.
+
+Admin user list response:
+
+```json
+{
+  "items": [
+    {
+      "id": "customer-101",
+      "fullName": "Priya Raman",
+      "phone": "9876543210",
+      "email": "priya@example.com",
+      "role": "CUSTOMER",
+      "status": "ACTIVE",
+      "joinedAt": "2026-06-12T09:30:00Z",
+      "lastActiveAt": "2026-06-24T08:45:00Z",
+      "city": "Chennai"
+    }
+  ],
+  "total": 1
+}
+```
+
+Supported query params: `role`, `status`, `q`, `page`, and `size`. User roles: `CUSTOMER`, `HALL_OWNER`, `VENDOR`, `ADMIN`, `SUPER_ADMIN`. User status values: `ACTIVE`, `SUSPENDED`, `PENDING_VERIFICATION`.
+
+User status request:
+
+```json
+{
+  "status": "SUSPENDED",
+  "reason": "Account suspended by admin for platform review."
+}
+```
+
+Return the updated user. Return `403` when the admin is not allowed to change that user, `404` when the user does not exist, and `409` when attempting an invalid transition such as self-suspending, suspending the last active super admin, or activating a user whose required verification is incomplete.
 
 ## Upload Contract
 

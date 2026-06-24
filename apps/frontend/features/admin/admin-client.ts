@@ -1,11 +1,14 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
 import {
   adminEnquiries,
+  adminUsers,
   auditEvents,
   initialReportedReviews,
   initialVendorApplications,
   initialVenueApplications,
   type AdminEnquiry,
+  type AdminUser,
+  type AdminUserStatus,
   type ModerationStatus,
   type ReportedReview,
   type VendorApplication,
@@ -19,6 +22,7 @@ type AdminQueueResult = {
   vendors: VendorApplication[];
   reviews: ReportedReview[];
   enquiries: AdminEnquiry[];
+  users: AdminUser[];
   auditEvents: typeof auditEvents;
   source: "api" | "mock";
 };
@@ -27,15 +31,16 @@ export async function getAdminQueues(accessToken?: string | null): Promise<Admin
   if (useMockAdmin || !accessToken) return mockResult();
 
   try {
-    const [venues, vendors, reviews, enquiries, events] = await Promise.all([
+    const [venues, vendors, reviews, enquiries, users, events] = await Promise.all([
       getAdminVenues(accessToken),
       getAdminVendors(accessToken),
       getAdminReviews(accessToken),
       getAdminEnquiries(accessToken),
+      getAdminUsers(accessToken),
       getAdminAuditEvents(accessToken)
     ]);
 
-    return { venues, vendors, reviews, enquiries, auditEvents: events, source: "api" };
+    return { venues, vendors, reviews, enquiries, users, auditEvents: events, source: "api" };
   } catch {
     return mockResult();
   }
@@ -95,6 +100,24 @@ export async function moderateAdminReview(id: string, status: ReportedReview["st
   }
 }
 
+export async function updateAdminUserStatus(id: string, status: Exclude<AdminUserStatus, "PENDING_VERIFICATION">, reason: string, accessToken?: string | null) {
+  if (useMockAdmin || !accessToken) return updateMockUser(id, status);
+
+  try {
+    const response = await apiRequest<unknown>(`/admin/users/${encodeURIComponent(id)}/status`, {
+      method: "PATCH",
+      token: accessToken,
+      body: JSON.stringify({ status, reason })
+    });
+    return toAdminUser(response) ?? updateMockUser(id, status);
+  } catch (exception) {
+    if (exception instanceof ApiError && [400, 401, 403, 404, 409].includes(exception.status)) {
+      throw exception;
+    }
+    return updateMockUser(id, status);
+  }
+}
+
 async function getAdminVenues(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/halls?status=PENDING_APPROVAL", { token: accessToken });
   const venues = extractList(response).map(toVenueApplication).filter(Boolean) as VenueApplication[];
@@ -119,6 +142,12 @@ async function getAdminEnquiries(accessToken: string) {
   return enquiries.length ? enquiries : adminEnquiries;
 }
 
+async function getAdminUsers(accessToken: string) {
+  const response = await apiRequest<unknown>("/admin/users", { token: accessToken });
+  const users = extractList(response).map(toAdminUser).filter(Boolean) as AdminUser[];
+  return users.length ? users : adminUsers;
+}
+
 async function getAdminAuditEvents(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/audit-events", { token: accessToken });
   const events = extractList(response).map(toAuditEvent).filter(Boolean) as typeof auditEvents;
@@ -131,6 +160,7 @@ function mockResult(): AdminQueueResult {
     vendors: initialVendorApplications,
     reviews: initialReportedReviews,
     enquiries: adminEnquiries,
+    users: adminUsers,
     auditEvents,
     source: "mock"
   };
@@ -151,6 +181,12 @@ function updateMockVendor(id: string, status: Exclude<ModerationStatus, "PENDING
 function updateMockReview(id: string, status: ReportedReview["status"]) {
   return initialReportedReviews.find((review) => review.id === id)
     ? { ...initialReportedReviews.find((review) => review.id === id)!, status }
+    : undefined;
+}
+
+function updateMockUser(id: string, status: Exclude<AdminUserStatus, "PENDING_VERIFICATION">) {
+  return adminUsers.find((user) => user.id === id)
+    ? { ...adminUsers.find((user) => user.id === id)!, status }
     : undefined;
 }
 
@@ -234,6 +270,27 @@ function toAdminEnquiry(value: unknown): AdminEnquiry | undefined {
   };
 }
 
+function toAdminUser(value: unknown): AdminUser | undefined {
+  if (!isRecord(value)) return undefined;
+  const record = isRecord(value.user) ? value.user : isRecord(value.data) ? value.data : value;
+  const id = stringValue(record, ["id", "userId", "user_id"]);
+  const fullName = stringValue(record, ["fullName", "full_name", "name"]);
+  const phone = stringValue(record, ["phone", "mobile", "phoneNumber"]);
+  if (!id || !fullName || !phone) return undefined;
+
+  return {
+    id,
+    fullName,
+    phone,
+    email: stringValue(record, ["email"]),
+    role: userRole(record) ?? "CUSTOMER",
+    status: userStatus(record) ?? "ACTIVE",
+    joinedAt: stringValue(record, ["joinedAt", "joined_at", "createdAt", "created_at"]) ?? new Date().toISOString(),
+    lastActiveAt: stringValue(record, ["lastActiveAt", "last_active_at", "lastLoginAt", "last_login_at"]),
+    city: stringValue(record, ["city", "location"])
+  };
+}
+
 function toAuditEvent(value: unknown): (typeof auditEvents)[number] | undefined {
   if (!isRecord(value)) return undefined;
   const id = stringValue(value, ["id", "auditId", "audit_id"]);
@@ -276,6 +333,20 @@ function enquiryStatus(record: Record<string, unknown>): AdminEnquiry["status"] 
   const value = stringValue(record, ["status"]);
   if (value === "NEW" || value === "PENDING_OWNER_RESPONSE" || value === "CONFIRMED" || value === "DECLINED" || value === "COMPLETED") return value;
   if (value === "AWAITING_RESPONSE" || value === "CONTACTED") return "PENDING_OWNER_RESPONSE";
+  return undefined;
+}
+
+function userRole(record: Record<string, unknown>): AdminUser["role"] | undefined {
+  const value = stringValue(record, ["role", "userRole", "user_role"]);
+  if (value === "CUSTOMER" || value === "HALL_OWNER" || value === "VENDOR" || value === "ADMIN" || value === "SUPER_ADMIN") return value;
+  return undefined;
+}
+
+function userStatus(record: Record<string, unknown>): AdminUserStatus | undefined {
+  const value = stringValue(record, ["status", "userStatus", "user_status"]);
+  if (value === "ACTIVE" || value === "SUSPENDED" || value === "PENDING_VERIFICATION") return value;
+  if (value === "PENDING") return "PENDING_VERIFICATION";
+  if (value === "DISABLED" || value === "BLOCKED") return "SUSPENDED";
   return undefined;
 }
 

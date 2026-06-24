@@ -10,8 +10,12 @@ import {
   ClipboardCheck,
   FileCheck2,
   MessageSquareWarning,
+  RotateCcw,
+  Search,
+  ShieldBan,
   ShieldCheck,
   Store,
+  UserCog,
   X,
   XCircle
 } from "lucide-react";
@@ -19,27 +23,32 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor } from "@/features/admin/admin-client";
+import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus } from "@/features/admin/admin-client";
 import {
   adminEnquiries,
   auditEvents as initialAuditEvents,
+  adminUsers as initialAdminUsers,
   initialReportedReviews,
   initialVendorApplications,
   initialVenueApplications,
+  type AdminUser,
+  type AdminUserStatus,
   type ModerationStatus,
   type ReportedReview,
   type VendorApplication,
   type VenueApplication
 } from "@/features/admin/mock-data";
+import type { AuthRole } from "@/features/auth/types";
 import type { EnquiryStatus } from "@/features/enquiries/types";
 
-type AdminTab = "overview" | "venues" | "vendors" | "reviews" | "enquiries";
+type AdminTab = "overview" | "venues" | "vendors" | "users" | "reviews" | "enquiries";
 type RejectTarget = { kind: "venue" | "vendor"; id: string; name: string };
 
 const tabs: { id: AdminTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "venues", label: "Venue approvals" },
   { id: "vendors", label: "Vendor approvals" },
+  { id: "users", label: "Users" },
   { id: "reviews", label: "Reviews" },
   { id: "enquiries", label: "Enquiries" }
 ];
@@ -58,6 +67,20 @@ const enquiryStyle: Record<EnquiryStatus, string> = {
   COMPLETED: "bg-violet-50 text-violet-700"
 };
 
+const userStatusStyle: Record<AdminUserStatus, string> = {
+  ACTIVE: "bg-emerald-50 text-emerald-800",
+  SUSPENDED: "bg-rose-50 text-rose-700",
+  PENDING_VERIFICATION: "bg-amber-50 text-amber-800"
+};
+
+const userRoleLabels: Record<AuthRole, string> = {
+  CUSTOMER: "Customer",
+  HALL_OWNER: "Hall owner",
+  VENDOR: "Vendor",
+  ADMIN: "Admin",
+  SUPER_ADMIN: "Super admin"
+};
+
 function readableStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
 }
@@ -73,11 +96,16 @@ export function AdminDashboard() {
   const [vendors, setVendors] = useState<VendorApplication[]>(initialVendorApplications);
   const [reviews, setReviews] = useState<ReportedReview[]>(initialReportedReviews);
   const [enquiries, setEnquiries] = useState(adminEnquiries);
+  const [users, setUsers] = useState<AdminUser[]>(initialAdminUsers);
   const [auditEvents, setAuditEvents] = useState(initialAuditEvents);
   const [isLoadingQueues, setIsLoadingQueues] = useState(true);
   const [adminError, setAdminError] = useState("");
   const [venueFilter, setVenueFilter] = useState<"ALL" | ModerationStatus>("PENDING_APPROVAL");
   const [enquiryFilter, setEnquiryFilter] = useState<"ALL" | EnquiryStatus>("ALL");
+  const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | AuthRole>("ALL");
+  const [userStatusFilter, setUserStatusFilter] = useState<"ALL" | AdminUserStatus>("ALL");
+  const [userSearch, setUserSearch] = useState("");
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<RejectTarget | null>(null);
   const [notice, setNotice] = useState("");
 
@@ -85,6 +113,8 @@ export function AdminDashboard() {
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
   const reportedReviewCount = reviews.filter((review) => review.status === "REPORTED").length;
   const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
+  const suspendedUserCount = users.filter((user) => user.status === "SUSPENDED").length;
+  const pendingUserCount = users.filter((user) => user.status === "PENDING_VERIFICATION").length;
 
   const filteredVenues = useMemo(
     () => venueFilter === "ALL" ? venues : venues.filter((venue) => venue.status === venueFilter),
@@ -94,6 +124,15 @@ export function AdminDashboard() {
     () => enquiryFilter === "ALL" ? enquiries : enquiries.filter((enquiry) => enquiry.status === enquiryFilter),
     [enquiries, enquiryFilter]
   );
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    return users.filter((user) => {
+      const matchesRole = userRoleFilter === "ALL" || user.role === userRoleFilter;
+      const matchesStatus = userStatusFilter === "ALL" || user.status === userStatusFilter;
+      const matchesQuery = !query || `${user.fullName} ${user.phone} ${user.email ?? ""} ${user.city ?? ""}`.toLowerCase().includes(query);
+      return matchesRole && matchesStatus && matchesQuery;
+    });
+  }, [users, userRoleFilter, userSearch, userStatusFilter]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -109,6 +148,7 @@ export function AdminDashboard() {
         setVendors(response.vendors);
         setReviews(response.reviews);
         setEnquiries(response.enquiries);
+        setUsers(response.users);
         setAuditEvents(response.auditEvents);
       } catch {
         if (!isCurrent) return;
@@ -163,9 +203,28 @@ export function AdminDashboard() {
     }
   }
 
+  async function changeUserStatus(id: string, status: Exclude<AdminUserStatus, "PENDING_VERIFICATION">) {
+    const previousUsers = users;
+    const reason = status === "ACTIVE" ? "Account reviewed and activated by admin." : "Account suspended by admin for platform review.";
+
+    try {
+      setUpdatingUserId(id);
+      setUsers((current) => current.map((user) => user.id === id ? { ...user, status } : user));
+      const updatedUser = await updateAdminUserStatus(id, status, reason, accessToken);
+      if (updatedUser) setUsers((current) => current.map((user) => user.id === id ? { ...user, ...updatedUser, status } : user));
+      setNotice(status === "ACTIVE" ? "User account activated." : "User account suspended.");
+    } catch (exception) {
+      setUsers(previousUsers);
+      setNotice(exception instanceof Error ? exception.message : "Could not update user status.");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
+
   const tabBadge: Partial<Record<AdminTab, number>> = {
     venues: pendingVenueCount,
     vendors: pendingVendorCount,
+    users: suspendedUserCount + pendingUserCount,
     reviews: reportedReviewCount,
     enquiries: pendingEnquiryCount
   };
@@ -200,6 +259,7 @@ export function AdminDashboard() {
               {[
                 { label: "Pending venues", value: pendingVenueCount, icon: Building2, color: "text-blue-700", tab: "venues" as const },
                 { label: "Pending vendors", value: pendingVendorCount, icon: Store, color: "text-violet-700", tab: "vendors" as const },
+                { label: "User actions", value: suspendedUserCount + pendingUserCount, icon: UserCog, color: "text-slate-700", tab: "users" as const },
                 { label: "Reported reviews", value: reportedReviewCount, icon: MessageSquareWarning, color: "text-rose-700", tab: "reviews" as const },
                 { label: "Enquiries this month", value: 284, icon: Activity, color: "text-emerald-700", tab: "enquiries" as const }
               ].map((stat) => <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}><stat.icon className={stat.color} size={21} /><p className="mt-5 text-2xl font-semibold">{stat.value}</p><p className="mt-1 text-sm text-muted-foreground">{stat.label}</p></button>)}
@@ -242,6 +302,79 @@ export function AdminDashboard() {
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[1.4fr_1fr_1fr_120px_220px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px_220px] md:items-center" key={vendor.id}><div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div><p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p><p className="text-sm text-muted-foreground">{vendor.submittedAt}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>{vendor.status === "PENDING_APPROVAL" ? <div className="flex gap-2 md:justify-end"><button aria-label={`Reject ${vendor.businessName}`} className="grid size-9 place-items-center rounded-md border border-rose-200 text-rose-700" onClick={() => setRejectTarget({ kind: "vendor", id: vendor.id, name: vendor.contactName })} title="Reject"><X size={17} /></button><button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" onClick={() => updateVendor(vendor.id, "APPROVED")}><Check size={16} /> Approve</button></div> : <span />}</article>)}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "users" && (
+          <section className="py-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">User management</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Search users, review roles, and control account access.</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[220px_150px_170px_auto]">
+                <label className="relative block">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                  <input className="h-10 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm outline-none focus:border-primary" onChange={(event) => setUserSearch(event.target.value)} placeholder="Search user" value={userSearch} />
+                </label>
+                <select className="h-10 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserRoleFilter(event.target.value as "ALL" | AuthRole)} value={userRoleFilter}>
+                  <option value="ALL">All roles</option>
+                  <option value="CUSTOMER">Customers</option>
+                  <option value="HALL_OWNER">Owners</option>
+                  <option value="VENDOR">Vendors</option>
+                  <option value="ADMIN">Admins</option>
+                </select>
+                <select className="h-10 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
+                  <option value="ALL">All statuses</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="PENDING_VERIFICATION">Pending verification</option>
+                  <option value="SUSPENDED">Suspended</option>
+                </select>
+                <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-semibold hover:border-primary" onClick={() => { setUserSearch(""); setUserRoleFilter("ALL"); setUserStatusFilter("ALL"); }} type="button"><RotateCcw size={16} /> Reset</button>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Total users</p><p className="mt-2 text-2xl font-semibold">{users.length}</p></div>
+              <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Pending verification</p><p className="mt-2 text-2xl font-semibold">{pendingUserCount}</p></div>
+              <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Suspended</p><p className="mt-2 text-2xl font-semibold">{suspendedUserCount}</p></div>
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
+              <div className="hidden grid-cols-[1.4fr_150px_130px_1fr_190px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[84px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredUsers.map((user) => {
+                const isUpdating = updatingUserId === user.id;
+                const canActivate = user.status === "SUSPENDED" || user.status === "PENDING_VERIFICATION";
+                const canSuspend = user.status === "ACTIVE" && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN";
+
+                return (
+                  <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_150px_130px_1fr_190px] md:items-center" key={user.id}>
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-800">{user.fullName.charAt(0)}</span>
+                        <div className="min-w-0">
+                          <h3 className="truncate font-semibold">{user.fullName}</h3>
+                          <p className="mt-1 truncate text-sm text-muted-foreground">{user.phone}{user.email ? ` | ${user.email}` : ""}</p>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground md:hidden">{user.id}</p>
+                    </div>
+                    <p className="text-sm font-medium">{userRoleLabels[user.role]}</p>
+                    <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${userStatusStyle[user.status]}`}>{readableStatus(user.status)}</span>
+                    <div className="text-sm text-muted-foreground">
+                      <p>Joined {new Date(user.joinedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>
+                      {user.lastActiveAt && <p className="mt-1">Last active {new Date(user.lastActiveAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>}
+                    </div>
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {canActivate && <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "ACTIVE")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <Check size={16} />} Activate</button>}
+                      {canSuspend && <button className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "SUSPENDED")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <ShieldBan size={16} />} Suspend</button>}
+                      {!canActivate && !canSuspend && <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">Protected</span>}
+                    </div>
+                  </article>
+                );
+              })}
+              {!isLoadingQueues && filteredUsers.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No users match this filter.</p>}
             </div>
           </section>
         )}
