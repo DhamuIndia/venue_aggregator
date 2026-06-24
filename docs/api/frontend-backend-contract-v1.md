@@ -271,6 +271,8 @@ Return `401` when the user is not logged in, `403` when the logged-in user is no
 | `POST` | `/public/enquiries` | Submit an authenticated enquiry |
 | `GET` | `/customer/enquiries` | Customer enquiry history |
 | `GET` | `/customer/enquiries/{enquiryId}` | Enquiry details and timeline |
+| `GET` | `/customer/bookings` | Customer booking lifecycle list |
+| `GET` | `/customer/bookings/{bookingId}` | Customer booking detail |
 | `GET` | `/customer/saved-halls` | Saved halls |
 | `PUT` | `/customer/saved-halls/{hallId}` | Save a hall; idempotent |
 | `DELETE` | `/customer/saved-halls/{hallId}` | Remove saved hall |
@@ -319,6 +321,36 @@ Saved halls response:
 ```
 
 `PUT /customer/saved-halls/{hallId}` is idempotent and may return either the saved hall item or `204`. `DELETE /customer/saved-halls/{hallId}` should return `204` even when the hall was not already saved. Return `401` when the user is not logged in, `403` when the logged-in user is not a customer, and `404` when the hall does not exist.
+
+Customer bookings response:
+
+```json
+{
+  "items": [
+    {
+      "id": "BOOK-2048",
+      "bookingId": "BOOK-2048",
+      "enquiryId": "ENQ-2048",
+      "hallId": "emerald-convention-centre",
+      "hallName": "Emerald Convention Centre",
+      "customerId": "customer-101",
+      "customerName": "Priya Raman",
+      "eventDate": "2026-07-18",
+      "eventType": "Wedding",
+      "guestCount": 450,
+      "slot": "FULL_DAY",
+      "status": "CONFIRMED",
+      "amount": 125000,
+      "paymentStatus": "ADVANCE_PENDING",
+      "confirmedAt": "2026-06-23T10:30:00Z",
+      "updatedAt": "2026-06-23T10:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+Booking status values: `REQUESTED`, `CONFIRMED`, `CANCELLED`, `COMPLETED`. Payment status values for now: `NOT_STARTED`, `ADVANCE_PENDING`, `ADVANCE_PAID`, `REFUNDED`. Customer booking routes must only return bookings belonging to the logged-in customer.
 
 Review eligibility response:
 
@@ -376,6 +408,8 @@ Return `403` when the enquiry does not belong to the logged-in customer, `409` w
 | `POST` | `/owner/halls/{hallId}/submit` | Submit for admin approval |
 | `GET` | `/owner/halls/{hallId}/enquiries` | Hall enquiry inbox |
 | `PATCH` | `/owner/enquiries/{enquiryId}/status` | Confirm or decline enquiry |
+| `GET` | `/owner/halls/{hallId}/bookings` | Hall booking lifecycle list |
+| `PATCH` | `/owner/bookings/{bookingId}/status` | Complete or cancel booking |
 | `GET` | `/owner/halls/{hallId}/availability` | Calendar data |
 | `POST` | `/owner/halls/{hallId}/blocked-dates` | Block a slot |
 | `DELETE` | `/owner/halls/{hallId}/blocked-dates/{blockId}` | Remove owner block |
@@ -420,7 +454,26 @@ Enquiry status request:
 { "status": "CONFIRMED" }
 ```
 
-Use optimistic locking (`version` field or `If-Match`) for enquiry status and listing edits. Return `409` when another actor already changed the resource.
+When an owner confirms an enquiry, the backend should create or activate a booking for that enquiry and block the selected hall/date/slot from double-booking. Declining an enquiry does not create a booking.
+
+Owner booking status request:
+
+```json
+{ "status": "COMPLETED" }
+```
+
+Allowed owner booking status transitions:
+
+| From | To | Meaning |
+| --- | --- | --- |
+| `REQUESTED` | `CONFIRMED` | Owner confirms booking request |
+| `REQUESTED` | `CANCELLED` | Owner cancels before confirmation |
+| `CONFIRMED` | `CANCELLED` | Owner cancels confirmed event |
+| `CONFIRMED` | `COMPLETED` | Event finished; customer becomes review-eligible |
+
+Return the updated booking resource. Return `403` when the booking does not belong to the owner hall, `404` when it does not exist, and `409` when the booking is stale, cancelled, completed, or the slot conflicts with another confirmed booking.
+
+Use optimistic locking (`version` field or `If-Match`) for enquiry status, booking status, and listing edits. Return `409` when another actor already changed the resource.
 
 Blocked date request:
 

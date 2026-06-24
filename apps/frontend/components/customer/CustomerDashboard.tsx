@@ -16,19 +16,22 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
 import { getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
 import { getCustomerSavedHalls, subscribeToSavedHallChanges } from "@/features/customer/saved-halls-client";
 import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
+import { halls } from "@/features/halls/mock-data";
 import type { HallSummary } from "@/features/halls/types";
 import { ReviewDialog } from "./ReviewDialog";
 
-type DashboardTab = "overview" | "enquiries" | "saved" | "reviews";
+type DashboardTab = "overview" | "enquiries" | "bookings" | "saved" | "reviews";
 
 const tabs: Array<{ id: DashboardTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "enquiries", label: "Enquiries" },
+  { id: "bookings", label: "Bookings" },
   { id: "saved", label: "Saved venues" },
   { id: "reviews", label: "Reviews" }
 ];
@@ -42,8 +45,27 @@ const statusStyles = {
   COMPLETED: "bg-muted text-muted-foreground"
 };
 
+const bookingStatusStyles: Record<BookingStatus, string> = {
+  REQUESTED: "bg-blue-50 text-blue-700",
+  CONFIRMED: "bg-emerald-50 text-emerald-700",
+  CANCELLED: "bg-rose-50 text-rose-700",
+  COMPLETED: "bg-muted text-muted-foreground"
+};
+
 function statusLabel(status: keyof typeof statusStyles) {
   return status.toLowerCase().replace(/_/g, " ");
+}
+
+function bookingStatusLabel(status: BookingStatus) {
+  return status.toLowerCase().replace(/_/g, " ");
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`));
+}
+
+function formatSlot(value: string) {
+  return value.toLowerCase().replace("_", " ");
 }
 
 const fallbackReviewEligibility: ReviewEligibility = {
@@ -68,6 +90,9 @@ export function CustomerDashboard() {
   const [enquiries, setEnquiries] = useState<CustomerEnquiry[]>(customerEnquiries);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
+  const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true);
+  const [bookingsError, setBookingsError] = useState("");
   const [savedHalls, setSavedHalls] = useState<HallSummary[]>([]);
   const [isLoadingSavedHalls, setIsLoadingSavedHalls] = useState(true);
   const [savedHallsError, setSavedHallsError] = useState("");
@@ -100,6 +125,37 @@ export function CustomerDashboard() {
     }
 
     loadEnquiries();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadBookings() {
+      setIsLoadingBookings(true);
+      setBookingsError("");
+
+      try {
+        const fallbackBookings = customerEnquiries
+          .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
+          .map(toStoredCustomerEnquiry)
+          .map(bookingFromEnquiry);
+        const response = await getCustomerBookings(accessToken, fallbackBookings);
+        if (!isCurrent) return;
+        setBookings(response.bookings);
+      } catch {
+        if (!isCurrent) return;
+        setBookings([]);
+        setBookingsError("Could not load latest bookings.");
+      } finally {
+        if (isCurrent) setIsLoadingBookings(false);
+      }
+    }
+
+    loadBookings();
 
     return () => {
       isCurrent = false;
@@ -194,6 +250,9 @@ export function CustomerDashboard() {
     setSavedHalls((current) => current.filter((hall) => hall.id !== hallId));
   }
 
+  const activeBookings = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED");
+  const upcomingBooking = activeBookings.find((booking) => booking.status === "CONFIRMED") ?? activeBookings[0];
+
   return (
     <>
       <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
@@ -215,17 +274,23 @@ export function CustomerDashboard() {
           <div className="py-7">
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{enquiries.length}</p><p className="mt-1 text-sm text-muted-foreground">Total enquiries</p></div>
-              <div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">1</p><p className="mt-1 text-sm text-muted-foreground">Upcoming event</p></div>
+              <div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{activeBookings.length}</p><p className="mt-1 text-sm text-muted-foreground">Active bookings</p></div>
               <div className="rounded-lg border border-border bg-white p-5"><Heart className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{savedHalls.length}</p><p className="mt-1 text-sm text-muted-foreground">Saved venues</p></div>
             </div>
 
             <section className="mt-9">
-              <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">Upcoming event</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View enquiries</button></div>
-              <article className="mt-4 flex flex-col gap-5 rounded-lg border border-border bg-white p-5 sm:flex-row sm:items-center">
-                <div className="grid size-14 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><CalendarDays size={25} /></div>
-                <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold">Emerald Convention Centre</h3><BadgeCheck className="text-emerald-700" size={17} /></div><p className="mt-1 text-sm text-muted-foreground">18 July 2026, Full day slot</p></div>
-                <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Confirmed</span>
-              </article>
+              <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">Upcoming event</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("bookings")}>View bookings</button></div>
+              {isLoadingBookings ? (
+                <div className="mt-4 h-28 animate-pulse rounded-lg border border-border bg-white" />
+              ) : upcomingBooking ? (
+                <article className="mt-4 flex flex-col gap-5 rounded-lg border border-border bg-white p-5 sm:flex-row sm:items-center">
+                  <div className="grid size-14 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><CalendarDays size={25} /></div>
+                  <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold">{upcomingBooking.hallName}</h3><BadgeCheck className="text-emerald-700" size={17} /></div><p className="mt-1 text-sm text-muted-foreground">{formatDate(upcomingBooking.eventDate)}, {formatSlot(upcomingBooking.slot)} slot</p></div>
+                  <span className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${bookingStatusStyles[upcomingBooking.status]}`}>{bookingStatusLabel(upcomingBooking.status)}</span>
+                </article>
+              ) : (
+                <div className="mt-4 rounded-lg border border-dashed border-border bg-white p-6 text-sm text-muted-foreground">Confirmed bookings will appear here.</div>
+              )}
             </section>
 
             <section className="mt-9">
@@ -241,6 +306,38 @@ export function CustomerDashboard() {
 
         {activeTab === "enquiries" && (
           <section className="py-7"><h2 className="text-xl font-semibold">Your enquiries</h2><p className="mt-1 text-sm text-muted-foreground">Track responses and confirmed event details.</p>{enquiriesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{enquiriesError}</p>}{isLoadingEnquiries ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? <div className="mt-5 grid gap-3">{enquiries.map((enquiry) => <article className="grid gap-4 rounded-lg border border-border bg-white p-5 sm:grid-cols-[1fr_auto] sm:items-center" key={enquiry.id}><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{enquiry.venue}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[enquiry.status]}`}>{statusLabel(enquiry.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">Event: {enquiry.eventDate} | Enquiry {enquiry.id}</p></div><button className="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:border-primary">View details <ChevronRight size={16} /></button></article>)}</div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No enquiries yet</h3><p className="mt-2 text-sm text-muted-foreground">Browse venues and send your first enquiry.</p></div>}</section>
+        )}
+
+        {activeTab === "bookings" && (
+          <section className="py-7">
+            <h2 className="text-xl font-semibold">Your bookings</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Track confirmed events, cancelled bookings, and completed services.</p>
+            {bookingsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{bookingsError}</p>}
+            {isLoadingBookings ? (
+              <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
+            ) : bookings.length > 0 ? (
+              <div className="mt-5 grid gap-4">
+                {bookings.map((booking) => (
+                  <article className="rounded-lg border border-border bg-white p-5" key={booking.id}>
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+                      <div className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><CalendarDays size={22} /></div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{booking.hallName}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bookingStatusStyles[booking.status]}`}>{bookingStatusLabel(booking.status)}</span></div>
+                        <p className="mt-2 text-sm text-muted-foreground">{formatDate(booking.eventDate)} | {formatSlot(booking.slot)} | {booking.guestCount} guests</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{booking.eventType} | Booking {booking.id}</p>
+                      </div>
+                      <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">Payment</span>
+                        <strong className="ml-2 capitalize">{booking.paymentStatus.toLowerCase().replace(/_/g, " ")}</strong>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><CalendarDays className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No bookings yet</h3><p className="mt-2 text-sm text-muted-foreground">When an owner confirms your enquiry, the booking will appear here.</p></div>
+            )}
+          </section>
         )}
 
         {activeTab === "saved" && (
@@ -293,4 +390,27 @@ function toCustomerEnquiry(enquiry: StoredEnquiry): CustomerEnquiry {
     submittedAt: enquiry.submittedAt,
     status: enquiry.status
   };
+}
+
+function toStoredCustomerEnquiry(enquiry: CustomerEnquiry): StoredEnquiry {
+  const hall = halls.find((item) => item.name === enquiry.venue) ?? halls[0];
+
+  return {
+    id: enquiry.id,
+    hallId: hall.id,
+    hallName: enquiry.venue,
+    customerId: "customer-101",
+    eventDate: toIsoDate(enquiry.eventDate),
+    eventType: enquiry.id === reviewEligibleBooking.enquiryId ? reviewEligibleBooking.serviceType : "Wedding",
+    guestCount: enquiry.id === reviewEligibleBooking.enquiryId ? 120 : 450,
+    slot: "FULL_DAY",
+    status: enquiry.status === "AWAITING_RESPONSE" ? "PENDING_OWNER_RESPONSE" : enquiry.status,
+    submittedAt: toIsoDate(enquiry.submittedAt)
+  };
+}
+
+function toIsoDate(value: string) {
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return new Date().toISOString().slice(0, 10);
 }
