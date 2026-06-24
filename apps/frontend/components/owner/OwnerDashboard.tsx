@@ -54,11 +54,11 @@ import {
   type OwnerListingStatus
 } from "@/features/owner/listing-client";
 import {
-  createOwnerMedia,
   deleteOwnerMedia,
   getLocalOwnerMedia,
   mediaFromListing,
   updateOwnerMedia,
+  uploadAndCreateOwnerMedia,
   type OwnerMediaItem
 } from "@/features/owner/media-client";
 import { getOwnerHallReviews, type OwnerReview } from "@/features/owner/review-client";
@@ -620,13 +620,13 @@ export function OwnerDashboard() {
       setIsUploadingMedia(true);
       setMediaError("");
 
-      const uploaded = await Promise.all(selectedFiles.map((file, index) => createOwnerMedia(listing.id, {
-        url: URL.createObjectURL(file),
-        fileName: file.name,
-        caption: file.name,
-        isCover: media.length === 0 && index === 0,
-        sortOrder: media.length + index
-      }, accessToken)));
+      const uploaded = await Promise.all(selectedFiles.map((file, index) => uploadAndCreateOwnerMedia(
+        listing.id,
+        file,
+        media.length + index,
+        media.length === 0 && index === 0,
+        accessToken
+      )));
 
       setMedia((current) => normalizeMediaCover([...current, ...uploaded].sort((first, second) => first.sortOrder - second.sortOrder)));
       const cover = uploaded.find((item) => item.isCover);

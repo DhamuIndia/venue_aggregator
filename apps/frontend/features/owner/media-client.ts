@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { uploadImageFile } from "@/features/uploads/upload-client";
 import type { OwnerHallListing } from "./listing-client";
 
 const STORAGE_KEY = "venue-aggregator-owner-media";
@@ -10,6 +11,7 @@ export type OwnerMediaItem = {
   caption?: string;
   isCover: boolean;
   sortOrder: number;
+  storageKey?: string;
 };
 
 export type OwnerMediaPayload = {
@@ -18,6 +20,7 @@ export type OwnerMediaPayload = {
   caption?: string;
   isCover?: boolean;
   sortOrder?: number;
+  storageKey?: string;
 };
 
 export type OwnerMediaPatch = {
@@ -60,6 +63,18 @@ export async function createOwnerMedia(hallId: string, payload: OwnerMediaPayloa
     }
     return createLocalMedia(hallId, payload);
   }
+}
+
+export async function uploadAndCreateOwnerMedia(hallId: string, file: File, sortOrder: number, isCover: boolean, accessToken?: string | null) {
+  const uploaded = await uploadImageFile(file, "OWNER_HALL_MEDIA", useMockOwnerMedia ? null : accessToken);
+  return createOwnerMedia(hallId, {
+    url: uploaded.url,
+    storageKey: uploaded.storageKey,
+    fileName: uploaded.fileName,
+    caption: uploaded.fileName,
+    isCover,
+    sortOrder
+  }, accessToken);
 }
 
 export async function updateOwnerMedia(hallId: string, mediaId: string, patch: OwnerMediaPatch, accessToken?: string | null) {
@@ -108,7 +123,8 @@ function createLocalMedia(hallId: string, payload: OwnerMediaPayload) {
     url: payload.url,
     caption: payload.caption ?? payload.fileName,
     isCover: Boolean(payload.isCover),
-    sortOrder: payload.sortOrder ?? getLocalOwnerMedia(hallId, []).length
+    sortOrder: payload.sortOrder ?? getLocalOwnerMedia(hallId, []).length,
+    storageKey: payload.storageKey
   };
   cacheLocalMedia(hallId, media);
   return media;
@@ -172,6 +188,7 @@ function toMediaRequest(payload: OwnerMediaPayload | OwnerMediaPatch) {
   return {
     url,
     mediaUrl: url,
+    storageKey: "storageKey" in payload ? payload.storageKey : undefined,
     fileName: "fileName" in payload ? payload.fileName : undefined,
     caption: payload.caption,
     isCover,
@@ -187,11 +204,12 @@ function toMediaItem(value: unknown, fallback?: OwnerMediaPayload): OwnerMediaIt
   if (!record) {
     return fallback ? {
       id: `MEDIA-${Date.now().toString().slice(-6)}`,
-      url: fallback.url,
-      caption: fallback.caption ?? fallback.fileName,
-      isCover: Boolean(fallback.isCover),
-      sortOrder: fallback.sortOrder ?? 0
-    } : undefined;
+    url: fallback.url,
+    caption: fallback.caption ?? fallback.fileName,
+    isCover: Boolean(fallback.isCover),
+    sortOrder: fallback.sortOrder ?? 0,
+    storageKey: fallback.storageKey
+  } : undefined;
   }
 
   const url = stringValue(record, ["url", "mediaUrl", "media_url", "imageUrl"]) ?? fallback?.url;
@@ -202,7 +220,8 @@ function toMediaItem(value: unknown, fallback?: OwnerMediaPayload): OwnerMediaIt
     url,
     caption: stringValue(record, ["caption", "fileName", "file_name"]) ?? fallback?.caption ?? fallback?.fileName,
     isCover: booleanValue(record, ["isCover", "primary", "cover"]) ?? Boolean(fallback?.isCover),
-    sortOrder: numberValue(record, ["sortOrder", "displayOrder", "order"]) ?? fallback?.sortOrder ?? 0
+    sortOrder: numberValue(record, ["sortOrder", "displayOrder", "order"]) ?? fallback?.sortOrder ?? 0,
+    storageKey: stringValue(record, ["storageKey", "storage_key"]) ?? fallback?.storageKey
   };
 }
 
