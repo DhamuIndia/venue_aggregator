@@ -6,7 +6,9 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  CreditCard,
   Heart,
+  LoaderCircle,
   LogOut,
   MessageSquareText,
   Star,
@@ -17,6 +19,7 @@ import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
+import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
 import { getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
 import { getCustomerSavedHalls, subscribeToSavedHallChanges } from "@/features/customer/saved-halls-client";
@@ -68,6 +71,15 @@ function formatSlot(value: string) {
   return value.toLowerCase().replace("_", " ");
 }
 
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-IN").format(value);
+}
+
+function advanceAmount(booking: BookingItem) {
+  if (booking.amount && booking.amount > 0) return Math.max(5000, Math.round(booking.amount * 0.2));
+  return 25000;
+}
+
 const fallbackReviewEligibility: ReviewEligibility = {
   eligible: reviewEligibleBooking.verified,
   enquiryId: reviewEligibleBooking.enquiryId,
@@ -93,6 +105,8 @@ export function CustomerDashboard() {
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [paymentBookingId, setPaymentBookingId] = useState<string | null>(null);
   const [savedHalls, setSavedHalls] = useState<HallSummary[]>([]);
   const [isLoadingSavedHalls, setIsLoadingSavedHalls] = useState(true);
   const [savedHallsError, setSavedHallsError] = useState("");
@@ -250,6 +264,39 @@ export function CustomerDashboard() {
     setSavedHalls((current) => current.filter((hall) => hall.id !== hallId));
   }
 
+  async function payAdvance(booking: BookingItem) {
+    try {
+      setPaymentBookingId(booking.id);
+      setBookingsError("");
+      setPaymentMessage("");
+
+      const order = await createBookingAdvanceOrder(booking, accessToken);
+      if (order.checkoutUrl) {
+        window.open(order.checkoutUrl, "_blank", "noopener,noreferrer");
+        setPaymentMessage(`Payment order ${order.orderId} created. Complete checkout in the opened window.`);
+        return;
+      }
+
+      if (order.keyId) {
+        setPaymentMessage(`Payment order ${order.orderId} created for INR ${formatMoney(order.amount)}. Razorpay checkout can use the returned key and order id.`);
+        return;
+      }
+
+      const updated = await verifyBookingAdvancePayment({
+        bookingId: booking.id,
+        orderId: order.orderId,
+        razorpayPaymentId: `PAY-${Date.now().toString().slice(-6)}`,
+        razorpaySignature: "local-simulated-signature"
+      }, accessToken);
+      setBookings((current) => current.map((item) => item.id === booking.id ? updated ?? { ...item, paymentStatus: "ADVANCE_PAID" } : item));
+      setPaymentMessage("Advance payment marked as paid for local testing.");
+    } catch (exception) {
+      setBookingsError(exception instanceof Error ? exception.message : "Could not start payment.");
+    } finally {
+      setPaymentBookingId(null);
+    }
+  }
+
   const activeBookings = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED");
   const upcomingBooking = activeBookings.find((booking) => booking.status === "CONFIRMED") ?? activeBookings[0];
 
@@ -313,6 +360,7 @@ export function CustomerDashboard() {
             <h2 className="text-xl font-semibold">Your bookings</h2>
             <p className="mt-1 text-sm text-muted-foreground">Track confirmed events, cancelled bookings, and completed services.</p>
             {bookingsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{bookingsError}</p>}
+            {paymentMessage && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">{paymentMessage}</p>}
             {isLoadingBookings ? (
               <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
             ) : bookings.length > 0 ? (
@@ -326,9 +374,16 @@ export function CustomerDashboard() {
                         <p className="mt-2 text-sm text-muted-foreground">{formatDate(booking.eventDate)} | {formatSlot(booking.slot)} | {booking.guestCount} guests</p>
                         <p className="mt-1 text-sm text-muted-foreground">{booking.eventType} | Booking {booking.id}</p>
                       </div>
-                      <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                        <span className="text-muted-foreground">Payment</span>
-                        <strong className="ml-2 capitalize">{booking.paymentStatus.toLowerCase().replace(/_/g, " ")}</strong>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                          <span className="text-muted-foreground">Payment</span>
+                          <strong className="ml-2 capitalize">{booking.paymentStatus.toLowerCase().replace(/_/g, " ")}</strong>
+                        </div>
+                        {booking.status === "CONFIRMED" && booking.paymentStatus === "ADVANCE_PENDING" && (
+                          <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={paymentBookingId === booking.id} onClick={() => payAdvance(booking)} type="button">
+                            {paymentBookingId === booking.id ? <LoaderCircle className="animate-spin" size={16} /> : <CreditCard size={16} />} Pay INR {formatMoney(advanceAmount(booking))}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </article>

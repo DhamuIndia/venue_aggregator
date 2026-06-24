@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  CreditCard,
   Eye,
   ImagePlus,
   LoaderCircle,
@@ -29,6 +30,7 @@ import {
   updateOwnerBookingStatus,
   upsertLocalBooking,
   type BookingItem,
+  type BookingPaymentStatus,
   type BookingStatus
 } from "@/features/bookings/booking-client";
 import { getOwnerHallEnquiries, updateOwnerEnquiryStatus } from "@/features/enquiries/enquiry-client";
@@ -89,6 +91,13 @@ const bookingStatusStyle: Record<BookingStatus, string> = {
   COMPLETED: "bg-muted text-muted-foreground"
 };
 
+const paymentStatusStyle: Record<BookingPaymentStatus, string> = {
+  NOT_STARTED: "bg-slate-100 text-slate-700",
+  ADVANCE_PENDING: "bg-amber-50 text-amber-700",
+  ADVANCE_PAID: "bg-emerald-50 text-emerald-700",
+  REFUNDED: "bg-violet-50 text-violet-700"
+};
+
 const listingStatusStyle: Record<OwnerListingStatus, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
   PENDING_APPROVAL: "bg-amber-50 text-amber-700",
@@ -119,6 +128,10 @@ function formatStatus(status: EnquiryStatus) {
 }
 
 function formatBookingStatus(status: BookingStatus) {
+  return status.toLowerCase().replace(/_/g, " ");
+}
+
+function formatPaymentStatus(status: BookingPaymentStatus) {
   return status.toLowerCase().replace(/_/g, " ");
 }
 
@@ -747,7 +760,7 @@ export function OwnerDashboard() {
                           </div>
                           <p className="mt-2 text-sm text-muted-foreground">{formatDate(booking.eventDate)} | {formatSlot(booking.slot)} | {booking.guestCount} guests</p>
                           <p className="mt-1 text-sm text-muted-foreground">{booking.customerName ?? booking.customerId ?? "Customer"} | Booking {booking.id}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">Payment: {booking.paymentStatus.toLowerCase().replace(/_/g, " ")}</p>
+                          <p className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${paymentStatusStyle[booking.paymentStatus]}`}><CreditCard size={13} /> {formatPaymentStatus(booking.paymentStatus)}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {canComplete && (

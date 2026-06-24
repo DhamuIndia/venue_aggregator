@@ -106,6 +106,17 @@ export function upsertLocalBooking(booking: BookingItem) {
   return booking;
 }
 
+export function updateLocalBookingPaymentStatus(bookingId: string, paymentStatus: BookingPaymentStatus) {
+  const bookings = readBookingStore();
+  const updated = bookings.map((booking) => booking.id === bookingId ? {
+    ...booking,
+    paymentStatus,
+    updatedAt: new Date().toISOString()
+  } : booking);
+  saveBookings(updated);
+  return updated.find((booking) => booking.id === bookingId);
+}
+
 function getLocalBookings(fallbackBookings: BookingItem[] = []) {
   if (typeof window === "undefined") return fallbackBookings;
   const stored = readBookingStore();

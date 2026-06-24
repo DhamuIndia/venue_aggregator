@@ -273,6 +273,8 @@ Return `401` when the user is not logged in, `403` when the logged-in user is no
 | `GET` | `/customer/enquiries/{enquiryId}` | Enquiry details and timeline |
 | `GET` | `/customer/bookings` | Customer booking lifecycle list |
 | `GET` | `/customer/bookings/{bookingId}` | Customer booking detail |
+| `POST` | `/customer/bookings/{bookingId}/payments/advance-order` | Create Razorpay advance payment order |
+| `POST` | `/customer/bookings/{bookingId}/payments/verify` | Verify Razorpay advance payment |
 | `GET` | `/customer/saved-halls` | Saved halls |
 | `PUT` | `/customer/saved-halls/{hallId}` | Save a hall; idempotent |
 | `DELETE` | `/customer/saved-halls/{hallId}` | Remove saved hall |
@@ -351,6 +353,44 @@ Customer bookings response:
 ```
 
 Booking status values: `REQUESTED`, `CONFIRMED`, `CANCELLED`, `COMPLETED`. Payment status values for now: `NOT_STARTED`, `ADVANCE_PENDING`, `ADVANCE_PAID`, `REFUNDED`. Customer booking routes must only return bookings belonging to the logged-in customer.
+
+Create booking advance order request:
+
+```json
+{
+  "bookingId": "BOOK-2048"
+}
+```
+
+Create booking advance order response:
+
+```json
+{
+  "orderId": "order_Rzp_123",
+  "razorpayOrderId": "order_Rzp_123",
+  "bookingId": "BOOK-2048",
+  "amount": 25000,
+  "currency": "INR",
+  "status": "CREATED",
+  "keyId": "rzp_test_xxxxx",
+  "checkoutUrl": "https://checkout.razorpay.com/v1/checkout/embedded/order_Rzp_123"
+}
+```
+
+The frontend sends only `bookingId`. The backend owns the advance amount calculation, creates the Razorpay order, and must reject payment attempts for bookings that are not `CONFIRMED`, already paid, cancelled, completed, or not owned by the logged-in customer.
+
+Verify booking advance payment request:
+
+```json
+{
+  "bookingId": "BOOK-2048",
+  "orderId": "order_Rzp_123",
+  "razorpayPaymentId": "pay_Rzp_456",
+  "razorpaySignature": "signed_payload"
+}
+```
+
+Verify booking advance payment response should return the updated booking with `paymentStatus=ADVANCE_PAID`. Return `400` for invalid signatures, `403` for bookings outside the logged-in customer, `404` for missing bookings/orders, and `409` for duplicate or stale payment attempts. Razorpay webhooks should be idempotent and update the same payment state.
 
 Review eligibility response:
 
@@ -597,7 +637,7 @@ Allowed transitions:
 | `GET` | `/vendor/subscription` | Current plan and renewal state |
 | `POST` | `/vendor/subscription/orders` | Create a Razorpay order |
 | `POST` | `/vendor/subscription/verify` | Verify checkout signature |
-| `POST` | `/payments/razorpay/webhook` | Process signed payment events |
+| `POST` | `/payments/razorpay/webhook` | Process signed subscription and booking payment events |
 
 The frontend sends only `planId` when creating an order. The backend owns plan pricing, creates the Razorpay order, validates signatures, handles idempotent webhooks, and activates the subscription only after a verified payment event.
 
