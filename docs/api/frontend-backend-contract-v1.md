@@ -293,6 +293,33 @@ Create enquiry request:
 
 The server derives `customerId`, `hallName`, status, and timestamps. Return `201` with the enquiry resource.
 
+Saved halls response:
+
+```json
+{
+  "items": [
+    {
+      "id": "emerald-convention-centre",
+      "hallId": "emerald-convention-centre",
+      "name": "Emerald Convention Centre",
+      "city": "Chennai",
+      "area": "ECR",
+      "capacity": 900,
+      "startingPrice": 125000,
+      "rating": 4.8,
+      "reviewCount": 86,
+      "imageUrl": "https://cdn.example.com/halls/emerald/cover.jpg",
+      "venueType": "MARRIAGE_HALL",
+      "isVerified": true,
+      "availableThisMonth": true
+    }
+  ],
+  "total": 1
+}
+```
+
+`PUT /customer/saved-halls/{hallId}` is idempotent and may return either the saved hall item or `204`. `DELETE /customer/saved-halls/{hallId}` should return `204` even when the hall was not already saved. Return `401` when the user is not logged in, `403` when the logged-in user is not a customer, and `404` when the hall does not exist.
+
 Review eligibility response:
 
 ```json

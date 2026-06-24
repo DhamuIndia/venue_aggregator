@@ -18,9 +18,10 @@ import { HallCard } from "@/components/halls/HallCard";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
 import { getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
+import { getCustomerSavedHalls, subscribeToSavedHallChanges } from "@/features/customer/saved-halls-client";
 import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
-import { halls } from "@/features/halls/mock-data";
+import type { HallSummary } from "@/features/halls/types";
 import { ReviewDialog } from "./ReviewDialog";
 
 type DashboardTab = "overview" | "enquiries" | "saved" | "reviews";
@@ -67,7 +68,9 @@ export function CustomerDashboard() {
   const [enquiries, setEnquiries] = useState<CustomerEnquiry[]>(customerEnquiries);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
-  const savedHalls = halls.slice(0, 2);
+  const [savedHalls, setSavedHalls] = useState<HallSummary[]>([]);
+  const [isLoadingSavedHalls, setIsLoadingSavedHalls] = useState(true);
+  const [savedHallsError, setSavedHallsError] = useState("");
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -131,6 +134,35 @@ export function CustomerDashboard() {
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSavedHalls() {
+      setIsLoadingSavedHalls(true);
+      setSavedHallsError("");
+
+      try {
+        const response = await getCustomerSavedHalls(accessToken);
+        if (!isCurrent) return;
+        setSavedHalls(response.halls);
+      } catch {
+        if (!isCurrent) return;
+        setSavedHalls([]);
+        setSavedHallsError("Could not load saved venues.");
+      } finally {
+        if (isCurrent) setIsLoadingSavedHalls(false);
+      }
+    }
+
+    loadSavedHalls();
+    const unsubscribe = subscribeToSavedHallChanges(loadSavedHalls);
+
+    return () => {
+      isCurrent = false;
+      unsubscribe();
+    };
+  }, [accessToken]);
+
   function signOut() {
     logout();
     router.push("/");
@@ -157,6 +189,11 @@ export function CustomerDashboard() {
     setReviewOpen(false);
   }
 
+  function updateSavedHall(hallId: string, isSaved: boolean) {
+    if (isSaved) return;
+    setSavedHalls((current) => current.filter((hall) => hall.id !== hallId));
+  }
+
   return (
     <>
       <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
@@ -179,7 +216,7 @@ export function CustomerDashboard() {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{enquiries.length}</p><p className="mt-1 text-sm text-muted-foreground">Total enquiries</p></div>
               <div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">1</p><p className="mt-1 text-sm text-muted-foreground">Upcoming event</p></div>
-              <div className="rounded-lg border border-border bg-white p-5"><Heart className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">2</p><p className="mt-1 text-sm text-muted-foreground">Saved venues</p></div>
+              <div className="rounded-lg border border-border bg-white p-5"><Heart className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{savedHalls.length}</p><p className="mt-1 text-sm text-muted-foreground">Saved venues</p></div>
             </div>
 
             <section className="mt-9">
@@ -207,7 +244,20 @@ export function CustomerDashboard() {
         )}
 
         {activeTab === "saved" && (
-          <section className="py-7"><h2 className="text-xl font-semibold">Saved venues</h2><p className="mt-1 text-sm text-muted-foreground">Your shortlist for easy comparison.</p><div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{savedHalls.map((hall) => <HallCard hall={hall} key={hall.id} />)}</div></section>
+          <section className="py-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div><h2 className="text-xl font-semibold">Saved venues</h2><p className="mt-1 text-sm text-muted-foreground">Your shortlist for easy comparison.</p></div>
+              <button className="inline-flex h-10 items-center rounded-md border border-border bg-white px-4 text-sm font-medium hover:border-primary hover:text-primary" onClick={() => router.push("/")} type="button">Browse venues</button>
+            </div>
+            {savedHallsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{savedHallsError}</p>}
+            {isLoadingSavedHalls ? (
+              <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((item) => <div className="h-80 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
+            ) : savedHalls.length > 0 ? (
+              <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{savedHalls.map((hall) => <HallCard hall={hall} initialSaved key={hall.id} onSavedChange={updateSavedHall} />)}</div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><Heart className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No saved venues</h3><p className="mt-2 text-sm text-muted-foreground">Save halls while browsing to compare them here.</p></div>
+            )}
+          </section>
         )}
 
         {activeTab === "reviews" && (

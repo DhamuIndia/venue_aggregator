@@ -1,22 +1,22 @@
 "use client";
 
-import { BadgeCheck, Heart, MapPin, Star, UsersRound } from "lucide-react";
+import { BadgeCheck, MapPin, Star, UsersRound } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import type { HallSummary } from "@/features/halls/types";
 
 type HallCardProps = {
   hall: HallSummary;
+  initialSaved?: boolean;
+  onSavedChange?: (hallId: string, isSaved: boolean) => void;
 };
 
 function formatPrice(value: number) {
   return new Intl.NumberFormat("en-IN").format(value);
 }
 
-export function HallCard({ hall }: HallCardProps) {
-  const [saved, setSaved] = useState(false);
-
+export function HallCard({ hall, initialSaved, onSavedChange }: HallCardProps) {
   return (
     <article className="group overflow-hidden rounded-lg border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
@@ -34,15 +34,7 @@ export function HallCard({ hall }: HallCardProps) {
             </span>
           )}
         </div>
-        <button
-          aria-label={saved ? `Remove ${hall.name} from saved venues` : `Save ${hall.name}`}
-          className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white text-foreground shadow-sm hover:bg-rose-50 hover:text-rose-600"
-          onClick={() => setSaved((current) => !current)}
-          title={saved ? "Remove from saved" : "Save venue"}
-          type="button"
-        >
-          <Heart aria-hidden="true" fill={saved ? "currentColor" : "none"} size={18} />
-        </button>
+        <SaveHallButton className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white text-foreground shadow-sm hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60" hall={hall} initialSaved={initialSaved} onSavedChange={onSavedChange} />
       </div>
 
       <div className="p-4">
