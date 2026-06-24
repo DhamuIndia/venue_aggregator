@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
+import { VenueCompare } from "@/components/customer/VenueCompare";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
 import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
@@ -410,7 +411,10 @@ export function CustomerDashboard() {
             {isLoadingSavedHalls ? (
               <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((item) => <div className="h-80 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
             ) : savedHalls.length > 0 ? (
-              <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{savedHalls.map((hall) => <HallCard hall={hall} initialSaved key={hall.id} onSavedChange={updateSavedHall} />)}</div>
+              <>
+                <VenueCompare halls={savedHalls} />
+                <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{savedHalls.map((hall) => <HallCard hall={hall} initialSaved key={hall.id} onSavedChange={updateSavedHall} />)}</div>
+              </>
             ) : (
               <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><Heart className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No saved venues</h3><p className="mt-2 text-sm text-muted-foreground">Save halls while browsing to compare them here.</p></div>
             )}
