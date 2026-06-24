@@ -3,6 +3,7 @@
 import { Building2, Heart, LayoutDashboard, ShieldCheck, Store, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { NotificationBell } from "@/components/notifications/NotificationCenter";
 
 export function SiteHeader() {
   const { isLoading, user } = useAuth();
@@ -24,6 +25,7 @@ export function SiteHeader() {
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           {(!user || user.role === "CUSTOMER") && <Link aria-label="Saved venues" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" href={user ? "/customer" : "/auth/login"} title="Saved venues"><Heart aria-hidden="true" size={19} /></Link>}
+          {user && <NotificationBell />}
           {!isLoading && user ? (
             <Link aria-label="My account" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted" href={accountHref}><span className="grid size-6 place-items-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800">{user.fullName.charAt(0)}</span><span className="hidden sm:inline">My account</span></Link>
           ) : (

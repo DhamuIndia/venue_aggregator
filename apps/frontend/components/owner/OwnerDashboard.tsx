@@ -23,6 +23,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   bookingFromEnquiry as lifecycleBookingFromEnquiry,
@@ -64,7 +65,7 @@ import { fallbackOwnerEnquiries, initialBlockedDates, ownerHall, ownerReviews } 
 import type { VenueType } from "@/features/halls/types";
 import { BlockDateDialog } from "./BlockDateDialog";
 
-type OwnerTab = "overview" | "enquiries" | "bookings" | "availability" | "listing" | "media" | "reviews";
+type OwnerTab = "overview" | "enquiries" | "bookings" | "availability" | "listing" | "media" | "reviews" | "activity";
 
 const tabs: Array<{ id: OwnerTab; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -73,7 +74,8 @@ const tabs: Array<{ id: OwnerTab; label: string }> = [
   { id: "availability", label: "Availability" },
   { id: "listing", label: "Listing" },
   { id: "media", label: "Media" },
-  { id: "reviews", label: "Reviews" }
+  { id: "reviews", label: "Reviews" },
+  { id: "activity", label: "Activity" }
 ];
 
 const statusStyle: Record<EnquiryStatus, string> = {
@@ -646,7 +648,7 @@ export function OwnerDashboard() {
       <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div><div className="flex items-center gap-2 text-sm font-semibold text-primary"><BadgeCheck size={17} /> Owner workspace</div><h1 className="mt-2 text-3xl font-semibold">{listing.name}</h1><p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listing.area}, {listing.city}</p></div>
-          <div className="flex gap-2"><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link><Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
+          <div className="flex flex-wrap items-center gap-2"><NotificationBell /><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link><Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
         </div>
 
         {notice && <div className="mt-6 flex items-start justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><span className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0" size={18} />{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")}><X size={17} /></button></div>}
@@ -656,6 +658,8 @@ export function OwnerDashboard() {
         </div>
 
         {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
+
+        {activeTab === "activity" && <NotificationActivity />}
 
         {activeTab === "enquiries" && (
           <section className="py-7">

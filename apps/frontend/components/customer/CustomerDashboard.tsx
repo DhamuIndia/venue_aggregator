@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
+import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
 import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
@@ -29,14 +30,15 @@ import { halls } from "@/features/halls/mock-data";
 import type { HallSummary } from "@/features/halls/types";
 import { ReviewDialog } from "./ReviewDialog";
 
-type DashboardTab = "overview" | "enquiries" | "bookings" | "saved" | "reviews";
+type DashboardTab = "overview" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
 
 const tabs: Array<{ id: DashboardTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "enquiries", label: "Enquiries" },
   { id: "bookings", label: "Bookings" },
   { id: "saved", label: "Saved venues" },
-  { id: "reviews", label: "Reviews" }
+  { id: "reviews", label: "Reviews" },
+  { id: "activity", label: "Activity" }
 ];
 
 const statusStyles = {
@@ -308,7 +310,10 @@ export function CustomerDashboard() {
             <span className="grid size-12 place-items-center rounded-full bg-emerald-50 text-lg font-semibold text-emerald-800">{user?.fullName.charAt(0)}</span>
             <div><p className="text-sm text-muted-foreground">Welcome back</p><h1 className="text-2xl font-semibold sm:text-3xl">{user?.fullName}</h1></div>
           </div>
-          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-foreground" onClick={signOut} type="button"><LogOut size={17} /> Sign out</button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-foreground" onClick={signOut} type="button"><LogOut size={17} /> Sign out</button>
+          </div>
         </div>
 
         <div className="mt-8 flex gap-1 overflow-x-auto border-b border-border" role="tablist" aria-label="Customer account">
@@ -430,6 +435,8 @@ export function CustomerDashboard() {
             <div className="mt-8 flex items-center gap-3 border-t border-border pt-6 text-sm text-muted-foreground"><Clock3 size={18} /><span>Reviews appear publicly after moderation.</span></div>
           </section>
         )}
+
+        {activeTab === "activity" && <NotificationActivity />}
       </main>
 
       <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={submitReview} open={reviewOpen} venueName={reviewEligibility.hallName ?? reviewEligibleBooking.venue} />

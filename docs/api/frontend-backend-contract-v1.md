@@ -690,6 +690,46 @@ Create subscription order response:
 
 Return `400` for invalid plans, `403` when the vendor profile cannot subscribe, and `409` when an active order already exists for the same plan.
 
+## Notification APIs
+
+All notification routes require authentication. The backend derives the recipient from the logged-in user and must not accept user IDs from the client.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/notifications` | Logged-in user notification feed |
+| `PATCH` | `/notifications/{notificationId}/read` | Mark one notification as read |
+| `PATCH` | `/notifications/read-all` | Mark all current user notifications read |
+
+Notification response:
+
+```json
+{
+  "items": [
+    {
+      "id": "NOTIF-4102",
+      "type": "BOOKING",
+      "title": "Booking confirmed",
+      "message": "Emerald Convention Centre confirmed your Wedding booking for 18 July 2026.",
+      "createdAt": "2026-06-24T09:30:00Z",
+      "readAt": null,
+      "actionHref": "/customer?tab=bookings"
+    }
+  ],
+  "unreadCount": 1
+}
+```
+
+Notification type values: `ENQUIRY`, `BOOKING`, `PAYMENT`, `REVIEW`, `SYSTEM`. `actionHref` should be a frontend route only, not an external URL.
+
+Recommended events to emit:
+
+- Customer: enquiry submitted, owner confirmed/declined, booking created, advance payment pending/paid, booking completed, review requested
+- Owner: new enquiry, booking created, customer advance paid, booking cancellation/completion, new verified review
+- Vendor: new lead, quote status changes, subscription payment result
+- Admin: new hall/vendor approval request, reported review
+
+Notification writes should happen after the business action succeeds. Delivery can be asynchronous, but the API mutation should not depend on SMS/email success.
+
 ## Admin APIs
 
 All routes require `ADMIN` or `SUPER_ADMIN`. Every mutation writes an immutable audit event containing actor, action, resource, reason, previous state, new state, and timestamp.
