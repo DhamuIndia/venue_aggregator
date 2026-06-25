@@ -1,6 +1,7 @@
 package com.staminal.venue.halls.Dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public class CreateHallRequest {
 
@@ -20,7 +21,7 @@ public class CreateHallRequest {
 
     private Double longitude;
 
-    private Integer capacityMin;
+    // private Integer capacityMin;
 
     private Integer capacityMax;
 
@@ -28,7 +29,7 @@ public class CreateHallRequest {
 
     private Boolean acAvailable;
 
-    private String hallType;
+    // private String hallType;
 
     private Integer rooms;
 
@@ -54,11 +55,61 @@ public class CreateHallRequest {
 
     private Boolean cateringKitchenAvailable;
 
-    private BigDecimal morningAmount;
+    // private BigDecimal morningAmount;
 
-    private BigDecimal eveningAmount;
+    // private BigDecimal eveningAmount;
 
-    private BigDecimal fullDayAmount;
+    // private BigDecimal fullDayAmount;
+
+    private String venueType;
+
+    private Integer capacity;
+
+    private BigDecimal startingPrice;
+
+    private Pricing pricing;
+
+    private List<String> amenities;
+
+    public String getVenueType() {
+        return venueType;
+    }
+
+    public void setVenueType(String venueType) {
+        this.venueType = venueType;
+    }
+
+    public Integer getCapacity() {
+        return capacity;
+    }
+
+    public void setCapacity(Integer capacity) {
+        this.capacity = capacity;
+    }
+
+    public BigDecimal getStartingPrice() {
+        return startingPrice;
+    }
+
+    public void setStartingPrice(BigDecimal startingPrice) {
+        this.startingPrice = startingPrice;
+    }
+
+    public Pricing getPricing() {
+        return pricing;
+    }
+
+    public void setPricing(Pricing pricing) {
+        this.pricing = pricing;
+    }
+
+    public List<String> getAmenities() {
+        return amenities;
+    }
+
+    public void setAmenities(List<String> amenities) {
+        this.amenities = amenities;
+    }
 
     public Boolean getBridalRoomAvailable() {
         return bridalRoomAvailable;
@@ -76,29 +127,29 @@ public class CreateHallRequest {
         this.cateringKitchenAvailable = cateringKitchenAvailable;
     }
 
-    public BigDecimal getMorningAmount() {
-        return morningAmount;
-    }
+    // public BigDecimal getMorningAmount() {
+    //     return morningAmount;
+    // }
 
-    public void setMorningAmount(BigDecimal morningAmount) {
-        this.morningAmount = morningAmount;
-    }
+    // public void setMorningAmount(BigDecimal morningAmount) {
+    //     this.morningAmount = morningAmount;
+    // }
 
-    public BigDecimal getEveningAmount() {
-        return eveningAmount;
-    }
+    // public BigDecimal getEveningAmount() {
+    //     return eveningAmount;
+    // }
 
-    public void setEveningAmount(BigDecimal eveningAmount) {
-        this.eveningAmount = eveningAmount;
-    }
+    // public void setEveningAmount(BigDecimal eveningAmount) {
+    //     this.eveningAmount = eveningAmount;
+    // }
 
-    public BigDecimal getFullDayAmount() {
-        return fullDayAmount;
-    }
+    // public BigDecimal getFullDayAmount() {
+    //     return fullDayAmount;
+    // }
 
-    public void setFullDayAmount(BigDecimal fullDayAmount) {
-        this.fullDayAmount = fullDayAmount;
-    }
+    // public void setFullDayAmount(BigDecimal fullDayAmount) {
+    //     this.fullDayAmount = fullDayAmount;
+    // }
 
     public String getName() {
         return name;
@@ -164,13 +215,13 @@ public class CreateHallRequest {
         this.longitude = longitude;
     }
 
-    public Integer getCapacityMin() {
-        return capacityMin;
-    }
+    // public Integer getCapacityMin() {
+    //     return capacityMin;
+    // }
 
-    public void setCapacityMin(Integer capacityMin) {
-        this.capacityMin = capacityMin;
-    }
+    // public void setCapacityMin(Integer capacityMin) {
+    //     this.capacityMin = capacityMin;
+    // }
 
     public Integer getCapacityMax() {
         return capacityMax;
@@ -196,13 +247,13 @@ public class CreateHallRequest {
         this.acAvailable = acAvailable;
     }
 
-    public String getHallType() {
-        return hallType;
-    }
+    // public String getHallType() {
+    //     return hallType;
+    // }
 
-    public void setHallType(String hallType) {
-        this.hallType = hallType;
-    }
+    // public void setHallType(String hallType) {
+    //     this.hallType = hallType;
+    // }
 
     public Integer getRooms() {
         return rooms;

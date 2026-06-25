@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Dto.CreateHallRequest;
 import com.staminal.venue.halls.Dto.HallResponse;
+import com.staminal.venue.halls.Dto.Pricing;
 import com.staminal.venue.halls.Dto.UpdateHallRequest;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallRepository;
@@ -27,6 +28,7 @@ public class HallsService {
 
     public HallResponse createHall(CreateHallRequest request, Authentication authentication) {
 
+        System.out.println("Service Hit!!");
         Halls hall = new Halls();
 
         hall.setName(request.getName());
@@ -37,11 +39,11 @@ public class HallsService {
         hall.setPincode(request.getPincode());
         hall.setLatitude(request.getLatitude());
         hall.setLongitude(request.getLongitude());
-        hall.setCapacityMin(request.getCapacityMin());
+        hall.setCapacityMin(request.getCapacity());
         hall.setCapacityMax(request.getCapacityMax());
         hall.setFloors(request.getFloors());
         hall.setAcAvailable(request.getAcAvailable());
-        hall.setHallType(request.getHallType());
+        hall.setHallType(request.getVenueType());
         hall.setRooms(request.getRooms());
         hall.setCarParking(request.getCarParking());
         hall.setBikeParking(request.getBikeParking());
@@ -51,16 +53,21 @@ public class HallsService {
         hall.setLiftAvailable(request.getLiftAvailable());
         hall.setContactNumber(request.getContactNumber());
         hall.setWhatsappNumber(request.getWhatsappNumber());
-        hall.setCoverImageUrl(request.getCoverImageUrl());
+        // hall.setCoverImageUrl(request.getCoverImageUrl());
+        if (request.getCoverImageUrl() == null) {
+            hall.setCoverImageUrl("");
+        }
         hall.setRatings(0.0);
         hall.setStatus(HallStatus.DRAFT);
         hall.setCreatedAt(LocalDateTime.now());
         hall.setUpdatedAt(LocalDateTime.now());
         hall.setBridalRoomAvailable(request.getBridalRoomAvailable());
         hall.setCateringKitchenAvailable(request.getCateringKitchenAvailable());
-        hall.setMorningAmount(request.getMorningAmount());
-        hall.setEveningAmount(request.getEveningAmount());
-        hall.setFullDayAmount(request.getFullDayAmount());
+        if (request.getPricing() != null) {
+            hall.setMorningAmount(request.getPricing().getMorningPrice());
+            hall.setEveningAmount(request.getPricing().getEveningPrice());
+            hall.setFullDayAmount(request.getPricing().getFullDayPrice());
+        }
 
         Long userId = Long.valueOf(authentication.getName());
         User user = userRepository.findById(userId)
@@ -99,9 +106,9 @@ public class HallsService {
 
         response.setBridalRoomAvailable(hall.getBridalRoomAvailable());
         response.setCateringKitchenAvailable(hall.getCateringKitchenAvailable());
-        response.setMorningAmount(hall.getMorningAmount());
-        response.setEveningAmount(hall.getEveningAmount());
-        response.setFullDayAmount(hall.getFullDayAmount());
+        // response.setMorningAmount(hall.getMorningAmount());
+        // response.setEveningAmount(hall.getEveningAmount());
+        // response.setFullDayAmount(hall.getFullDayAmount());
         response.setApprovedAt(hall.getApprovedAt());
 
         response.setId(hall.getId());
@@ -116,13 +123,27 @@ public class HallsService {
 
         response.setArea(hall.getArea());
 
-        response.setHallType(hall.getHallType());
+        // response.setHallType(hall.getHallType());
 
         response.setRatings(hall.getRatings());
 
         response.setStatus(hall.getStatus().name());
 
         response.setRejectionReason(hall.getRejectionReason());
+
+        response.setVenueType(hall.getHallType());
+
+        response.setCapacity(hall.getCapacityMax());
+
+        response.setStartingPrice(hall.getFullDayAmount());
+
+        Pricing pricing = new Pricing();
+
+        pricing.setMorningPrice(hall.getMorningAmount());
+        pricing.setEveningPrice(hall.getEveningAmount());
+        pricing.setFullDayPrice(hall.getFullDayAmount());
+
+        response.setPricing(pricing);
 
         if (hall.getApprovedBy() != null) {
             response.setApprovedBy(hall.getApprovedBy().getId());
@@ -181,11 +202,11 @@ public class HallsService {
         hall.setPincode(request.getPincode());
         hall.setLatitude(request.getLatitude());
         hall.setLongitude(request.getLongitude());
-        hall.setCapacityMin(request.getCapacityMin());
+        hall.setCapacityMin(request.getCapacity());
         hall.setCapacityMax(request.getCapacityMax());
         hall.setFloors(request.getFloors());
         hall.setAcAvailable(request.getAcAvailable());
-        hall.setHallType(request.getHallType());
+        hall.setHallType(request.getVenueType());
         hall.setRooms(request.getRooms());
         hall.setCarParking(request.getCarParking());
         hall.setBikeParking(request.getBikeParking());
@@ -199,9 +220,11 @@ public class HallsService {
 
         hall.setBridalRoomAvailable(request.getBridalRoomAvailable());
         hall.setCateringKitchenAvailable(request.getCateringKitchenAvailable());
-        hall.setMorningAmount(request.getMorningAmount());
-        hall.setEveningAmount(request.getEveningAmount());
-        hall.setFullDayAmount(request.getFullDayAmount());
+        if (request.getPricing() != null) {
+            hall.setMorningAmount(request.getPricing().getMorningPrice());
+            hall.setEveningAmount(request.getPricing().getEveningPrice());
+            hall.setFullDayAmount(request.getPricing().getFullDayPrice());
+        }
 
         hall.setUpdatedAt(LocalDateTime.now());
 

@@ -37,11 +37,11 @@ public class HallResponse {
 
     private Boolean cateringKitchenAvailable;
 
-    private BigDecimal morningAmount;
+    // private BigDecimal morningAmount;
 
-    private BigDecimal eveningAmount;
+    // private BigDecimal eveningAmount;
 
-    private BigDecimal fullDayAmount;
+    // private BigDecimal fullDayAmount;
 
     private Long approvedBy;
 
@@ -59,13 +59,53 @@ public class HallResponse {
 
     private String area;
 
-    private String hallType;
+    // private String hallType;
 
     private Double ratings;
 
     private String status;
 
     private String rejectionReason;
+
+    private String venueType;
+
+    private Integer capacity;
+
+    private BigDecimal startingPrice;
+
+    private Pricing pricing;
+
+    public String getVenueType() {
+        return venueType;
+    }
+
+    public void setVenueType(String venueType) {
+        this.venueType = venueType;
+    }
+
+    public Integer getCapacity() {
+        return capacity;
+    }
+
+    public void setCapacity(Integer capacity) {
+        this.capacity = capacity;
+    }
+
+    public BigDecimal getStartingPrice() {
+        return startingPrice;
+    }
+
+    public void setStartingPrice(BigDecimal startingPrice) {
+        this.startingPrice = startingPrice;
+    }
+
+    public Pricing getPricing() {
+        return pricing;
+    }
+
+    public void setPricing(Pricing pricing) {
+        this.pricing = pricing;
+    }
 
     public Long getId() {
         return id;
@@ -115,13 +155,13 @@ public class HallResponse {
         this.area = area;
     }
 
-    public String getHallType() {
-        return hallType;
-    }
+    // public String getHallType() {
+    //     return hallType;
+    // }
 
-    public void setHallType(String hallType) {
-        this.hallType = hallType;
-    }
+    // public void setHallType(String hallType) {
+    //     this.hallType = hallType;
+    // }
 
     public Double getRatings() {
         return ratings;
@@ -179,29 +219,29 @@ public class HallResponse {
         this.cateringKitchenAvailable = cateringKitchenAvailable;
     }
 
-    public BigDecimal getMorningAmount() {
-        return morningAmount;
-    }
+    // public BigDecimal getMorningAmount() {
+    //     return morningAmount;
+    // }
 
-    public void setMorningAmount(BigDecimal morningAmount) {
-        this.morningAmount = morningAmount;
-    }
+    // public void setMorningAmount(BigDecimal morningAmount) {
+    //     this.morningAmount = morningAmount;
+    // }
 
-    public BigDecimal getEveningAmount() {
-        return eveningAmount;
-    }
+    // public BigDecimal getEveningAmount() {
+    //     return eveningAmount;
+    // }
 
-    public void setEveningAmount(BigDecimal eveningAmount) {
-        this.eveningAmount = eveningAmount;
-    }
+    // public void setEveningAmount(BigDecimal eveningAmount) {
+    //     this.eveningAmount = eveningAmount;
+    // }
 
-    public BigDecimal getFullDayAmount() {
-        return fullDayAmount;
-    }
+    // public BigDecimal getFullDayAmount() {
+    //     return fullDayAmount;
+    // }
 
-    public void setFullDayAmount(BigDecimal fullDayAmount) {
-        this.fullDayAmount = fullDayAmount;
-    }
+    // public void setFullDayAmount(BigDecimal fullDayAmount) {
+    //     this.fullDayAmount = fullDayAmount;
+    // }
 
     public String getAddressLine() {
         return addressLine;

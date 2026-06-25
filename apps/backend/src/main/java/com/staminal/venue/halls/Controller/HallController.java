@@ -18,7 +18,7 @@ import com.staminal.venue.halls.Dto.UpdateHallRequest;
 import com.staminal.venue.halls.Service.HallsService;
 
 @RestController
-@RequestMapping("/owner/halls")
+@RequestMapping("/v1/owner/halls")
 public class HallController {
 
     @Autowired
@@ -28,6 +28,9 @@ public class HallController {
     public HallResponse createHall(
             @RequestBody CreateHallRequest request, Authentication authentication) {
         System.out.println("HALL API HIT");
+        System.out.println(authentication);
+        System.out.println(authentication.getName());
+        System.out.println(request.getName());
         return hallsService.createHall(request, authentication);
     }
 
@@ -36,9 +39,21 @@ public class HallController {
         return hallsService.getMyHalls(authentication);
     }
 
+    // @GetMapping("/{hallId}")
+    // public HallResponse getHall(@PathVariable Long hallId, Authentication
+    // authentication) {
+    // return hallsService.getHall(hallId, authentication);
+    // }
     @GetMapping("/{hallId}")
-    public HallResponse getHall(@PathVariable Long hallId, Authentication authentication) {
-        return hallsService.getHall(hallId, authentication);
+    public HallResponse getHall(@PathVariable String hallId, Authentication authentication) {
+
+        Long userId = Long.valueOf(authentication.getName());
+        List<HallResponse> halls = hallsService.getMyHalls(authentication);
+        if (halls.isEmpty()) {
+            throw new RuntimeException("No hall found");
+        }
+
+        return halls.get(0);
     }
 
     @PutMapping("/{hallId}")
