@@ -21,12 +21,14 @@ Use this tracker with `docs/api/frontend-backend-contract-v1.md`. The contract i
 
 ## Local Verification
 
-Start PostgreSQL:
+Start PostgreSQL and MinIO:
 
 ```bash
 cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/infra
-docker compose up -d postgres
+docker compose up -d postgres minio minio-init
 ```
+
+MinIO console: `http://localhost:9001`
 
 Start backend:
 

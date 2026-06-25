@@ -17,5 +17,39 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    container_name: venue_aggregator_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-venue_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-venue_minio_password}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - venue_aggregator_minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: venue_aggregator_minio_init
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-venue_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-venue_minio_password}
+      MINIO_BUCKET: ${MINIO_BUCKET:-venue-media}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
+        echo 'Waiting for MinIO...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing local/$$MINIO_BUCKET;
+      mc anonymous set download local/$$MINIO_BUCKET;
+      "
+
 volumes:
   venue_aggregator_postgres_data:
+  venue_aggregator_minio_data:

@@ -7,7 +7,7 @@ Marketplace platform for halls and event-service vendors.
 - Frontend: Next.js, React, TypeScript, Tailwind CSS, shadcn/ui
 - Backend: Spring Boot modular monolith
 - Database: PostgreSQL with Flyway migrations
-- Media: Cloudinary initially, S3 later if needed
+- Media: S3-compatible object storage, MinIO for local/Hetzner and AWS S3 later
 - Calendar: FullCalendar
 - Payments: Razorpay subscriptions and webhooks
 
@@ -25,6 +25,16 @@ infra/
   docker/       Docker-related configuration
 scripts/        Local automation scripts
 ```
+
+## Data Portability
+
+The app should stay hosting-portable. PostgreSQL is the system of record for users, halls, vendors, bookings, enquiries, payments, reviews, and metadata. Media files live in S3-compatible object storage; the database stores only keys, public URLs, ownership, captions, cover flags, and sort order.
+
+Start on Hetzner with PostgreSQL and MinIO. If the app later moves to AWS ECS, migrate PostgreSQL to RDS and copy MinIO media to S3 without changing the frontend contract.
+
+Runbook: `docs/runbooks/hosting-data-portability.md`
+
+Hetzner production deployment: `docs/runbooks/hetzner-bookvenuemart-deployment.md`
 
 ## Suggested First Milestones
 
@@ -58,3 +68,12 @@ Database:
 cd infra
 docker compose up -d
 ```
+
+Local object storage:
+
+```bash
+cd infra
+docker compose up -d minio minio-init
+```
+
+MinIO console: `http://localhost:9001`

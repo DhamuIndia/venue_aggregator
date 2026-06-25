@@ -1,0 +1,9 @@
+[
+  {
+    "AllowedOrigins": ["https://bookvenuemart.in", "https://www.bookvenuemart.in"],
+    "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

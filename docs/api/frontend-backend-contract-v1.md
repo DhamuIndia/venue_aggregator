@@ -924,6 +924,8 @@ Return `403` when the requested owner hall or vendor profile is outside the logg
 
 Do not send large media through the Spring application.
 
+Use S3-compatible object storage behind this contract. Local and Hetzner deployments can use MinIO; AWS deployments can use S3. The frontend should not know which provider is active.
+
 1. `POST /uploads/presign` with `fileName`, `contentType`, `sizeBytes`, and `purpose`.
 2. API returns `uploadUrl`, `storageKey`, required headers, and expiry.
 3. Frontend uploads directly to object storage with the returned method and headers.
