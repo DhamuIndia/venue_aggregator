@@ -526,6 +526,25 @@ Blocked date request:
 }
 ```
 
+Owner media request:
+
+```json
+{
+  "url": "https://cdn.example.com/halls/emerald/gallery-1.jpg",
+  "mediaUrl": "https://cdn.example.com/halls/emerald/gallery-1.jpg",
+  "storageKey": "halls/emerald/gallery-1.jpg",
+  "fileName": "gallery-1.jpg",
+  "caption": "Main hall stage view",
+  "isCover": false,
+  "primary": false,
+  "sortOrder": 2,
+  "mediaType": "IMAGE",
+  "type": "IMAGE"
+}
+```
+
+Owner media response should include `id`, `url`, `caption`, `isCover`, `sortOrder`, and optional `storageKey`. Cover updates should normalize the previous cover to `isCover=false`.
+
 ## Vendor APIs
 
 All routes require `VENDOR` and ownership of the vendor profile.
@@ -907,10 +926,38 @@ Do not send large media through the Spring application.
 
 1. `POST /uploads/presign` with `fileName`, `contentType`, `sizeBytes`, and `purpose`.
 2. API returns `uploadUrl`, `storageKey`, required headers, and expiry.
-3. Frontend uploads directly to object storage.
-4. Frontend saves `storageKey`, media type, caption, and sort order through the owner media endpoint.
+3. Frontend uploads directly to object storage with the returned method and headers.
+4. Frontend saves `storageKey`, media type, caption, and sort order through the owner or vendor media endpoint.
 
-Allowed image formats: JPEG, PNG, WebP. The backend must validate MIME type, size, ownership, and storage key before accepting metadata.
+Presign request:
+
+```json
+{
+  "fileName": "gallery-1.webp",
+  "contentType": "image/webp",
+  "sizeBytes": 845120,
+  "purpose": "OWNER_HALL_MEDIA"
+}
+```
+
+Presign response:
+
+```json
+{
+  "uploadUrl": "https://storage.example.com/presigned-put-url",
+  "storageKey": "halls/emerald/gallery-1.webp",
+  "publicUrl": "https://cdn.example.com/halls/emerald/gallery-1.webp",
+  "method": "PUT",
+  "headers": {
+    "Content-Type": "image/webp"
+  },
+  "expiresAt": "2026-06-24T10:30:00Z"
+}
+```
+
+Upload purpose values: `OWNER_HALL_MEDIA`, `VENDOR_PORTFOLIO`.
+
+Allowed image formats: JPEG, PNG, WebP. The frontend rejects images above 10 MB; the backend must still validate MIME type, size, ownership, purpose, and storage key before accepting metadata.
 
 ## Integration Rules
 

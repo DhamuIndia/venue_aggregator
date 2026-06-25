@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { uploadImageFile } from "@/features/uploads/upload-client";
 import type { VendorSummary } from "./types";
 
 const STORAGE_KEY = "venue-vendor-media";
@@ -20,14 +21,6 @@ export type VendorMediaPayload = {
   isCover?: boolean;
   sortOrder?: number;
   storageKey?: string;
-};
-
-type UploadPresignResponse = {
-  uploadUrl: string;
-  storageKey: string;
-  publicUrl?: string;
-  url?: string;
-  headers?: Record<string, string>;
 };
 
 export function mediaFromVendor(vendor: VendorSummary): VendorMediaItem[] {
@@ -56,8 +49,15 @@ export async function getVendorMedia(accessToken: string | null | undefined, fal
 }
 
 export async function uploadAndCreateVendorMedia(file: File, sortOrder: number, accessToken?: string | null) {
-  const payload = await uploadVendorMediaFile(file, accessToken);
-  return createVendorMedia({ ...payload, sortOrder, isCover: sortOrder === 0 }, accessToken);
+  const uploaded = await uploadImageFile(file, "VENDOR_PORTFOLIO", useMockVendorMedia ? null : accessToken);
+  return createVendorMedia({
+    url: uploaded.url,
+    storageKey: uploaded.storageKey,
+    fileName: uploaded.fileName,
+    caption: uploaded.fileName,
+    sortOrder,
+    isCover: sortOrder === 0
+  }, accessToken);
 }
 
 export async function createVendorMedia(payload: VendorMediaPayload, accessToken?: string | null) {
@@ -118,40 +118,6 @@ export async function deleteVendorMedia(mediaId: string, accessToken?: string | 
       throw exception;
     }
     return deleteLocalMedia(mediaId);
-  }
-}
-
-async function uploadVendorMediaFile(file: File, accessToken?: string | null): Promise<VendorMediaPayload> {
-  const localUrl = URL.createObjectURL(file);
-  if (useMockVendorMedia || !accessToken) return { url: localUrl, fileName: file.name };
-
-  try {
-    const presign = await apiRequest<unknown>("/uploads/presign", {
-      method: "POST",
-      token: accessToken,
-      body: JSON.stringify({
-        fileName: file.name,
-        contentType: file.type,
-        sizeBytes: file.size,
-        purpose: "VENDOR_PORTFOLIO"
-      })
-    });
-    const upload = toPresignResponse(presign);
-    if (!upload) return { url: localUrl, fileName: file.name };
-
-    await fetch(upload.uploadUrl, {
-      method: "PUT",
-      headers: upload.headers ?? { "Content-Type": file.type },
-      body: file
-    });
-
-    return {
-      url: upload.publicUrl ?? upload.url ?? upload.storageKey,
-      storageKey: upload.storageKey,
-      fileName: file.name
-    };
-  } catch {
-    return { url: localUrl, fileName: file.name };
   }
 }
 
@@ -269,31 +235,12 @@ function createMediaFromPayload(payload: VendorMediaPayload): VendorMediaItem {
   };
 }
 
-function toPresignResponse(value: unknown): UploadPresignResponse | undefined {
-  const record = unwrapRecord(value);
-  if (!record) return undefined;
-  const uploadUrl = stringValue(record, ["uploadUrl", "upload_url", "signedUrl", "signed_url"]);
-  const storageKey = stringValue(record, ["storageKey", "storage_key", "key"]);
-  if (!uploadUrl || !storageKey) return undefined;
-  return {
-    uploadUrl,
-    storageKey,
-    publicUrl: stringValue(record, ["publicUrl", "public_url"]),
-    url: stringValue(record, ["url", "mediaUrl", "media_url"]),
-    headers: isRecord(record.headers) ? stringRecord(record.headers) : undefined
-  };
-}
-
 function unwrapRecord(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value)) return undefined;
   if (isRecord(value.data)) return value.data;
   if (isRecord(value.media)) return value.media;
   if (isRecord(value.upload)) return value.upload;
   return value;
-}
-
-function stringRecord(record: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(record).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 }
 
 function stringValue(record: Record<string, unknown>, keys: string[]) {

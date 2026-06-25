@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Backend integration tracker
+    url: https://github.com/DhamuIndia/venue_aggregator/blob/main/docs/runbooks/backend-integration-tracker.md
+    about: Use this tracker to decide which issue to create next.
+  - name: API contract
+    url: https://github.com/DhamuIndia/venue_aggregator/blob/main/docs/api/frontend-backend-contract-v1.md
+    about: Check request and response shapes before implementation.
+
