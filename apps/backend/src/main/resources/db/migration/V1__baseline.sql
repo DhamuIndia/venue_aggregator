@@ -21,6 +21,17 @@ create table user_roles (
     primary key (user_id, role_id)
 );
 
+create table admins (
+    id bigserial primary key,
+    full_name varchar(160) not null,
+    email varchar(255) not null unique,
+    password_hash varchar(255) not null,
+    contact_number varchar(20) not null,
+    status varchar(40) not null default 'ACTIVE',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
 create table halls (
     id bigserial primary key,
     owner_user_id bigint not null references users(id),
@@ -44,14 +55,20 @@ create table halls (
     car_parking boolean,
     bike_parking boolean,
     dining_available boolean,
-    amount numeric(12, 2) not null,
     contact_number varchar(20),
     whatsapp_number varchar(20),
     dining_capacity integer,
     generator_available boolean,
     lift_available boolean,
+    bridal_room_available boolean,
+    catering_kitchen_available boolean,
+    morning_amount numeric(12,2),
+    evening_amount numeric(12,2),
+    full_day_amount numeric(12,2),
     status varchar(40) not null default 'PENDING_APPROVAL',
     rejection_reason varchar(120),
+    approved_by bigint references admins(id),
+    approved_at timestamptz,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -265,17 +282,6 @@ create table payments (
     razorpay_payment_id varchar(255),
     razorpay_order_id varchar(255),
     created_at timestamptz not null default now()
-);
-
-create table admins (
-    id bigserial primary key,
-    full_name varchar(160) not null,
-    email varchar(255) not null unique,
-    password_hash varchar(255) not null,
-    contact_number varchar(20) not null,
-    status varchar(40) not null default 'ACTIVE',
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
 );
 
 create table vendor_media (

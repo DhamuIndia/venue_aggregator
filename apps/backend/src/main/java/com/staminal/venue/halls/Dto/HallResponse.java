@@ -1,8 +1,51 @@
 package com.staminal.venue.halls.Dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 public class HallResponse {
+
+    private String addressLine;
+    private String pincode;
+    private Double latitude;
+    private Double longitude;
+
+    private Integer capacityMin;
+    private Integer capacityMax;
+
+    private Integer floors;
+
+    private Boolean acAvailable;
+
+    private Integer rooms;
+
+    private Boolean carParking;
+    private Boolean bikeParking;
+
+    private Boolean diningAvailable;
+    private Integer diningCapacity;
+
+    private Boolean generatorAvailable;
+    private Boolean liftAvailable;
+
+    private String contactNumber;
+    private String whatsappNumber;
+
+    private String ownerName;
+
+    private Boolean bridalRoomAvailable;
+
+    private Boolean cateringKitchenAvailable;
+
+    private BigDecimal morningAmount;
+
+    private BigDecimal eveningAmount;
+
+    private BigDecimal fullDayAmount;
+
+    private Long approvedBy;
+
+    private LocalDateTime approvedAt;
 
     private Long id;
 
@@ -16,29 +59,13 @@ public class HallResponse {
 
     private String area;
 
-    private Integer capacityMax;
-
-    private BigDecimal amount;
-
     private String hallType;
 
     private Double ratings;
 
-    private Boolean acAvailable;
-
-    private Boolean carParking;
-
-    private Boolean bikeParking;
-
-    private Boolean diningAvailable;
-
-    private Integer rooms;
-
-    private Boolean generatorAvailable;
-
-    private Boolean liftAvailable;
-
     private String status;
+
+    private String rejectionReason;
 
     public Long getId() {
         return id;
@@ -88,22 +115,6 @@ public class HallResponse {
         this.area = area;
     }
 
-    public Integer getCapacityMax() {
-        return capacityMax;
-    }
-
-    public void setCapacityMax(Integer capacityMax) {
-        this.capacityMax = capacityMax;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public void setAmount(BigDecimal amount) {
-        this.amount = amount;
-    }
-
     public String getHallType() {
         return hallType;
     }
@@ -120,12 +131,148 @@ public class HallResponse {
         this.ratings = ratings;
     }
 
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
+
+    public Long getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(Long approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public LocalDateTime getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(LocalDateTime approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+
+    public Boolean getBridalRoomAvailable() {
+        return bridalRoomAvailable;
+    }
+
+    public void setBridalRoomAvailable(Boolean bridalRoomAvailable) {
+        this.bridalRoomAvailable = bridalRoomAvailable;
+    }
+
+    public Boolean getCateringKitchenAvailable() {
+        return cateringKitchenAvailable;
+    }
+
+    public void setCateringKitchenAvailable(Boolean cateringKitchenAvailable) {
+        this.cateringKitchenAvailable = cateringKitchenAvailable;
+    }
+
+    public BigDecimal getMorningAmount() {
+        return morningAmount;
+    }
+
+    public void setMorningAmount(BigDecimal morningAmount) {
+        this.morningAmount = morningAmount;
+    }
+
+    public BigDecimal getEveningAmount() {
+        return eveningAmount;
+    }
+
+    public void setEveningAmount(BigDecimal eveningAmount) {
+        this.eveningAmount = eveningAmount;
+    }
+
+    public BigDecimal getFullDayAmount() {
+        return fullDayAmount;
+    }
+
+    public void setFullDayAmount(BigDecimal fullDayAmount) {
+        this.fullDayAmount = fullDayAmount;
+    }
+
+    public String getAddressLine() {
+        return addressLine;
+    }
+
+    public void setAddressLine(String addressLine) {
+        this.addressLine = addressLine;
+    }
+
+    public String getPincode() {
+        return pincode;
+    }
+
+    public void setPincode(String pincode) {
+        this.pincode = pincode;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public Integer getCapacityMin() {
+        return capacityMin;
+    }
+
+    public void setCapacityMin(Integer capacityMin) {
+        this.capacityMin = capacityMin;
+    }
+
+    public Integer getCapacityMax() {
+        return capacityMax;
+    }
+
+    public void setCapacityMax(Integer capacityMax) {
+        this.capacityMax = capacityMax;
+    }
+
+    public Integer getFloors() {
+        return floors;
+    }
+
+    public void setFloors(Integer floors) {
+        this.floors = floors;
+    }
+
     public Boolean getAcAvailable() {
         return acAvailable;
     }
 
     public void setAcAvailable(Boolean acAvailable) {
         this.acAvailable = acAvailable;
+    }
+
+    public Integer getRooms() {
+        return rooms;
+    }
+
+    public void setRooms(Integer rooms) {
+        this.rooms = rooms;
     }
 
     public Boolean getCarParking() {
@@ -152,12 +299,12 @@ public class HallResponse {
         this.diningAvailable = diningAvailable;
     }
 
-    public Integer getRooms() {
-        return rooms;
+    public Integer getDiningCapacity() {
+        return diningCapacity;
     }
 
-    public void setRooms(Integer rooms) {
-        this.rooms = rooms;
+    public void setDiningCapacity(Integer diningCapacity) {
+        this.diningCapacity = diningCapacity;
     }
 
     public Boolean getGeneratorAvailable() {
@@ -176,12 +323,28 @@ public class HallResponse {
         this.liftAvailable = liftAvailable;
     }
 
-    public String getStatus() {
-        return status;
+    public String getContactNumber() {
+        return contactNumber;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setContactNumber(String contactNumber) {
+        this.contactNumber = contactNumber;
+    }
+
+    public String getWhatsappNumber() {
+        return whatsappNumber;
+    }
+
+    public void setWhatsappNumber(String whatsappNumber) {
+        this.whatsappNumber = whatsappNumber;
+    }
+
+    public String getOwnerName() {
+        return ownerName;
+    }
+
+    public void setOwnerName(String ownerName) {
+        this.ownerName = ownerName;
     }
 
 }

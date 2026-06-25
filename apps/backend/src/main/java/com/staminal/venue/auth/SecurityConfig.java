@@ -90,6 +90,7 @@ public class SecurityConfig {
                                                 .hasRole("ADMIN")
                                                 .requestMatchers("/vendors/**")
                                                 .hasRole("VENDOR")
+                                                
                                                 .anyRequest().authenticated())
                                 .formLogin(form -> form.disable())
                                 .httpBasic(httpBasic -> httpBasic.disable())

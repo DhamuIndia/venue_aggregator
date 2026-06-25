@@ -3,11 +3,14 @@ package com.staminal.venue.halls.Entity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import com.staminal.venue.admin.Admin;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.users.Entity.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -24,20 +27,20 @@ public class Halls {
     private long id;
 
     @ManyToOne
-    @JoinColumn(name="owner_user_id")
+    @JoinColumn(name = "owner_user_id")
     private User ownerUserId;
 
-    @Column(name="owner_name")
+    @Column(name = "owner_name")
     private String ownerName;
 
     private String name;
 
     private String description;
 
-    @Column(name="cover_image_url")
+    @Column(name = "cover_image_url")
     private String coverImageUrl;
 
-    @Column(name="address_line")
+    @Column(name = "address_line")
     private String addressLine;
 
     private String city;
@@ -50,60 +53,137 @@ public class Halls {
 
     private Double longitude;
 
-    @Column(name="capacity_min")
+    @Column(name = "capacity_min")
     private Integer capacityMin;
 
-     @Column(name="capacity_max")
+    @Column(name = "capacity_max")
     private Integer capacityMax;
 
     private Integer floors;
 
-    @Column(name="ac_available")
+    @Column(name = "ac_available")
     private Boolean acAvailable;
 
-    @Column(name="hall_type")
+    @Column(name = "hall_type")
     private String hallType;
 
     private Double ratings;
 
     private Integer rooms;
 
-    @Column(name="car_parking")
+    @Column(name = "car_parking")
     private Boolean carParking;
 
-    @Column(name="bike_parking")
+    @Column(name = "bike_parking")
     private Boolean bikeParking;
 
-    @Column(name="dining_available")
+    @Column(name = "dining_available")
     private Boolean diningAvailable;
 
-    @Column(name="dining_capacity")
+    @Column(name = "dining_capacity")
     private Integer diningCapacity;
 
-    @Column(name="generator_available")
+    @Column(name = "generator_available")
     private Boolean generatorAvailable;
 
-    @Column(name="lift_available")
+    @Column(name = "lift_available")
     private Boolean liftAvailable;
 
-    private BigDecimal amount;
-
-    @Column(name="contact_number")
+    @Column(name = "contact_number")
     private String contactNumber;
 
-    @Column(name="whatsapp_number")
+    @Column(name = "whatsapp_number")
     private String whatsappNumber;
 
+    @Enumerated(EnumType.STRING)
     private HallStatus status;
 
-    @Column(name="rejection_reason")
+    @Column(name = "rejection_reason")
     private String rejectionReason;
 
-    @Column(name="created_at")
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name="updated_at")
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "bridal_room_available")
+    private Boolean bridalRoomAvailable;
+
+    @Column(name = "catering_kitchen_available")
+    private Boolean cateringKitchenAvailable;
+
+    @Column(name = "morning_amount")
+    private BigDecimal morningAmount;
+
+    @Column(name = "evening_amount")
+    private BigDecimal eveningAmount;
+
+    @Column(name = "full_day_amount")
+    private BigDecimal fullDayAmount;
+
+    @ManyToOne
+    @JoinColumn(name="approved_by")
+    private Admin approvedBy;
+
+    @Column(name="approved_at")
+    private LocalDateTime approvedAt;
+
+    public Admin getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(Admin approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public LocalDateTime getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(LocalDateTime approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+
+    public Boolean getBridalRoomAvailable() {
+        return bridalRoomAvailable;
+    }
+
+    public void setBridalRoomAvailable(Boolean bridalRoomAvailable) {
+        this.bridalRoomAvailable = bridalRoomAvailable;
+    }
+
+    public Boolean getCateringKitchenAvailable() {
+        return cateringKitchenAvailable;
+    }
+
+    public void setCateringKitchenAvailable(Boolean cateringKitchenAvailable) {
+        this.cateringKitchenAvailable = cateringKitchenAvailable;
+    }
+
+    public BigDecimal getMorningAmount() {
+        return morningAmount;
+    }
+
+    public void setMorningAmount(BigDecimal morningAmount) {
+        this.morningAmount = morningAmount;
+    }
+
+    public BigDecimal getEveningAmount() {
+        return eveningAmount;
+    }
+
+    public void setEveningAmount(BigDecimal eveningAmount) {
+        this.eveningAmount = eveningAmount;
+    }
+
+    public BigDecimal getFullDayAmount() {
+        return fullDayAmount;
+    }
+
+    public void setFullDayAmount(BigDecimal fullDayAmount) {
+        this.fullDayAmount = fullDayAmount;
+    }
 
     public long getId() {
         return id;
@@ -244,7 +324,7 @@ public class Halls {
     public Double getRatings() {
         return ratings;
     }
-
+ 
     public void setRatings(Double ratings) {
         this.ratings = ratings;
     }
@@ -303,14 +383,6 @@ public class Halls {
 
     public void setLiftAvailable(Boolean liftAvailable) {
         this.liftAvailable = liftAvailable;
-    }
-
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public void setAmount(BigDecimal amount) {
-        this.amount = amount;
     }
 
     public String getContactNumber() {

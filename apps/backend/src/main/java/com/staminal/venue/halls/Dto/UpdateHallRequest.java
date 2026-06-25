@@ -52,6 +52,56 @@ public class UpdateHallRequest {
 
     private String coverImageUrl;
 
+    private Boolean bridalRoomAvailable;
+
+    private Boolean cateringKitchenAvailable;
+
+    private BigDecimal morningAmount;
+
+    private BigDecimal eveningAmount;
+
+    private BigDecimal fullDayAmount;
+
+    public Boolean getBridalRoomAvailable() {
+        return bridalRoomAvailable;
+    }
+
+    public void setBridalRoomAvailable(Boolean bridalRoomAvailable) {
+        this.bridalRoomAvailable = bridalRoomAvailable;
+    }
+
+    public Boolean getCateringKitchenAvailable() {
+        return cateringKitchenAvailable;
+    }
+
+    public void setCateringKitchenAvailable(Boolean cateringKitchenAvailable) {
+        this.cateringKitchenAvailable = cateringKitchenAvailable;
+    }
+
+    public BigDecimal getMorningAmount() {
+        return morningAmount;
+    }
+
+    public void setMorningAmount(BigDecimal morningAmount) {
+        this.morningAmount = morningAmount;
+    }
+
+    public BigDecimal getEveningAmount() {
+        return eveningAmount;
+    }
+
+    public void setEveningAmount(BigDecimal eveningAmount) {
+        this.eveningAmount = eveningAmount;
+    }
+
+    public BigDecimal getFullDayAmount() {
+        return fullDayAmount;
+    }
+
+    public void setFullDayAmount(BigDecimal fullDayAmount) {
+        this.fullDayAmount = fullDayAmount;
+    }
+
     public String getName() {
         return name;
     }

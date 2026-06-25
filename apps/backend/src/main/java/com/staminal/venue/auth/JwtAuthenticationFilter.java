@@ -33,6 +33,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 String authHeader = request.getHeader("Authorization");
 
+                System.out.println("JWT FILTER EXECUTED");
+                System.out.println("AUTH HEADER = " + request.getHeader("Authorization"));
+
                 if (authHeader != null
                                 && authHeader.startsWith("Bearer ")
                                 && SecurityContextHolder.getContext().getAuthentication() == null) {

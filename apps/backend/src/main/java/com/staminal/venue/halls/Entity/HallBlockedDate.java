@@ -8,6 +8,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -18,8 +20,9 @@ public class HallBlockedDate {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name="hall_id")
-    private Long hallId;
+    @ManyToOne
+    @JoinColumn(name="hall_id")
+    private Halls hallId;
 
     @Column(name="event_date")
     private LocalDate eventDate;
@@ -40,11 +43,11 @@ public class HallBlockedDate {
         this.id = id;
     }
 
-    public Long getHallId() {
+    public Halls getHallId() {
         return hallId;
     }
 
-    public void setHallId(Long hallId) {
+    public void setHallId(Halls hallId) {
         this.hallId = hallId;
     }
 

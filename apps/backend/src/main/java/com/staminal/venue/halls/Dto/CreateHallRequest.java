@@ -44,22 +44,60 @@ public class CreateHallRequest {
 
     private Boolean liftAvailable;
 
-    private BigDecimal amount;
-
     private String contactNumber;
 
     private String whatsappNumber;
 
     private String coverImageUrl;
 
-    private Long ownerUserId;
+    private Boolean bridalRoomAvailable;
 
-    public Long getOwnerUserId() {
-        return ownerUserId;
+    private Boolean cateringKitchenAvailable;
+
+    private BigDecimal morningAmount;
+
+    private BigDecimal eveningAmount;
+
+    private BigDecimal fullDayAmount;
+
+    public Boolean getBridalRoomAvailable() {
+        return bridalRoomAvailable;
     }
 
-    public void setOwnerUserId(Long ownerUserId) {
-        this.ownerUserId = ownerUserId;
+    public void setBridalRoomAvailable(Boolean bridalRoomAvailable) {
+        this.bridalRoomAvailable = bridalRoomAvailable;
+    }
+
+    public Boolean getCateringKitchenAvailable() {
+        return cateringKitchenAvailable;
+    }
+
+    public void setCateringKitchenAvailable(Boolean cateringKitchenAvailable) {
+        this.cateringKitchenAvailable = cateringKitchenAvailable;
+    }
+
+    public BigDecimal getMorningAmount() {
+        return morningAmount;
+    }
+
+    public void setMorningAmount(BigDecimal morningAmount) {
+        this.morningAmount = morningAmount;
+    }
+
+    public BigDecimal getEveningAmount() {
+        return eveningAmount;
+    }
+
+    public void setEveningAmount(BigDecimal eveningAmount) {
+        this.eveningAmount = eveningAmount;
+    }
+
+    public BigDecimal getFullDayAmount() {
+        return fullDayAmount;
+    }
+
+    public void setFullDayAmount(BigDecimal fullDayAmount) {
+        this.fullDayAmount = fullDayAmount;
     }
 
     public String getName() {
@@ -222,14 +260,6 @@ public class CreateHallRequest {
         this.liftAvailable = liftAvailable;
     }
 
-    public BigDecimal getAmount() {
-        return amount;
-    }
-
-    public void setAmount(BigDecimal amount) {
-        this.amount = amount;
-    }
-
     public String getContactNumber() {
         return contactNumber;
     }
@@ -254,5 +284,4 @@ public class CreateHallRequest {
         this.coverImageUrl = coverImageUrl;
     }
 
-    
 }
