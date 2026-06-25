@@ -19,6 +19,7 @@ import com.staminal.venue.enquiries.dto.CreateEnquiryRequest;
 import com.staminal.venue.enquiries.dto.EnquiryResponse;
 import com.staminal.venue.enquiries.dto.UpdateEnquiryStatusRequest;
 import com.staminal.venue.enums.EnquiryStatus;
+import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.users.Entity.User;
@@ -125,6 +126,10 @@ public class EnquiryService {
             Booking booking = bookingRepository.findByEnquiry_Id(enquiry.getId())
                     .orElseGet(() -> createBooking(enquiry));
             booking.setStatus(Booking.STATUS_CONFIRMED);
+            if (booking.getConfirmedAt() == null) {
+                booking.setConfirmedAt(Instant.now());
+            }
+            booking.setPaymentStatus(PaymentStatus.ADVANCE_PENDING);
             bookingRepository.save(booking);
             return;
         }
@@ -132,9 +137,10 @@ public class EnquiryService {
         if (nextStatus == EnquiryStatus.COMPLETED) {
             Booking booking = bookingRepository.findByEnquiry_Id(enquiry.getId())
                     .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.CONFLICT,
-                            "Confirmed booking is required before completion"));
+                    HttpStatus.CONFLICT,
+                    "Confirmed booking is required before completion"));
             booking.setStatus(Booking.STATUS_COMPLETED);
+            booking.setCompletedAt(Instant.now());
             bookingRepository.save(booking);
         }
     }
@@ -157,6 +163,9 @@ public class EnquiryService {
         booking.setEventDate(enquiry.getEventDate());
         booking.setSlotType(enquiry.getSlotType());
         booking.setStatus(Booking.STATUS_CONFIRMED);
+        booking.setAmount(enquiry.getHall().getAmount());
+        booking.setPaymentStatus(PaymentStatus.ADVANCE_PENDING);
+        booking.setConfirmedAt(Instant.now());
         booking.setCustomerName(enquiry.getCustomerName());
         booking.setCustomerPhone(enquiry.getCustomerPhone());
         booking.setCustomerEmail(enquiry.getCustomerEmail());

@@ -2,8 +2,11 @@ package com.staminal.venue.bookings;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 import com.staminal.venue.enquiries.Enquiry;
+import com.staminal.venue.enums.BookingStatus;
+import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Hall.VendorHallDetails;
@@ -27,8 +30,8 @@ import jakarta.persistence.Table;
 @Table(name = "bookings")
 public class Booking {
 
-    public static final String STATUS_CONFIRMED = "CONFIRMED";
-    public static final String STATUS_COMPLETED = "COMPLETED";
+    public static final BookingStatus STATUS_CONFIRMED = BookingStatus.CONFIRMED;
+    public static final BookingStatus STATUS_COMPLETED = BookingStatus.COMPLETED;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,7 +56,14 @@ public class Booking {
     @Column(name = "slot_type")
     private SlotType slotType;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private BookingStatus status;
+
+    private BigDecimal amount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status")
+    private PaymentStatus paymentStatus;
 
     @Column(name = "customer_name")
     private String customerName;
@@ -63,6 +73,15 @@ public class Booking {
 
     @Column(name = "customer_email")
     private String customerEmail;
+
+    @Column(name = "confirmed_at")
+    private Instant confirmedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
 
     @Column(name = "created_at")
     private Instant createdAt;
@@ -75,6 +94,12 @@ public class Booking {
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
+        if (status == null) {
+            status = BookingStatus.REQUESTED;
+        }
+        if (paymentStatus == null) {
+            paymentStatus = PaymentStatus.NOT_STARTED;
+        }
     }
 
     @PreUpdate
@@ -130,12 +155,28 @@ public class Booking {
         this.slotType = slotType;
     }
 
-    public String getStatus() {
+    public BookingStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(BookingStatus status) {
         this.status = status;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
+
+    public PaymentStatus getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(PaymentStatus paymentStatus) {
+        this.paymentStatus = paymentStatus;
     }
 
     public String getCustomerName() {
@@ -160,6 +201,30 @@ public class Booking {
 
     public void setCustomerEmail(String customerEmail) {
         this.customerEmail = customerEmail;
+    }
+
+    public Instant getConfirmedAt() {
+        return confirmedAt;
+    }
+
+    public void setConfirmedAt(Instant confirmedAt) {
+        this.confirmedAt = confirmedAt;
+    }
+
+    public Instant getCompletedAt() {
+        return completedAt;
+    }
+
+    public void setCompletedAt(Instant completedAt) {
+        this.completedAt = completedAt;
+    }
+
+    public Instant getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public void setCancelledAt(Instant cancelledAt) {
+        this.cancelledAt = cancelledAt;
     }
 
     public Instant getCreatedAt() {
