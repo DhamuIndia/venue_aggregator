@@ -34,6 +34,8 @@ export const customerEnquiries: CustomerEnquiry[] = [
 
 export const reviewEligibleBooking = {
   id: "BOOK-1884",
+  enquiryId: "ENQ-1884",
+  hallId: "marigold-mini-hall",
   venue: "Marigold Mini Hall",
   eventDate: "10 May 2026",
   serviceType: "Birthday celebration",

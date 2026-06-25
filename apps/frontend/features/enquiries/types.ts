@@ -1,4 +1,5 @@
 export type EnquiryStatus =
+  | "NEW"
   | "PENDING_OWNER_RESPONSE"
   | "CONFIRMED"
   | "DECLINED"

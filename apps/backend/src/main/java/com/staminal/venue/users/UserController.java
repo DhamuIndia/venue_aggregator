@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.web.bind.annotation.*;
 
 import com.staminal.venue.users.Entity.User;
+import com.staminal.venue.vendors.Dj.VendorDjDetails;
+import com.staminal.venue.vendors.Hall.VendorHallDetails;
 
 import lombok.RequiredArgsConstructor;
 
@@ -17,7 +19,6 @@ public class UserController {
 
     @PostMapping
     public User createUser(@RequestBody User user) {
-
         return userService.createUser(user);
     }
 
@@ -37,5 +38,16 @@ public class UserController {
     public User getUserByPhone(@PathVariable String phone) {
 
         return userService.getUserByPhone(phone);
+    }
+
+    @GetMapping("/halls")
+    public List<VendorHallDetails> getAllHalls() {
+
+        return userService.getAllHalls();
+    }
+
+    @GetMapping("/djs")
+    public List<VendorDjDetails> getAllDjs(){
+        return userService.getAllDj();
     }
 }

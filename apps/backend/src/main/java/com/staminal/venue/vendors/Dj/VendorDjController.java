@@ -11,16 +11,14 @@ public class VendorDjController {
     private final VendorDjService vendorDjService;
 
     @PostMapping
-    public VendorDjResponse createDjDetails(
-            @RequestBody CreateVendorDjRequest request) {
+    public VendorDjResponse createDjDetails(@RequestBody CreateVendorDjRequest request) {
 
         return vendorDjService
                 .createDjDetails(request);
     }
 
     @GetMapping("/{vendorId}")
-    public VendorDjResponse getDjDetails(
-            @PathVariable Long vendorId) {
+    public VendorDjResponse getDjDetails(@PathVariable Long vendorId) {
 
         return vendorDjService
                 .getDjDetails(vendorId);

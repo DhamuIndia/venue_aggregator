@@ -1,0 +1,90 @@
+name: Backend integration task
+description: Track one backend endpoint group through frontend verification.
+title: "[Backend] "
+labels:
+  - backend
+  - integration
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use `docs/api/frontend-backend-contract-v1.md` as the source of truth.
+        One issue should represent one endpoint group that can be reviewed and verified independently.
+  - type: dropdown
+    id: stream
+    attributes:
+      label: Stream
+      options:
+        - Auth, Public Discovery, Customer
+        - Owner Workspace
+        - Vendor, Admin, Cross-Cutting
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+  - type: textarea
+    id: endpoints
+    attributes:
+      label: Endpoint group
+      description: List every route included in this issue.
+      placeholder: |
+        - GET /api/v1/public/halls
+        - GET /api/v1/public/halls/{hallId}
+    validations:
+      required: true
+  - type: input
+    id: frontend_screen
+    attributes:
+      label: Frontend screen to verify
+      placeholder: "/owner?tab=bookings"
+    validations:
+      required: true
+  - type: input
+    id: contract_reference
+    attributes:
+      label: Contract reference
+      placeholder: "docs/api/frontend-backend-contract-v1.md - Hall Owner APIs"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] Controller route exists under `/api/v1`.
+        - [ ] Request and response DTOs match the contract.
+        - [ ] Protected routes derive identity from JWT.
+        - [ ] Service owns validation and business rules.
+        - [ ] Repository queries are scoped to the correct owner/customer/vendor.
+        - [ ] Empty state returns a valid JSON shape.
+        - [ ] Validation errors return problem details.
+        - [ ] Unit or service tests are added.
+        - [ ] Frontend screen is verified in API mode.
+    validations:
+      required: true
+  - type: textarea
+    id: test_notes
+    attributes:
+      label: Test notes
+      placeholder: |
+        Backend:
+        - mvn test
+
+        Frontend:
+        - npm run typecheck
+        - Verify screen manually
+  - type: textarea
+    id: blockers
+    attributes:
+      label: Blockers or dependencies
+      placeholder: "None"
+

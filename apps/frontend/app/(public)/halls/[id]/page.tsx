@@ -14,8 +14,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EnquiryPanel } from "@/components/enquiries/EnquiryPanel";
+import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import { SiteHeader } from "@/components/layout/SiteHeader";
-import { getHallById, halls } from "@/features/halls/mock-data";
+import { getPublicHall } from "@/features/halls/hall-client";
+import { halls } from "@/features/halls/mock-data";
 
 type HallDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -27,7 +29,7 @@ export function generateStaticParams() {
 
 export default async function HallDetailPage({ params }: HallDetailPageProps) {
   const { id } = await params;
-  const hall = getHallById(id);
+  const hall = await getPublicHall(id);
 
   if (!hall) notFound();
 
@@ -39,9 +41,12 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
           <Link className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground" href="/">
             <ArrowLeft aria-hidden="true" size={17} /> Back to venues
           </Link>
-          <button className="inline-flex size-10 items-center justify-center rounded-md border border-border bg-white" title="Share venue">
-            <Share2 aria-label="Share venue" size={17} />
-          </button>
+          <div className="flex items-center gap-2">
+            <SaveHallButton hall={hall} variant="compact" />
+            <button className="inline-flex size-10 items-center justify-center rounded-md border border-border bg-white" title="Share venue">
+              <Share2 aria-label="Share venue" size={17} />
+            </button>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 overflow-hidden rounded-lg md:grid-cols-[1.6fr_1fr]">

@@ -3,9 +3,11 @@ package com.staminal.venue.vendors.Dj;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Entity.Vendors;
 
 import jakarta.persistence.*;
+
 @Entity
 @Table(name = "vendor_dj_details")
 public class VendorDjDetails {
@@ -35,6 +37,28 @@ public class VendorDjDetails {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @Enumerated(EnumType.STRING)
+    private VendorStatus status;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    public VendorStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(VendorStatus status) {
+        this.status = status;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
 
     public Long getId() {
         return id;

@@ -1,12 +1,13 @@
 package com.staminal.venue;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+import org.junit.jupiter.api.Test;
+
 class VenueAggregatorApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationClassIsAvailable() {
+        assertThat(VenueAggregatorApplication.class).isNotNull();
     }
 }

@@ -1,7 +1,6 @@
 package com.staminal.venue.admin;
 
 import java.util.List;
-
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,9 +9,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-// import com.staminal.venue.halls.Entity.Halls;
-import com.staminal.venue.vendors.Entity.Vendors;
+import com.staminal.venue.vendors.Catering.VendorCateringDetails;
+import com.staminal.venue.vendors.Dj.VendorDjDetails;
+import com.staminal.venue.vendors.Dto.VendorResponse;
+import com.staminal.venue.vendors.Hall.VendorHallDetails;
 
+// import com.staminal.venue.halls.Entity.Halls;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -23,7 +25,7 @@ public class AdminController {
     private final AdminService adminService;
 
     @PostMapping
-    public Admin creatAdmin(@RequestBody Admin admin){
+    public Admin creatAdmin(@RequestBody Admin admin) {
         return adminService.createAdmin(admin);
     }
 
@@ -37,45 +39,69 @@ public class AdminController {
         return adminService.getAdminById(id);
     }
 
-    @PutMapping("/vendors/{id}/approve")
-    public Vendors approveVendor(@PathVariable Long id) {
+    @PostMapping("/login")
+    public AdminLoginResponse login(@RequestBody AdminLoginRequest request) {
+        return adminService.login(request);
+    }
 
+    @GetMapping("/vendors/pending")
+    public List<VendorResponse> getPendingVendors() {
+        return adminService.getPendingVendors();
+    }
+
+    @PutMapping("/vendors/{id}/approve")
+    public VendorResponse approveVendor(@PathVariable Long id) {
         return adminService.approveVendor(id);
     }
 
     @PutMapping("/vendors/{id}/reject")
-    public Vendors rejectVendor(
-            @PathVariable Long id,
-            @RequestBody RejectRequest request) {
-
-        return adminService.rejectVendor(
-                id,
-                request.getReason());
+    public VendorResponse rejectVendor(@PathVariable Long id, @RequestBody RejectRequest request) {
+        return adminService.rejectVendor(id, request.getReason());
     }
 
-    // @PutMapping("/halls/{id}/approve")
-    // public Halls approveHall(@PathVariable Long id) {
+    @PutMapping("/halls/{id}/approve")
+    public VendorHallDetails approveHall(@PathVariable Long id) {
+        return adminService.approveHall(id);
+    }
 
-    //     return adminService.approveHall(id);
-    // }
+    @PutMapping("/halls/{id}/reject")
+    public VendorHallDetails rejectHall(@PathVariable Long id, @RequestBody RejectRequest request) {
+        return adminService.rejectHall(id, request.getReason());
+    }
 
-    // @PutMapping("/halls/{id}/reject")
-    // public Halls rejectHall(
-    //         @PathVariable Long id,
-    //         @RequestBody RejectRequest request) {
+    @GetMapping("/halls/pending")
+    public List<VendorHallDetails> getPendingHalls() {
+        return adminService.getPendingHalls();
+    }
 
-    //     return adminService.rejectHall(
-    //             id,
-    //             request.getReason());
-    // }
+    @PutMapping("/dj/{id}/approve")
+    public VendorDjDetails approveDj(@PathVariable Long id) {
+        return adminService.approveDj(id);
+    }
 
-    // @GetMapping("/vendors/pending")
-    // public List<Vendors> getPendingVendors() {
-    //     return adminService.getPendingVendors();
-    // }
+    @PutMapping("/dj/{id}/reject")
+    public VendorDjDetails rejectDj(@PathVariable Long id, @RequestBody RejectRequest request) {
+        return adminService.rejectDj(id, request.getReason());
+    }
 
-    // @GetMapping("/halls/pending")
-    // public List<Halls> getPendingHalls() {
-    //     return adminService.getPendingHalls();
-    // }
+    @GetMapping("/dj/pending")
+    public List<VendorDjDetails> getPendingDj() {
+        return adminService.getPendingDj();
+    }
+
+    @PutMapping("/catering/{id}/approve")
+    public VendorCateringDetails approveCatering(@PathVariable Long id) {
+        return adminService.approveCatering(id);
+    }
+
+    @PutMapping("/catering/{id}/reject")
+    public VendorCateringDetails rejectCatering(@PathVariable Long id, @RequestBody RejectRequest request) {
+        return adminService.rejectCatering(id, request.getReason());
+    }
+
+    @GetMapping("/catering/pending")
+    public List<VendorCateringDetails> getPendingCatering() {
+        return adminService.getPendingCatering();
+    }
+
 }

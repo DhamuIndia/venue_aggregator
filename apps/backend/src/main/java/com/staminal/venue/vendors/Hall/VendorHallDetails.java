@@ -3,8 +3,10 @@ package com.staminal.venue.vendors.Hall;
 import java.math.BigDecimal;
 
 import com.staminal.venue.enums.HallType;
+import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Entity.Vendors;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -53,6 +55,28 @@ public class VendorHallDetails {
     private Integer diningCapacity;
 
     private BigDecimal amount;
+
+    @Enumerated(EnumType.STRING)
+    private VendorStatus status;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    public VendorStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(VendorStatus status) {
+        this.status = status;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
 
     public Long getId() {
         return id;

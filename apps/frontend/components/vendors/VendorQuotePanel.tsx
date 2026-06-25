@@ -4,11 +4,11 @@ import { BadgeCheck, CalendarDays, IndianRupee, LoaderCircle, MapPin, Send } fro
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { createLocalVendorLead } from "@/features/vendors/lead-client";
+import { createVendorLead } from "@/features/vendors/lead-client";
 import type { VendorSummary } from "@/features/vendors/types";
 
 export function VendorQuotePanel({ vendor }: { vendor: VendorSummary }) {
-  const { user } = useAuth();
+  const { accessToken, user } = useAuth();
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("Wedding");
   const [location, setLocation] = useState("");
@@ -19,7 +19,7 @@ export function VendorQuotePanel({ vendor }: { vendor: VendorSummary }) {
   const [leadId, setLeadId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     if (!eventDate || !location.trim() || Number(budget) < 1) {
@@ -30,21 +30,26 @@ export function VendorQuotePanel({ vendor }: { vendor: VendorSummary }) {
       setError("Sign in with a customer account to request a quote.");
       return;
     }
-    setSubmitting(true);
-    const lead = createLocalVendorLead({
-      vendorId: vendor.id,
-      vendorName: vendor.businessName,
-      customerId: user.id,
-      customerName: user.fullName,
-      eventDate,
-      eventType,
-      location: location.trim(),
-      service,
-      budget: Number(budget),
-      notes: notes.trim() || undefined
-    });
-    setLeadId(lead.id);
-    setSubmitting(false);
+    try {
+      setSubmitting(true);
+      const lead = await createVendorLead({
+        vendorId: vendor.id,
+        vendorName: vendor.businessName,
+        customerId: user.id,
+        customerName: user.fullName,
+        eventDate,
+        eventType,
+        location: location.trim(),
+        service,
+        budget: Number(budget),
+        notes: notes.trim() || undefined
+      }, accessToken);
+      setLeadId(lead.id);
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : "Could not send quote request.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (leadId) {

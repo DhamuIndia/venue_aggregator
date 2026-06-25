@@ -1,6 +1,7 @@
 package com.staminal.venue.vendors.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -12,6 +13,9 @@ public interface VendorRepository
 
         List<Vendors> findByStatus(VendorStatus status);
 
-        List<Vendors> findByCategories_CategoryName(
-                        String categoryName);
+        List<Vendors> findByCategories_CategoryName(String categoryName);
+
+        Optional<Vendors> findByEmail(String email);
+
+        
 }

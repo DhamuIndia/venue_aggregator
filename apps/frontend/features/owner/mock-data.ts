@@ -1,5 +1,7 @@
 import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
+import type { BlockedDate } from "./availability-client";
+import type { OwnerReview } from "./review-client";
 
 export const ownerHall = halls[0];
 
@@ -31,13 +33,13 @@ export const fallbackOwnerEnquiries: StoredEnquiry[] = [
   }
 ];
 
-export const ownerReviews = [
-  { id: "REV-41", name: "Priya S.", rating: 5, event: "Wedding", comment: "Clean venue, excellent dining setup, and quick communication.", date: "12 June 2026" },
-  { id: "REV-38", name: "Karthik R.", rating: 4, event: "Reception", comment: "The hall was spacious and the parking team handled arrivals well.", date: "28 May 2026" },
-  { id: "REV-31", name: "Meena V.", rating: 5, event: "Engagement", comment: "Everything was ready on time and the staff were helpful throughout.", date: "10 May 2026" }
+export const ownerReviews: OwnerReview[] = [
+  { id: "REV-41", customerName: "Priya S.", rating: 5, eventType: "Wedding", comment: "Clean venue, excellent dining setup, and quick communication.", eventDate: "12 June 2026", verifiedService: true },
+  { id: "REV-38", customerName: "Karthik R.", rating: 4, eventType: "Reception", comment: "The hall was spacious and the parking team handled arrivals well.", eventDate: "28 May 2026", verifiedService: true },
+  { id: "REV-31", customerName: "Meena V.", rating: 5, eventType: "Engagement", comment: "Everything was ready on time and the staff were helpful throughout.", eventDate: "10 May 2026", verifiedService: true }
 ];
 
-export const initialBlockedDates = [
+export const initialBlockedDates: BlockedDate[] = [
   { id: "BLOCK-1", date: "2026-07-15", slot: "FULL_DAY", reason: "Maintenance" },
   { id: "BLOCK-2", date: "2026-07-22", slot: "EVENING", reason: "Private event" }
 ];

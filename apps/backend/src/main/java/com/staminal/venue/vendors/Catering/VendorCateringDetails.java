@@ -3,6 +3,7 @@ package com.staminal.venue.vendors.Catering;
 import java.math.BigDecimal;
 
 import com.staminal.venue.enums.CateringServiceType;
+import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Entity.Vendors;
 
 import jakarta.persistence.*;
@@ -40,6 +41,28 @@ public class VendorCateringDetails {
 
     @Column(name = "starting_price_per_plate")
     private BigDecimal startingPricePerPlate;
+
+    @Enumerated(EnumType.STRING)
+    private VendorStatus status;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    public VendorStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(VendorStatus status) {
+        this.status = status;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
 
     public Long getId() {
         return id;
@@ -113,5 +136,4 @@ public class VendorCateringDetails {
         this.startingPricePerPlate = startingPricePerPlate;
     }
 
-    
 }

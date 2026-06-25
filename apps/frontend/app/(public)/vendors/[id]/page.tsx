@@ -4,7 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { VendorQuotePanel } from "@/components/vendors/VendorQuotePanel";
-import { categoryLabels, getVendorById, vendors } from "@/features/vendors/mock-data";
+import { categoryLabels, vendors } from "@/features/vendors/mock-data";
+import { getPublicVendor } from "@/features/vendors/vendor-client";
 
 type VendorDetailPageProps = { params: Promise<{ id: string }> };
 
@@ -14,7 +15,7 @@ export function generateStaticParams() {
 
 export default async function VendorDetailPage({ params }: VendorDetailPageProps) {
   const { id } = await params;
-  const vendor = getVendorById(id);
+  const vendor = await getPublicVendor(id);
   if (!vendor) notFound();
 
   return (

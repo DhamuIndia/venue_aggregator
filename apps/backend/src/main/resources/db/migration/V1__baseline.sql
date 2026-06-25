@@ -114,10 +114,10 @@ create table vendors (
     pincode varchar(120),
     latitude double precision,
     longitude double precision,
-    email varchar(50),
+    email varchar(50) unique,
     contact_number varchar(20),
     whatsapp_number varchar(20),
-    password_hash varchar(100),
+    password_hash varchar(100) not null,
     status varchar(40) not null default 'PENDING',
     rejection_reason varchar(255),
     created_at timestamptz not null default now(),
@@ -132,7 +132,9 @@ create table vendor_dj_details (
     travel_distance_km integer,
     starting_price numeric(12,2),
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    updated_at timestamptz not null default now(),
+    status varchar(15) not null default 'PENDING',
+    rejection_reason varchar(255) 
 );
 
 CREATE TABLE vendor_photography_details (
@@ -143,7 +145,9 @@ CREATE TABLE vendor_photography_details (
     videography_available BOOLEAN,
     drone_available BOOLEAN,
     album_included BOOLEAN,
-    starting_price NUMERIC(12,2)
+    starting_price NUMERIC(12,2),
+    status varchar(15) not null default 'PENDING',
+    rejection_reason varchar(255)
 );
 
 CREATE TABLE vendor_makeup_details (
@@ -153,7 +157,9 @@ CREATE TABLE vendor_makeup_details (
     bridal_makeup BOOLEAN,
     home_service BOOLEAN,
     products_used VARCHAR(255),
-    starting_price NUMERIC(12,2)
+    starting_price NUMERIC(12,2),
+    status varchar(15) not null default 'PENDING',
+    rejection_reason varchar(255)
 );
 
 CREATE TABLE vendor_catering_details (
@@ -165,7 +171,9 @@ CREATE TABLE vendor_catering_details (
     min_guest_count INTEGER,
     max_guest_count INTEGER,
     live_counter_available BOOLEAN,
-    starting_price_per_plate NUMERIC(12,2)
+    starting_price_per_plate NUMERIC(12,2),
+    status varchar(15) not null default 'PENDING',
+    rejection_reason varchar(255)
 );
 
 CREATE TABLE vendor_decoration_details (
@@ -176,7 +184,9 @@ CREATE TABLE vendor_decoration_details (
     balloon_decoration_available BOOLEAN,
     stage_decoration_available BOOLEAN,
     theme_decoration_available BOOLEAN,
-    starting_price NUMERIC(12,2)
+    starting_price NUMERIC(12,2),
+    status varchar(15) not null default 'PENDING',
+    rejection_reason varchar(255)
 );
 
 CREATE TABLE vendor_hall_details (
@@ -194,7 +204,9 @@ CREATE TABLE vendor_hall_details (
     bike_parking BOOLEAN,
     dining_available BOOLEAN,
     dining_capacity INTEGER,
-    amount NUMERIC(12,2)
+    amount NUMERIC(12,2),
+    status varchar(15) not null default 'PENDING',
+    rejection_reason varchar(255)
 );
 
 create table vendor_category_mapping (
@@ -279,6 +291,8 @@ create table vendor_media (
 create table vendor_packages (
     id bigserial primary key,
     vendor_id bigint not null references vendors(id),
+    service_type varchar(15) not null,
+    service_id bigint not null,
     package_name varchar(150) not null,
     description text,
     price numeric(12,2),
@@ -288,6 +302,8 @@ create table vendor_packages (
 create table vendor_blocked_dates (
     id bigserial primary key,
     vendor_id bigint not null references vendors(id),
+    service_type varchar(15) not null,
+    service_id bigint not null,
     event_date date not null,
     slot_type varchar(30) not null,
     reason varchar(255),

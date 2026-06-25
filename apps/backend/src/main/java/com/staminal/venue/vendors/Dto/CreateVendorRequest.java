@@ -34,6 +34,16 @@ public class CreateVendorRequest {
 
     private Set<Long> categoryIds;
 
+    private String passwordHash;
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public Set<Long> getCategoryIds() {
         return categoryIds;
     }
@@ -41,14 +51,6 @@ public class CreateVendorRequest {
     public void setCategoryIds(Set<Long> categoryIds) {
         this.categoryIds = categoryIds;
     }
-
-    // public long getUserId() {
-    //     return userId;
-    // }
-
-    // public void setUserId(long userId) {
-    //     this.userId = userId;
-    // }
 
     public String getVendorName() {
         return vendorName;
