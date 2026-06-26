@@ -9,4 +9,5 @@ public class VenueAggregatorApplication {
     public static void main(String[] args) {
         SpringApplication.run(VenueAggregatorApplication.class, args);
     }
+    
 }

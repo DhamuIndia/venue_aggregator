@@ -179,14 +179,23 @@ public class HallsService {
     }
 
     public HallResponse updateHall(
-            Long hallId,
+            String hallId,
             UpdateHallRequest request,
             Authentication authentication) {
 
-        Halls hall = hallRepository.findById(hallId)
-                .orElseThrow(() -> new RuntimeException("Hall not found"));
-
+        // Halls hall = hallRepository.findById(Long.parseLong(hallId))
+        // .orElseThrow(() -> new RuntimeException("Hall not found"));
         Long userId = Long.valueOf(authentication.getName());
+
+        List<Halls> halls = hallRepository.findByOwnerUserId_Id(userId);
+
+        if (halls.isEmpty()) {
+            throw new RuntimeException("Hall not found");
+        }
+
+        Halls hall = halls.get(0);
+
+        // Long userId = Long.valueOf(authentication.getName());
 
         if (hall.getOwnerUserId() == null ||
                 !hall.getOwnerUserId().getId().equals(userId)) {
@@ -234,13 +243,23 @@ public class HallsService {
     }
 
     public HallResponse submitHall(
-            Long hallId,
+            String hallId,
             Authentication authentication) {
 
-        Halls hall = hallRepository.findById(hallId)
-                .orElseThrow(() -> new RuntimeException("Hall not found"));
+        // Halls hall = hallRepository.findById(hallId)
+        // .orElseThrow(() -> new RuntimeException("Hall not found"));
+
+        // Long userId = Long.valueOf(authentication.getName());
 
         Long userId = Long.valueOf(authentication.getName());
+
+        List<Halls> halls = hallRepository.findByOwnerUserId_Id(userId);
+
+        if (halls.isEmpty()) {
+            throw new RuntimeException("Hall not found");
+        }
+
+        Halls hall = halls.get(0);
 
         if (hall.getOwnerUserId() == null ||
                 !hall.getOwnerUserId().getId().equals(userId)) {

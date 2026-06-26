@@ -39,15 +39,9 @@ public class HallController {
         return hallsService.getMyHalls(authentication);
     }
 
-    // @GetMapping("/{hallId}")
-    // public HallResponse getHall(@PathVariable Long hallId, Authentication
-    // authentication) {
-    // return hallsService.getHall(hallId, authentication);
-    // }
     @GetMapping("/{hallId}")
     public HallResponse getHall(@PathVariable String hallId, Authentication authentication) {
 
-        Long userId = Long.valueOf(authentication.getName());
         List<HallResponse> halls = hallsService.getMyHalls(authentication);
         if (halls.isEmpty()) {
             throw new RuntimeException("No hall found");
@@ -58,7 +52,7 @@ public class HallController {
 
     @PutMapping("/{hallId}")
     public HallResponse updateHall(
-            @PathVariable Long hallId,
+            @PathVariable String hallId,
             @RequestBody UpdateHallRequest request,
             Authentication authentication) {
 
@@ -67,7 +61,7 @@ public class HallController {
 
     @PostMapping("/{hallId}/submit")
     public HallResponse submitHall(
-            @PathVariable Long hallId,
+            @PathVariable String hallId,
             Authentication authentication) {
 
         return hallsService.submitHall(hallId, authentication);
