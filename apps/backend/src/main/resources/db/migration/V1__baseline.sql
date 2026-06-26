@@ -137,6 +137,11 @@ create table vendors (
     contact_number varchar(20),
     whatsapp_number varchar(20),
     password_hash varchar(100) not null,
+     years_in_business integer,
+    service_radius integer,
+    package_name varchar(150),
+    package_description text,
+    starting_price numeric(12,2),
     status varchar(40) not null default 'PENDING',
     rejection_reason varchar(255),
     created_at timestamptz not null default now(),
@@ -236,6 +241,14 @@ create table vendor_category_mapping (
         references vendors(id),
     foreign key (category_id)
         references vendor_categories(id)
+);
+
+create table vendor_services (
+    id bigserial primary key,
+
+    vendor_id bigint not null references vendors(id) on delete cascade,
+
+    service_name varchar(120) not null
 );
 
 create table subscription_plans (

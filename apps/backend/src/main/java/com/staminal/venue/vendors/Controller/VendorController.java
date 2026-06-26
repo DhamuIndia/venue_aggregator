@@ -20,12 +20,12 @@ public class VendorController {
 
     private final VendorService vendorService;
 
-    @PostMapping
+    @PostMapping("/profile/submit")
     public VendorResponse createVendor(Principal principal,@RequestBody CreateVendorRequest request) {
         return vendorService.createVendor(principal.getName(),request);
     }
 
-    @GetMapping
+    @GetMapping("/profile")
     public List<VendorResponse> getAllVendors(Principal principal) {
         System.out.println("Vendor profile API called");
         System.out.println("Principal = " + principal);
@@ -47,12 +47,12 @@ public class VendorController {
         return vendorService.login(request);
     }
 
-    @GetMapping("/profile")
-    public VendorResponse getProfile(Principal principal) {
-         System.out.println("===== INSIDE PROFILE API =====");
-    System.out.println(principal);
-        return vendorService.getProfile(principal.getName());
-    }
+    // @GetMapping("/profile")
+    // public VendorResponse getProfile(Principal principal) {
+    //      System.out.println("===== INSIDE PROFILE API =====");
+    // System.out.println(principal);
+    //     return vendorService.getProfile(principal.getName());
+    // }
 
     @PutMapping("/profile")
     public VendorResponse updateProfile(
@@ -64,12 +64,12 @@ public class VendorController {
                 request);
     }
 
-    @PostMapping("/profile/submit")
-    public VendorResponse submitProfile(
-            Principal principal) {
+    // @PostMapping("/profile/submit")
+    // public VendorResponse submitProfile(
+    //         Principal principal) {
 
-        return vendorService.submitProfile(
-                principal.getName());
+    //     return vendorService.submitProfile(
+    //             principal.getName());
 
-    }
+    // }
 }

@@ -1,5 +1,7 @@
 package com.staminal.venue.vendors.Dto;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 
 public class CreateVendorRequest {
@@ -34,15 +36,75 @@ public class CreateVendorRequest {
 
     private Set<Long> categoryIds;
 
+    private Integer yearsInBusiness;
+
+    private Integer serviceRadius;
+
+    private List<String> services;
+
+    private String packageName;
+
+    private BigDecimal startingPrice;
+
+    private String packageDescription;
+
     // private String passwordHash;
 
     // public String getPasswordHash() {
-    //     return passwordHash;
+    // return passwordHash;
     // }
 
     // public void setPasswordHash(String passwordHash) {
-    //     this.passwordHash = passwordHash;
+    // this.passwordHash = passwordHash;
     // }
+
+    public Integer getYearsInBusiness() {
+        return yearsInBusiness;
+    }
+
+    public void setYearsInBusiness(Integer yearsInBusiness) {
+        this.yearsInBusiness = yearsInBusiness;
+    }
+
+    public Integer getServiceRadius() {
+        return serviceRadius;
+    }
+
+    public void setServiceRadius(Integer serviceRadius) {
+        this.serviceRadius = serviceRadius;
+    }
+
+    public List<String> getServices() {
+        return services;
+    }
+
+    public void setServices(List<String> services) {
+        this.services = services;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
+    }
+
+    public BigDecimal getStartingPrice() {
+        return startingPrice;
+    }
+
+    public void setStartingPrice(BigDecimal startingPrice) {
+        this.startingPrice = startingPrice;
+    }
+
+    public String getPackageDescription() {
+        return packageDescription;
+    }
+
+    public void setPackageDescription(String packageDescription) {
+        this.packageDescription = packageDescription;
+    }
 
     public Set<Long> getCategoryIds() {
         return categoryIds;
@@ -53,19 +115,19 @@ public class CreateVendorRequest {
     }
 
     // public String getVendorName() {
-    //     return vendorName;
+    // return vendorName;
     // }
 
     // public void setVendorName(String vendorName) {
-    //     this.vendorName = vendorName;
+    // this.vendorName = vendorName;
     // }
 
     // public String getEmail() {
-    //     return email;
+    // return email;
     // }
 
     // public void setEmail(String email) {
-    //     this.email = email;
+    // this.email = email;
     // }
 
     public String getBusinessName() {

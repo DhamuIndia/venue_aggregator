@@ -1,5 +1,7 @@
 package com.staminal.venue.vendors.Dto;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 
 public class VendorResponse {
@@ -25,6 +27,66 @@ public class VendorResponse {
     private Set<String> categories;
 
     private String status;
+
+    private Integer yearsInBusiness;
+
+    private Integer serviceRadius;
+
+    private List<String> services;
+
+    private String packageName;
+
+    private BigDecimal startingPrice;
+
+    private String packageDescription;
+
+    public Integer getYearsInBusiness() {
+        return yearsInBusiness;
+    }
+
+    public void setYearsInBusiness(Integer yearsInBusiness) {
+        this.yearsInBusiness = yearsInBusiness;
+    }
+
+    public Integer getServiceRadius() {
+        return serviceRadius;
+    }
+
+    public void setServiceRadius(Integer serviceRadius) {
+        this.serviceRadius = serviceRadius;
+    }
+
+    public List<String> getServices() {
+        return services;
+    }
+
+    public void setServices(List<String> services) {
+        this.services = services;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
+    }
+
+    public BigDecimal getStartingPrice() {
+        return startingPrice;
+    }
+
+    public void setStartingPrice(BigDecimal startingPrice) {
+        this.startingPrice = startingPrice;
+    }
+
+    public String getPackageDescription() {
+        return packageDescription;
+    }
+
+    public void setPackageDescription(String packageDescription) {
+        this.packageDescription = packageDescription;
+    }
 
     public Long getId() {
         return id;

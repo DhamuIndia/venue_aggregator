@@ -11,9 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.staminal.venue.auth.service.JwtService;
-import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.users.Entity.Role;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.RoleRepository;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -37,8 +35,6 @@ public class VendorService {
         private final VendorCategoryRepository vendorCategoryRepository;
         private final JwtService jwtService;
         private final UserRepository userRepository;
-        private final RoleRepository roleRepository;
-        private final PasswordEncoder passwordEncoder;
 
         public VendorResponse createVendor(String userId, CreateVendorRequest request) {
                 // User user = new User();
@@ -78,6 +74,18 @@ public class VendorService {
                 vendor.setUpdatedAt(Instant.now());
                 vendor.setUser(savedUser);
 
+                vendor.setYearsInBusiness(request.getYearsInBusiness());
+
+                vendor.setServiceRadius(request.getServiceRadius());
+
+                vendor.setServices(request.getServices());
+
+                vendor.setPackageName(request.getPackageName());
+
+                vendor.setStartingPrice(request.getStartingPrice());
+
+                vendor.setPackageDescription(request.getPackageDescription());
+
                 Set<VendorCategory> categories = new HashSet<>(
                                 vendorCategoryRepository.findAllById(
                                                 request.getCategoryIds()));
@@ -111,6 +119,17 @@ public class VendorService {
                 response.setArea(vendor.getArea());
                 response.setContactNumber(vendor.getContactNumber());
                 response.setWhatsAppNumber(vendor.getWhatsAppNumber());
+                response.setYearsInBusiness(vendor.getYearsInBusiness());
+
+                response.setServiceRadius(vendor.getServiceRadius());
+
+                response.setServices(vendor.getServices());
+
+                response.setPackageName(vendor.getPackageName());
+
+                response.setStartingPrice(vendor.getStartingPrice());
+
+                response.setPackageDescription(vendor.getPackageDescription());
                 if (vendor.getStatus() == VendorStatus.PENDING) {
                         response.setStatus("PENDING_APPROVAL");
                 } else {
@@ -202,6 +221,17 @@ public class VendorService {
                 vendor.setCity(request.getCity());
                 vendor.setArea(request.getArea());
                 vendor.setDescription(request.getDescription());
+                vendor.setYearsInBusiness(request.getYearsInBusiness());
+
+                vendor.setServiceRadius(request.getServiceRadius());
+
+                vendor.setServices(request.getServices());
+
+                vendor.setPackageName(request.getPackageName());
+
+                vendor.setStartingPrice(request.getStartingPrice());
+
+                vendor.setPackageDescription(request.getPackageDescription());
 
                 vendor.setUpdatedAt(Instant.now());
 
