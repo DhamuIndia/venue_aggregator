@@ -2,7 +2,6 @@ package com.staminal.venue.halls.Controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,47 +9,60 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.staminal.venue.halls.Dto.CreateHallRequest;
+import com.staminal.venue.halls.Dto.HallListResponse;
 import com.staminal.venue.halls.Dto.HallResponse;
 import com.staminal.venue.halls.Dto.UpdateHallRequest;
 import com.staminal.venue.halls.Service.HallsService;
 
+import lombok.RequiredArgsConstructor;
+
 @RestController
-@RequestMapping("/v1/owner/halls")
+@RequiredArgsConstructor
+@RequestMapping("/v1")
 public class HallController {
 
-    @Autowired
-    private HallsService hallsService;
+    private final HallsService hallsService;
 
-    @PostMapping
+    @GetMapping("/public/halls")
+    public HallListResponse searchPublicHalls(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String area,
+            @RequestParam(required = false) String venueType,
+            @RequestParam(required = false) Integer minCapacity,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return hallsService.searchPublicHalls(q, city, area, venueType, minCapacity, maxPrice, sort, page, size);
+    }
+
+    @GetMapping("/public/halls/{hallId}")
+    public HallResponse getPublicHall(@PathVariable String hallId) {
+        return hallsService.getPublicHall(hallId);
+    }
+
+    @PostMapping("/owner/halls")
     public HallResponse createHall(
             @RequestBody CreateHallRequest request, Authentication authentication) {
-        System.out.println("HALL API HIT");
-        System.out.println(authentication);
-        System.out.println(authentication.getName());
-        System.out.println(request.getName());
         return hallsService.createHall(request, authentication);
     }
 
-    @GetMapping
+    @GetMapping("/owner/halls")
     public List<HallResponse> getMyHalls(Authentication authentication) {
         return hallsService.getMyHalls(authentication);
     }
 
-    @GetMapping("/{hallId}")
+    @GetMapping("/owner/halls/{hallId}")
     public HallResponse getHall(@PathVariable String hallId, Authentication authentication) {
-
-        List<HallResponse> halls = hallsService.getMyHalls(authentication);
-        if (halls.isEmpty()) {
-            throw new RuntimeException("No hall found");
-        }
-
-        return halls.get(0);
+        return hallsService.getHall(hallId, authentication);
     }
 
-    @PutMapping("/{hallId}")
+    @PutMapping("/owner/halls/{hallId}")
     public HallResponse updateHall(
             @PathVariable String hallId,
             @RequestBody UpdateHallRequest request,
@@ -59,7 +71,7 @@ public class HallController {
         return hallsService.updateHall(hallId, request, authentication);
     }
 
-    @PostMapping("/{hallId}/submit")
+    @PostMapping("/owner/halls/{hallId}/submit")
     public HallResponse submitHall(
             @PathVariable String hallId,
             Authentication authentication) {

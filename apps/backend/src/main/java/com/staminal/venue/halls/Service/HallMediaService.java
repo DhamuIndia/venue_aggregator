@@ -4,7 +4,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.halls.Dto.CreateHallMediaRequest;
 import com.staminal.venue.halls.Dto.HallMediaResponse;
@@ -22,10 +25,8 @@ public class HallMediaService {
     @Autowired
     private HallMediaRepository hallMediaRepository;
 
-    public HallMediaResponse create(Long hallId, CreateHallMediaRequest request) {
-
-        Halls hall = hallRepository.findById(hallId)
-                .orElseThrow(() -> new RuntimeException("Hall not found"));
+    public HallMediaResponse create(Long hallId, CreateHallMediaRequest request, Authentication authentication) {
+        Halls hall = findOwnedHall(hallId, authentication);
 
         HallMedia media = new HallMedia();
 
@@ -42,7 +43,8 @@ public class HallMediaService {
         return map(media);
     }
 
-    public List<HallMediaResponse> getByHall(Long hallId) {
+    public List<HallMediaResponse> getByHall(Long hallId, Authentication authentication) {
+        findOwnedHall(hallId, authentication);
 
         return hallMediaRepository.findByHallId_Id(hallId)
                 .stream()
@@ -67,12 +69,14 @@ public class HallMediaService {
     public HallMediaResponse updateHallMedia(
             Long hallId,
             Long mediaId,
-            CreateHallMediaRequest request) {
+            CreateHallMediaRequest request,
+            Authentication authentication) {
+        findOwnedHall(hallId, authentication);
         HallMedia media = hallMediaRepository.findById(mediaId)
-                .orElseThrow(() -> new RuntimeException("Media not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found"));
 
-        if (media.getHallId().getId() != hallId) {
-            throw new RuntimeException("Media does not belong to this hall");
+        if (media.getHallId().getId() != hallId.longValue()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Media does not belong to this hall");
         }
 
         media.setMediaType(request.getMediaType());
@@ -88,10 +92,37 @@ public class HallMediaService {
 
     public void deleteHallMedia(
             Long hallId,
-            Long mediaId) {
+            Long mediaId,
+            Authentication authentication) {
+        findOwnedHall(hallId, authentication);
         HallMedia media = hallMediaRepository.findById(mediaId)
-                .orElseThrow(() -> new RuntimeException("Media not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found"));
+
+        if (media.getHallId().getId() != hallId.longValue()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Media does not belong to this hall");
+        }
 
         hallMediaRepository.delete(media);
+    }
+
+    private Halls findOwnedHall(Long hallId, Authentication authentication) {
+        Long userId = currentUserId(authentication);
+        Halls hall = hallRepository.findById(hallId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"));
+        if (hall.getOwnerUserId() == null || !hall.getOwnerUserId().getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hall does not belong to this owner");
+        }
+        return hall;
+    }
+
+    private Long currentUserId(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
+        }
+        try {
+            return Long.valueOf(authentication.getName());
+        } catch (NumberFormatException exception) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User session is invalid", exception);
+        }
     }
 }

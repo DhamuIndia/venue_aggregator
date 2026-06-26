@@ -2,6 +2,7 @@ package com.staminal.venue.halls.Dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class HallResponse {
 
@@ -55,6 +56,10 @@ public class HallResponse {
 
     private String coverImageUrl;
 
+    private String imageUrl;
+
+    private List<String> galleryUrls;
+
     private String city;
 
     private String area;
@@ -63,7 +68,13 @@ public class HallResponse {
 
     private Double ratings;
 
+    private Double rating;
+
+    private Integer reviewCount;
+
     private String status;
+
+    private String listingStatus;
 
     private String rejectionReason;
 
@@ -74,6 +85,16 @@ public class HallResponse {
     private BigDecimal startingPrice;
 
     private Pricing pricing;
+
+    private List<String> amenities;
+
+    private Boolean verified;
+
+    private Boolean isVerified;
+
+    private Boolean availableThisMonth;
+
+    private String address;
 
     public String getVenueType() {
         return venueType;
@@ -105,6 +126,38 @@ public class HallResponse {
 
     public void setPricing(Pricing pricing) {
         this.pricing = pricing;
+    }
+
+    public List<String> getAmenities() {
+        return amenities;
+    }
+
+    public void setAmenities(List<String> amenities) {
+        this.amenities = amenities;
+    }
+
+    public Boolean getVerified() {
+        return verified;
+    }
+
+    public void setVerified(Boolean verified) {
+        this.verified = verified;
+    }
+
+    public Boolean getIsVerified() {
+        return isVerified;
+    }
+
+    public void setIsVerified(Boolean isVerified) {
+        this.isVerified = isVerified;
+    }
+
+    public Boolean getAvailableThisMonth() {
+        return availableThisMonth;
+    }
+
+    public void setAvailableThisMonth(Boolean availableThisMonth) {
+        this.availableThisMonth = availableThisMonth;
     }
 
     public Long getId() {
@@ -139,6 +192,22 @@ public class HallResponse {
         this.coverImageUrl = coverImageUrl;
     }
 
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public List<String> getGalleryUrls() {
+        return galleryUrls;
+    }
+
+    public void setGalleryUrls(List<String> galleryUrls) {
+        this.galleryUrls = galleryUrls;
+    }
+
     public String getCity() {
         return city;
     }
@@ -171,12 +240,36 @@ public class HallResponse {
         this.ratings = ratings;
     }
 
+    public Double getRating() {
+        return rating;
+    }
+
+    public void setRating(Double rating) {
+        this.rating = rating;
+    }
+
+    public Integer getReviewCount() {
+        return reviewCount;
+    }
+
+    public void setReviewCount(Integer reviewCount) {
+        this.reviewCount = reviewCount;
+    }
+
     public String getStatus() {
         return status;
     }
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getListingStatus() {
+        return listingStatus;
+    }
+
+    public void setListingStatus(String listingStatus) {
+        this.listingStatus = listingStatus;
     }
 
     public String getRejectionReason() {
@@ -249,6 +342,14 @@ public class HallResponse {
 
     public void setAddressLine(String addressLine) {
         this.addressLine = addressLine;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
     }
 
     public String getPincode() {
