@@ -1,5 +1,6 @@
 package com.staminal.venue.enquiries;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
@@ -18,14 +19,14 @@ import com.staminal.venue.enquiries.dto.CreateEnquiryRequest;
 import com.staminal.venue.enquiries.dto.EnquiryResponse;
 import com.staminal.venue.enquiries.dto.UpdateEnquiryStatusRequest;
 import com.staminal.venue.enums.EnquiryStatus;
+import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
-import com.staminal.venue.vendors.Entity.Vendors;
-import com.staminal.venue.vendors.Hall.VendorHallDetails;
-import com.staminal.venue.vendors.Hall.VendorHallRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,7 +41,7 @@ public class EnquiryService {
             SlotType.FULL_DAY);
 
     private final EnquiryRepository enquiryRepository;
-    private final VendorHallRepository vendorHallRepository;
+    private final HallRepository hallRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
 
@@ -48,11 +49,10 @@ public class EnquiryService {
         User customer = currentUser(authentication, UserRole.CUSTOMER);
         assertSupportedSlot(request.slot());
 
-        VendorHallDetails hall = findHallByIdentifier(request.hallId());
+        Halls hall = findApprovedHallByIdentifier(request.hallId());
 
         Enquiry enquiry = new Enquiry();
         enquiry.setHall(hall);
-        enquiry.setVendor(hall.getVendor());
         enquiry.setCustomer(customer);
         enquiry.setCustomerName(customer.getFullName());
         enquiry.setCustomerPhone(customer.getPhone());
@@ -89,7 +89,7 @@ public class EnquiryService {
     @Transactional(readOnly = true)
     public List<EnquiryResponse> getOwnerHallEnquiries(String hallId, Authentication authentication) {
         User owner = currentUser(authentication, UserRole.HALL_OWNER);
-        VendorHallDetails hall = findHallForOwner(hallId, owner);
+        Halls hall = findHallForOwner(hallId, owner);
         return enquiryRepository.findByHall_IdOrderByCreatedAtDesc(hall.getId())
                 .stream()
                 .map(this::toResponse)
@@ -162,7 +162,7 @@ public class EnquiryService {
         booking.setEventDate(enquiry.getEventDate());
         booking.setSlotType(enquiry.getSlotType());
         booking.setStatus(Booking.STATUS_CONFIRMED);
-        booking.setAmount(enquiry.getHall().getAmount());
+        booking.setAmount(startingPrice(enquiry.getHall()));
         booking.setPaymentStatus(PaymentStatus.ADVANCE_PENDING);
         booking.setConfirmedAt(Instant.now());
         booking.setCustomerName(enquiry.getCustomerName());
@@ -171,45 +171,37 @@ public class EnquiryService {
         return booking;
     }
 
-    private VendorHallDetails findHallForOwner(String hallId, User owner) {
-        VendorHallDetails hall = findHallByIdentifier(hallId);
+    private Halls findHallForOwner(String hallId, User owner) {
+        Halls hall = findHallByIdentifier(hallId);
         assertOwnerCanAccess(owner, hall);
         return hall;
     }
 
-    private VendorHallDetails findHallByIdentifier(String hallId) {
+    private Halls findApprovedHallByIdentifier(String hallId) {
+        Halls hall = findHallByIdentifier(hallId);
+        if (hall.getStatus() != HallStatus.APPROVED) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found");
+        }
+        return hall;
+    }
+
+    private Halls findHallByIdentifier(String hallId) {
         Long numericId = tryParseLong(hallId);
         if (numericId != null) {
-            return vendorHallRepository.findById(numericId)
+            return hallRepository.findById(numericId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"));
         }
 
         String slug = slugify(hallId);
-        return vendorHallRepository.findAll()
+        return hallRepository.findAll()
                 .stream()
                 .filter(hall -> slug.equals(slugify(hallDisplayName(hall))))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"));
     }
 
-    private void assertOwnerCanAccess(User owner, VendorHallDetails hall) {
-        Vendors vendor = hall.getVendor();
-        if (vendor == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hall owner is not configured");
-        }
-
-        String ownerEmail = trimToNull(owner.getEmail());
-        String ownerPhone = normalizePhone(owner.getPhone());
-
-        boolean emailMatches = ownerEmail != null
-                && vendor.getEmail() != null
-                && ownerEmail.equalsIgnoreCase(vendor.getEmail().trim());
-
-        boolean phoneMatches = ownerPhone != null
-                && (ownerPhone.equals(normalizePhone(vendor.getContactNumber()))
-                        || ownerPhone.equals(normalizePhone(vendor.getWhatsAppNumber())));
-
-        if (!emailMatches && !phoneMatches) {
+    private void assertOwnerCanAccess(User owner, Halls hall) {
+        if (hall.getOwnerUserId() == null || !owner.getId().equals(hall.getOwnerUserId().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hall does not belong to this owner");
         }
     }
@@ -307,9 +299,23 @@ public class EnquiryService {
         }
     }
 
-    private String hallDisplayName(VendorHallDetails hall) {
-        Vendors vendor = hall.getVendor();
-        return vendor != null ? vendor.getBusinessName() : null;
+    private String hallDisplayName(Halls hall) {
+        return hall != null ? hall.getName() : null;
+    }
+
+    private BigDecimal startingPrice(Halls hall) {
+        BigDecimal price = minPositive(hall.getMorningAmount(), hall.getEveningAmount());
+        return minPositive(price, hall.getFullDayAmount());
+    }
+
+    private BigDecimal minPositive(BigDecimal first, BigDecimal second) {
+        if (first == null || BigDecimal.ZERO.compareTo(first) >= 0) {
+            return second;
+        }
+        if (second == null || BigDecimal.ZERO.compareTo(second) >= 0) {
+            return first;
+        }
+        return first.min(second);
     }
 
     private String slugify(String value) {
@@ -323,14 +329,13 @@ public class EnquiryService {
     }
 
     private EnquiryResponse toResponse(Enquiry enquiry) {
-        VendorHallDetails hall = enquiry.getHall();
-        Vendors vendor = hall != null ? hall.getVendor() : enquiry.getVendor();
+        Halls hall = enquiry.getHall();
         User customer = enquiry.getCustomer();
 
         return new EnquiryResponse(
                 formatEnquiryId(enquiry.getId()),
-                hall != null && hall.getId() != null ? String.valueOf(hall.getId()) : null,
-                vendor != null ? vendor.getBusinessName() : null,
+                hall != null ? String.valueOf(hall.getId()) : null,
+                hall != null ? hall.getName() : null,
                 customer != null && customer.getId() != null ? String.valueOf(customer.getId()) : null,
                 enquiry.getCustomerName(),
                 enquiry.getCustomerPhone(),

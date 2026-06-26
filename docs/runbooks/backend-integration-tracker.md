@@ -72,7 +72,7 @@ Recommended first stream because it unlocks login, browsing, enquiry creation, a
 | P0 | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/refresh`, `POST /auth/logout` | `API_READY` | `/auth/login`, `/auth/register` | `FRONTEND_VERIFIED` | Use auth pattern runbook |
 | P0 | `GET /public/halls`, `GET /public/halls/{hallId}` | `API_READY` | `/`, `/halls/{id}` | `TODO` | Public approved halls only; supports search/filter/sort/page |
 | P0 | `GET /public/vendors`, `GET /public/vendors/{vendorId}` | `TODO` | `/vendors`, `/vendors/{id}` | `TODO` | Public approved vendors only |
-| P1 | `POST /public/enquiries` | `API_READY` | Hall detail enquiry form | `TODO` | Logged-in customer only; accepts numeric hall id or frontend slug; creates `PENDING_OWNER_RESPONSE` enquiry |
+| P1 | `POST /public/enquiries` | `API_READY` | Hall detail enquiry form | `TODO` | Logged-in customer only; uses new `halls` table; accepts numeric hall id or frontend slug; creates `PENDING_OWNER_RESPONSE` enquiry |
 | P1 | `GET /customer/enquiries`, `GET /customer/enquiries/{enquiryId}` | `API_READY` | `/customer?tab=enquiries` | `TODO` | Customer can only see own records |
 | P1 | `GET /customer/bookings`, `GET /customer/bookings/{bookingId}` | `API_READY` | `/customer?tab=bookings` | `TODO` | Includes booking/payment status; Razorpay endpoints remain separate |
 | P2 | `GET /customer/saved-halls`, `PUT /customer/saved-halls/{hallId}`, `DELETE /customer/saved-halls/{hallId}` | `API_READY` | `/customer?tab=saved` | `TODO` | CUSTOMER only; approved halls only; PUT/DELETE are idempotent |
@@ -87,8 +87,8 @@ This stream owns hall-owner workflows and should verify every action with the ow
 | --- | --- | --- | --- | --- | --- |
 | P0 | `GET /owner/halls`, `POST /owner/halls`, `GET /owner/halls/{hallId}`, `PUT /owner/halls/{hallId}` | `API_READY` | `/owner`, `/owner?tab=listing`, `/owner/onboarding` | `TODO` | Listing data belongs to logged-in owner; path `hallId` is enforced |
 | P0 | `POST /owner/halls/{hallId}/submit` | `API_READY` | `/owner?tab=listing` | `TODO` | Returns `PENDING_APPROVAL` |
-| P1 | `GET /owner/halls/{hallId}/enquiries`, `PATCH /owner/enquiries/{enquiryId}/status` | `API_READY` | `/owner?tab=enquiries` | `TODO` | Confirm creates or activates booking; decline and completion transitions enforced |
-| P1 | `GET /owner/halls/{hallId}/bookings`, `PATCH /owner/bookings/{bookingId}/status` | `API_READY` | `/owner?tab=bookings` | `TODO` | Complete booking unlocks review eligibility; cancellation transition enforced |
+| P1 | `GET /owner/halls/{hallId}/enquiries`, `PATCH /owner/enquiries/{enquiryId}/status` | `API_READY` | `/owner?tab=enquiries` | `TODO` | Uses new `halls` table; confirm creates or activates booking; decline and completion transitions enforced |
+| P1 | `GET /owner/halls/{hallId}/bookings`, `PATCH /owner/bookings/{bookingId}/status` | `API_READY` | `/owner?tab=bookings` | `TODO` | Uses new `halls` table; complete booking unlocks review eligibility; cancellation transition enforced |
 | P1 | `GET /owner/halls/{hallId}/availability`, `POST /owner/halls/{hallId}/blocked-dates`, `DELETE /owner/halls/{hallId}/blocked-dates/{blockId}` | `TODO` | `/owner?tab=availability` | `TODO` | Prevent date/slot conflicts |
 | P2 | `POST /uploads/presign`, `POST /owner/halls/{hallId}/media`, `PATCH /owner/halls/{hallId}/media/{mediaId}`, `DELETE /owner/halls/{hallId}/media/{mediaId}` | `TODO` | `/owner?tab=media` | `TODO` | Use `OWNER_HALL_MEDIA` purpose |
 | P2 | `GET /owner/halls/{hallId}/reviews` | `TODO` | `/owner?tab=reviews` | `TODO` | Verified customer reviews |

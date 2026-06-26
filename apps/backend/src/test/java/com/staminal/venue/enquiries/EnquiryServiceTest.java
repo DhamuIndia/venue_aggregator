@@ -27,13 +27,13 @@ import com.staminal.venue.enquiries.dto.CreateEnquiryRequest;
 import com.staminal.venue.enquiries.dto.EnquiryResponse;
 import com.staminal.venue.enquiries.dto.UpdateEnquiryStatusRequest;
 import com.staminal.venue.enums.EnquiryStatus;
+import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
-import com.staminal.venue.vendors.Entity.Vendors;
-import com.staminal.venue.vendors.Hall.VendorHallDetails;
-import com.staminal.venue.vendors.Hall.VendorHallRepository;
 
 @ExtendWith(MockitoExtension.class)
 class EnquiryServiceTest {
@@ -42,7 +42,7 @@ class EnquiryServiceTest {
     private EnquiryRepository enquiryRepository;
 
     @Mock
-    private VendorHallRepository vendorHallRepository;
+    private HallRepository hallRepository;
 
     @Mock
     private BookingRepository bookingRepository;
@@ -54,13 +54,13 @@ class EnquiryServiceTest {
 
     @BeforeEach
     void setUp() {
-        enquiryService = new EnquiryService(enquiryRepository, vendorHallRepository, bookingRepository, userRepository);
+        enquiryService = new EnquiryService(enquiryRepository, hallRepository, bookingRepository, userRepository);
     }
 
     @Test
     void customerCanCreateHallEnquiry() {
         User customer = customer();
-        VendorHallDetails hall = hall();
+        Halls hall = hall();
         CreateEnquiryRequest request = new CreateEnquiryRequest(
                 "emerald-convention-centre",
                 LocalDate.now().plusDays(10),
@@ -70,7 +70,7 @@ class EnquiryServiceTest {
                 "Please share catering options.");
 
         when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
-        when(vendorHallRepository.findAll()).thenReturn(List.of(hall));
+        when(hallRepository.findAll()).thenReturn(List.of(hall));
         when(enquiryRepository.save(any(Enquiry.class))).thenAnswer(invocation -> {
             Enquiry enquiry = invocation.getArgument(0);
             enquiry.setId(55L);
@@ -159,7 +159,6 @@ class EnquiryServiceTest {
         Enquiry enquiry = new Enquiry();
         enquiry.setId(55L);
         enquiry.setHall(hall());
-        enquiry.setVendor(hall().getVendor());
         enquiry.setCustomer(customer());
         enquiry.setCustomerName("Priya Raman");
         enquiry.setCustomerPhone("9876543210");
@@ -175,16 +174,17 @@ class EnquiryServiceTest {
         return enquiry;
     }
 
-    private VendorHallDetails hall() {
-        Vendors vendor = new Vendors();
-        vendor.setId(77L);
-        vendor.setBusinessName("Emerald Convention Centre");
-        vendor.setEmail("owner@example.com");
-        vendor.setContactNumber("9876501234");
-
-        VendorHallDetails hall = new VendorHallDetails();
+    private Halls hall() {
+        Halls hall = new Halls();
         hall.setId(201L);
-        hall.setVendor(vendor);
+        hall.setName("Emerald Convention Centre");
+        hall.setOwnerUserId(owner());
+        hall.setCity("Chennai");
+        hall.setArea("ECR");
+        hall.setCapacityMax(900);
+        hall.setHallType("MARRIAGE_HALL");
+        hall.setFullDayAmount(new java.math.BigDecimal("125000.00"));
+        hall.setStatus(HallStatus.APPROVED);
         return hall;
     }
 

@@ -1,5 +1,6 @@
 package com.staminal.venue.bookings;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -18,11 +19,10 @@ import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
-import com.staminal.venue.vendors.Entity.Vendors;
-import com.staminal.venue.vendors.Hall.VendorHallDetails;
-import com.staminal.venue.vendors.Hall.VendorHallRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 public class BookingService {
 
     private final BookingRepository bookingRepository;
-    private final VendorHallRepository vendorHallRepository;
+    private final HallRepository hallRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
@@ -58,7 +58,7 @@ public class BookingService {
     @Transactional(readOnly = true)
     public BookingListResponse getOwnerHallBookings(String hallId, Authentication authentication) {
         User owner = currentUser(authentication, UserRole.HALL_OWNER);
-        VendorHallDetails hall = findHallForOwner(hallId, owner);
+        Halls hall = findHallForOwner(hallId, owner);
         List<BookingResponse> bookings = bookingRepository.findByHall_IdOrderByEventDateDesc(hall.getId())
                 .stream()
                 .map(this::toResponse)
@@ -163,45 +163,29 @@ public class BookingService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found"));
     }
 
-    private VendorHallDetails findHallForOwner(String hallId, User owner) {
-        VendorHallDetails hall = findHallByIdentifier(hallId);
+    private Halls findHallForOwner(String hallId, User owner) {
+        Halls hall = findHallByIdentifier(hallId);
         assertOwnerCanAccess(owner, hall);
         return hall;
     }
 
-    private VendorHallDetails findHallByIdentifier(String hallId) {
+    private Halls findHallByIdentifier(String hallId) {
         Long numericId = tryParseLong(hallId);
         if (numericId != null) {
-            return vendorHallRepository.findById(numericId)
+            return hallRepository.findById(numericId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"));
         }
 
         String slug = slugify(hallId);
-        return vendorHallRepository.findAll()
+        return hallRepository.findAll()
                 .stream()
                 .filter(hall -> slug.equals(slugify(hallDisplayName(hall))))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"));
     }
 
-    private void assertOwnerCanAccess(User owner, VendorHallDetails hall) {
-        Vendors vendor = hall.getVendor();
-        if (vendor == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hall owner is not configured");
-        }
-
-        String ownerEmail = trimToNull(owner.getEmail());
-        String ownerPhone = normalizePhone(owner.getPhone());
-
-        boolean emailMatches = ownerEmail != null
-                && vendor.getEmail() != null
-                && ownerEmail.equalsIgnoreCase(vendor.getEmail().trim());
-
-        boolean phoneMatches = ownerPhone != null
-                && (ownerPhone.equals(normalizePhone(vendor.getContactNumber()))
-                        || ownerPhone.equals(normalizePhone(vendor.getWhatsAppNumber())));
-
-        if (!emailMatches && !phoneMatches) {
+    private void assertOwnerCanAccess(User owner, Halls hall) {
+        if (hall.getOwnerUserId() == null || !owner.getId().equals(hall.getOwnerUserId().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hall does not belong to this owner");
         }
     }
@@ -236,8 +220,7 @@ public class BookingService {
 
     private BookingResponse toResponse(Booking booking) {
         Enquiry enquiry = booking.getEnquiry();
-        VendorHallDetails hall = booking.getHall();
-        Vendors vendor = hall != null ? hall.getVendor() : null;
+        Halls hall = booking.getHall();
         User customer = booking.getCustomer();
         String bookingId = formatBookingId(booking.getId());
 
@@ -246,7 +229,7 @@ public class BookingService {
                 bookingId,
                 enquiry != null ? formatEnquiryId(enquiry.getId()) : null,
                 formatHallId(hall),
-                vendor != null ? vendor.getBusinessName() : null,
+                hall != null ? hall.getName() : null,
                 customer != null && customer.getId() != null ? String.valueOf(customer.getId()) : null,
                 booking.getCustomerName(),
                 booking.getEventDate(),
@@ -254,24 +237,37 @@ public class BookingService {
                 enquiry != null && enquiry.getGuestCount() != null ? enquiry.getGuestCount() : 0,
                 booking.getSlotType(),
                 normalizeStatus(booking.getStatus()),
-                booking.getAmount() != null ? booking.getAmount() : hall != null ? hall.getAmount() : null,
+                booking.getAmount() != null ? booking.getAmount() : hall != null ? startingPrice(hall) : null,
                 booking.getPaymentStatus() != null ? booking.getPaymentStatus() : PaymentStatus.NOT_STARTED,
                 enquiry != null ? enquiry.getMessage() : null,
                 booking.getConfirmedAt() != null ? booking.getConfirmedAt() : booking.getCreatedAt(),
                 booking.getUpdatedAt() != null ? booking.getUpdatedAt() : booking.getCreatedAt());
     }
 
-    private String formatHallId(VendorHallDetails hall) {
+    private String formatHallId(Halls hall) {
         if (hall == null) {
             return null;
         }
-        String slug = slugify(hallDisplayName(hall));
-        return !slug.isBlank() ? slug : String.valueOf(hall.getId());
+        return String.valueOf(hall.getId());
     }
 
-    private String hallDisplayName(VendorHallDetails hall) {
-        Vendors vendor = hall.getVendor();
-        return vendor != null ? vendor.getBusinessName() : null;
+    private String hallDisplayName(Halls hall) {
+        return hall != null ? hall.getName() : null;
+    }
+
+    private BigDecimal startingPrice(Halls hall) {
+        BigDecimal price = minPositive(hall.getMorningAmount(), hall.getEveningAmount());
+        return minPositive(price, hall.getFullDayAmount());
+    }
+
+    private BigDecimal minPositive(BigDecimal first, BigDecimal second) {
+        if (first == null || BigDecimal.ZERO.compareTo(first) >= 0) {
+            return second;
+        }
+        if (second == null || BigDecimal.ZERO.compareTo(second) >= 0) {
+            return first;
+        }
+        return first.min(second);
     }
 
     private long parseBookingId(String value) {
