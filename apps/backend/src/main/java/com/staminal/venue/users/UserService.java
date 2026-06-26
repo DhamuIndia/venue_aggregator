@@ -35,6 +35,7 @@ public class UserService {
         user.setCreatedAt(Instant.now());
         user.setUpdatedAt(Instant.now());
         user.setStatus("ACTIVE");
+        user.setPasswordHash(user.getPasswordHash());
 
         return userRepository.save(user);
     }

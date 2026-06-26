@@ -33,8 +33,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 String authHeader = request.getHeader("Authorization");
 
+<<<<<<< HEAD
                 System.out.println("URI: " + request.getRequestURI());
                 System.out.println("Authorization: " + authHeader);
+=======
+                System.out.println("JWT FILTER EXECUTED");
+                System.out.println("AUTH HEADER = " + request.getHeader("Authorization"));
+>>>>>>> 11293ee6dd90fa2aaf7e71c0eee93414bc1c82f7
 
                 if (authHeader != null
                                 && authHeader.startsWith("Bearer ")
@@ -60,6 +65,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                         SecurityContextHolder
                                                         .getContext()
                                                         .setAuthentication(authentication);
+
+                                        System.out.println("AUTH SUCCESS");
+                                        System.out.println(SecurityContextHolder.getContext().getAuthentication());
+                                        System.out.println(SecurityContextHolder.getContext().getAuthentication()
+                                                        .getAuthorities());
                                 }
                         } catch (JwtException | IllegalArgumentException exception) {
                                  exception.printStackTrace();   // <-- Add this line

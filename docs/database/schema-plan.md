@@ -44,4 +44,16 @@ create unique index uq_bookings_confirmed_hall_date_slot
 
 ## Media Rule
 
-Do not store images or videos inside PostgreSQL. Store files in Cloudinary or S3, and store only URL, public ID, media type, sort order, and ownership metadata in the database.
+Do not store images or videos inside PostgreSQL. Store files in S3-compatible object storage, using MinIO on Hetzner/local development and AWS S3 if the app moves to AWS.
+
+Store only portable metadata in PostgreSQL:
+
+- `storage_key`
+- `public_url`
+- `media_type`
+- `caption`
+- `is_cover`
+- `sort_order`
+- ownership fields such as `hall_id`, `vendor_id`, and `uploaded_by`
+
+Avoid provider-specific IDs in business flows. A media migration should only need to copy object keys to a new bucket and update `public_url` if the CDN/base URL changes.

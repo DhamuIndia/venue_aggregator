@@ -27,13 +27,15 @@ These are the best next modules because they are focused, independent, and cover
 
 Prerequisite: Docker Desktop must be running.
 
-Start PostgreSQL:
+Start PostgreSQL and MinIO:
 
 ```bash
 cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/infra
-docker compose up -d postgres
+docker compose up -d postgres minio minio-init
 docker compose ps
 ```
+
+MinIO console: `http://localhost:9001`
 
 Start backend:
 

@@ -72,6 +72,8 @@ public class SecurityConfig {
                                                                 "/swagger-ui.html",
                                                                 "/v3/api-docs/**")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/v1/public/**")
+                                                .permitAll()
                                                 .requestMatchers(
                                                                 "/admin",
                                                                 "/admin/login",
@@ -92,6 +94,8 @@ public class SecurityConfig {
                                                 .hasRole("ADMIN")
                                                 .requestMatchers("/vendor/**")
                                                 .hasRole("VENDOR")
+                                                .requestMatchers("/v1/owner/**")
+                                                .hasRole("HALL_OWNER")
                                                 .anyRequest().authenticated())
                                 .formLogin(form -> form.disable())
                                 .httpBasic(httpBasic -> httpBasic.disable())
