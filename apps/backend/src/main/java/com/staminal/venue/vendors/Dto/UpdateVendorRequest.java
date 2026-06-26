@@ -7,6 +7,8 @@ public class UpdateVendorRequest {
 
     private String businessName;
 
+    private String category;
+
     private String description;
 
     private String city;
@@ -24,6 +26,14 @@ public class UpdateVendorRequest {
     private BigDecimal startingPrice;
 
     private String packageDescription;
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
 
     public Integer getYearsInBusiness() {
         return yearsInBusiness;

@@ -33,9 +33,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 String authHeader = request.getHeader("Authorization");
 
-                System.out.println("JWT FILTER EXECUTED");
-                System.out.println("AUTH HEADER = " + request.getHeader("Authorization"));
-
                 if (authHeader != null
                                 && authHeader.startsWith("Bearer ")
                                 && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -45,9 +42,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 if (jwtService.isAccessToken(token)) {
                                         String subject = jwtService.extractSubject(token);
                                         String role = jwtService.extractRole(token);
-
-                                        System.out.println("Subject = " + subject);
-                                        System.out.println("Role = " + role);
 
                                         List<SimpleGrantedAuthority> authorities = List.of(
                                                         new SimpleGrantedAuthority("ROLE_" + role));
@@ -60,14 +54,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                         SecurityContextHolder
                                                         .getContext()
                                                         .setAuthentication(authentication);
-
-                                        System.out.println("AUTH SUCCESS");
-                                        System.out.println(SecurityContextHolder.getContext().getAuthentication());
-                                        System.out.println(SecurityContextHolder.getContext().getAuthentication()
-                                                        .getAuthorities());
                                 }
                         } catch (JwtException | IllegalArgumentException exception) {
-                                 exception.printStackTrace();   // <-- Add this line
                                 SecurityContextHolder.clearContext();
                         }
                 }

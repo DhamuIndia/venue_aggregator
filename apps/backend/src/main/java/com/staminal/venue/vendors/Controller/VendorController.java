@@ -1,11 +1,11 @@
 package com.staminal.venue.vendors.Controller;
 
-import java.util.List;
-import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
-import com.staminal.venue.vendors.Dto.UpdateVendorRequest;
+import java.util.List;
 
-import com.staminal.venue.vendors.Dto.CreateVendorRequest;
+import org.springframework.web.bind.annotation.*;
+
+import com.staminal.venue.vendors.Dto.UpdateVendorRequest;
 import com.staminal.venue.vendors.Dto.VendorLoginRequest;
 import com.staminal.venue.vendors.Dto.VendorLoginResponse;
 import com.staminal.venue.vendors.Dto.VendorResponse;
@@ -21,15 +21,13 @@ public class VendorController {
     private final VendorService vendorService;
 
     @PostMapping("/profile/submit")
-    public VendorResponse createVendor(Principal principal,@RequestBody CreateVendorRequest request) {
-        return vendorService.createVendor(principal.getName(),request);
+    public VendorResponse submitProfile(Principal principal) {
+        return vendorService.submitProfile(principal.getName());
     }
 
     @GetMapping("/profile")
-    public List<VendorResponse> getAllVendors(Principal principal) {
-        System.out.println("Vendor profile API called");
-        System.out.println("Principal = " + principal);
-        return vendorService.getAllVendors();
+    public VendorResponse getProfile(Principal principal) {
+        return vendorService.getProfile(principal.getName());
     }
 
     @GetMapping("/{id}")
