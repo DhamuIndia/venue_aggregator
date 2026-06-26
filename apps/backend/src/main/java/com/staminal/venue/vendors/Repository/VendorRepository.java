@@ -17,5 +17,5 @@ public interface VendorRepository
 
         Optional<Vendors> findByEmail(String email);
 
-        
+        Optional<Vendors> findByUserId(Long userId);
 }

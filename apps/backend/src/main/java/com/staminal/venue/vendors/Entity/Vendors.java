@@ -1,8 +1,15 @@
 package com.staminal.venue.vendors.Entity;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.users.Entity.User;
+
+
+import jakarta.persistence.FetchType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,7 +19,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -22,6 +32,10 @@ public class Vendors {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @OneToOne
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @Column(name = "vendor_name")
     private String vendorName;
@@ -49,13 +63,80 @@ public class Vendors {
 
     private String email;
 
+    private Integer yearsInBusiness;
+
+private Integer serviceRadius;
+
+private String packageName;
+
+private BigDecimal startingPrice;
+
+private String packageDescription;
+
+public Integer getYearsInBusiness() {
+    return yearsInBusiness;
+}
+
+public void setYearsInBusiness(Integer yearsInBusiness) {
+    this.yearsInBusiness = yearsInBusiness;
+}
+
+public Integer getServiceRadius() {
+    return serviceRadius;
+}
+
+public void setServiceRadius(Integer serviceRadius) {
+    this.serviceRadius = serviceRadius;
+}
+
+public String getPackageName() {
+    return packageName;
+}
+
+public void setPackageName(String packageName) {
+    this.packageName = packageName;
+}
+
+public BigDecimal getStartingPrice() {
+    return startingPrice;
+}   
+
+public void setStartingPrice(BigDecimal startingPrice) {
+    this.startingPrice = startingPrice;
+}
+
+public String getPackageDescription() {
+    return packageDescription;
+}
+
+public void setPackageDescription(String packageDescription) {
+    this.packageDescription = packageDescription;
+}
+
+public List<String> getServices() {
+    return services;
+}
+
+public void setServices(List<String> services) {
+    this.services = services;
+}
+
+
+@ElementCollection(fetch = FetchType.EAGER)
+@CollectionTable(
+    name = "vendor_services",
+    joinColumns = @JoinColumn(name = "vendor_id")
+)
+@Column(name = "service_name")
+private List<String> services;
+
     @Column(name = "contact_number")
     private String contactNumber;
 
     @Column(name = "whatsapp_number")
     private String whatsAppNumber;
 
-    @Column(name="password_hash", nullable=false)
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -234,6 +315,12 @@ public class Vendors {
         this.passwordHash = passwordHash;
     }
 
-    
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 
 }

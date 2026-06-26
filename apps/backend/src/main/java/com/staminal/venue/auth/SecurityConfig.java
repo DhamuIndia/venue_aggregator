@@ -64,6 +64,8 @@ public class SecurityConfig {
                                                                 "/v1/auth/login",
                                                                 "/v1/auth/refresh")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/v1/vendor/login")
+                                                .permitAll()
                                                 .requestMatchers(
                                                                 "/actuator/health",
                                                                 "/docs",
@@ -92,7 +94,7 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 .requestMatchers("/admin/**")
                                                 .hasRole("ADMIN")
-                                                .requestMatchers("/vendors/**")
+                                                .requestMatchers("/v1/vendor/**", "/vendor/**")
                                                 .hasRole("VENDOR")
                                                 .requestMatchers("/v1/owner/**")
                                                 .hasRole("HALL_OWNER")
