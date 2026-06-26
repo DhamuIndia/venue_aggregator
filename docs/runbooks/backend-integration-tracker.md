@@ -75,7 +75,7 @@ Recommended first stream because it unlocks login, browsing, enquiry creation, a
 | P1 | `POST /public/enquiries` | `API_READY` | Hall detail enquiry form | `TODO` | Logged-in customer only; accepts numeric hall id or frontend slug; creates `PENDING_OWNER_RESPONSE` enquiry |
 | P1 | `GET /customer/enquiries`, `GET /customer/enquiries/{enquiryId}` | `API_READY` | `/customer?tab=enquiries` | `TODO` | Customer can only see own records |
 | P1 | `GET /customer/bookings`, `GET /customer/bookings/{bookingId}` | `API_READY` | `/customer?tab=bookings` | `TODO` | Includes booking/payment status; Razorpay endpoints remain separate |
-| P2 | `GET /customer/saved-halls`, `PUT /customer/saved-halls/{hallId}`, `DELETE /customer/saved-halls/{hallId}` | `TODO` | `/customer?tab=saved` | `TODO` | PUT/DELETE must be idempotent |
+| P2 | `GET /customer/saved-halls`, `PUT /customer/saved-halls/{hallId}`, `DELETE /customer/saved-halls/{hallId}` | `API_READY` | `/customer?tab=saved` | `TODO` | CUSTOMER only; approved halls only; PUT/DELETE are idempotent |
 | P2 | `GET /customer/review-eligibility`, `POST /customer/reviews`, `PUT /customer/reviews/{reviewId}` | `TODO` | `/customer?tab=reviews` | `TODO` | Only completed bookings are eligible |
 | P3 | `POST /customer/bookings/{bookingId}/payments/advance-order`, `POST /customer/bookings/{bookingId}/payments/verify` | `TODO` | `/customer?tab=bookings` | `TODO` | Razorpay can be stubbed first |
 

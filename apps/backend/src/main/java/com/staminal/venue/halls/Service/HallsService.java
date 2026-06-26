@@ -126,6 +126,10 @@ public class HallsService {
 
     public HallResponse getPublicHall(String hallId) {
         Halls hall = findApprovedHall(hallId);
+        return toPublicResponse(hall);
+    }
+
+    public HallResponse toPublicResponse(Halls hall) {
         return mapToResponse(hall, true);
     }
 
