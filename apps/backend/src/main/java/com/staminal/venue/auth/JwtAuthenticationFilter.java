@@ -33,6 +33,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 String authHeader = request.getHeader("Authorization");
 
+                System.out.println("URI: " + request.getRequestURI());
+                System.out.println("Authorization: " + authHeader);
+
                 if (authHeader != null
                                 && authHeader.startsWith("Bearer ")
                                 && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -42,6 +45,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 if (jwtService.isAccessToken(token)) {
                                         String subject = jwtService.extractSubject(token);
                                         String role = jwtService.extractRole(token);
+
+                                        System.out.println("Subject = " + subject);
+                                        System.out.println("Role = " + role);
 
                                         List<SimpleGrantedAuthority> authorities = List.of(
                                                         new SimpleGrantedAuthority("ROLE_" + role));
@@ -56,6 +62,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                                         .setAuthentication(authentication);
                                 }
                         } catch (JwtException | IllegalArgumentException exception) {
+                                 exception.printStackTrace();   // <-- Add this line
                                 SecurityContextHolder.clearContext();
                         }
                 }

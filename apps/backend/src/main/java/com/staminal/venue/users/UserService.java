@@ -24,6 +24,8 @@ public class UserService {
     private final VendorHallRepository vendorHallRepository;
     private final VendorDjRepository vendorDjRepository;
     private final VendorCateringRepository vendorCateringRepository;
+    
+    
 
     public User createUser(User user) {
 

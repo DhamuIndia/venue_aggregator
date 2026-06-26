@@ -103,7 +103,7 @@ create table vendor_categories (
 
 create table vendors (
     id bigserial primary key,
-    -- user_id bigint not null references users(id),
+   user_id bigint not null references users(id),
     vendor_name varchar(100) not null,
     cover_image_url varchar(255) not null,
     business_name varchar(180) not null,

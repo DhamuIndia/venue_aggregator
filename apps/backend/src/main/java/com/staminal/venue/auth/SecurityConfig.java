@@ -47,14 +47,16 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .exceptionHandling(exceptionHandling -> exceptionHandling
-                                                .authenticationEntryPoint((request, response, authException) -> writeProblem(
-                                                                response,
-                                                                HttpStatus.UNAUTHORIZED,
-                                                                "Authentication required"))
-                                                .accessDeniedHandler((request, response, accessDeniedException) -> writeProblem(
-                                                                response,
-                                                                HttpStatus.FORBIDDEN,
-                                                                "Access denied")))
+                                                .authenticationEntryPoint(
+                                                                (request, response, authException) -> writeProblem(
+                                                                                response,
+                                                                                HttpStatus.UNAUTHORIZED,
+                                                                                "Authentication required"))
+                                                .accessDeniedHandler((request, response,
+                                                                accessDeniedException) -> writeProblem(
+                                                                                response,
+                                                                                HttpStatus.FORBIDDEN,
+                                                                                "Access denied")))
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers(
                                                                 HttpMethod.POST,
@@ -88,7 +90,7 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 .requestMatchers("/admin/**")
                                                 .hasRole("ADMIN")
-                                                .requestMatchers("/vendors/**")
+                                                .requestMatchers("/vendor/**")
                                                 .hasRole("VENDOR")
                                                 .anyRequest().authenticated())
                                 .formLogin(form -> form.disable())

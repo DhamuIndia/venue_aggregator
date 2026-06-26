@@ -2,6 +2,8 @@ package com.staminal.venue.vendors.Entity;
 
 import java.time.Instant;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.users.Entity.User;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.util.Set;
 
@@ -22,6 +25,10 @@ public class Vendors {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @OneToOne
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @Column(name = "vendor_name")
     private String vendorName;
@@ -55,7 +62,7 @@ public class Vendors {
     @Column(name = "whatsapp_number")
     private String whatsAppNumber;
 
-    @Column(name="password_hash", nullable=false)
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -234,6 +241,12 @@ public class Vendors {
         this.passwordHash = passwordHash;
     }
 
-    
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 
 }

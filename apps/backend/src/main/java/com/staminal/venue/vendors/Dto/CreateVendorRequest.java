@@ -6,7 +6,7 @@ public class CreateVendorRequest {
 
     // private long userId;
 
-    private String vendorName;
+    // private String vendorName;
 
     private String businessName;
 
@@ -20,7 +20,7 @@ public class CreateVendorRequest {
 
     private String city;
 
-    private String email;
+    // private String email;
 
     private String area;
 
@@ -34,15 +34,15 @@ public class CreateVendorRequest {
 
     private Set<Long> categoryIds;
 
-    private String passwordHash;
+    // private String passwordHash;
 
-    public String getPasswordHash() {
-        return passwordHash;
-    }
+    // public String getPasswordHash() {
+    //     return passwordHash;
+    // }
 
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
+    // public void setPasswordHash(String passwordHash) {
+    //     this.passwordHash = passwordHash;
+    // }
 
     public Set<Long> getCategoryIds() {
         return categoryIds;
@@ -52,21 +52,21 @@ public class CreateVendorRequest {
         this.categoryIds = categoryIds;
     }
 
-    public String getVendorName() {
-        return vendorName;
-    }
+    // public String getVendorName() {
+    //     return vendorName;
+    // }
 
-    public void setVendorName(String vendorName) {
-        this.vendorName = vendorName;
-    }
+    // public void setVendorName(String vendorName) {
+    //     this.vendorName = vendorName;
+    // }
 
-    public String getEmail() {
-        return email;
-    }
+    // public String getEmail() {
+    //     return email;
+    // }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    // public void setEmail(String email) {
+    //     this.email = email;
+    // }
 
     public String getBusinessName() {
         return businessName;
