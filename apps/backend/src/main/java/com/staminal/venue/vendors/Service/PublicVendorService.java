@@ -79,13 +79,22 @@ public class PublicVendorService {
     }
 
     private PublicVendorResponse mapToResponse(Vendors vendor) {
-        List<VendorMedia> media = vendorMediaRepository.findByVendor_Id(vendor.getId());
+        List<VendorMedia> media = vendorMediaRepository.findByVendor_Id(vendor.getId())
+                .stream()
+                .sorted(Comparator
+                        .comparing((VendorMedia item) -> item.getSortOrder() == null ? 0 : item.getSortOrder())
+                        .thenComparing(VendorMedia::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
         String imageUrl = media.stream()
                 .filter(VendorMedia::getIsPrimary)
                 .map(VendorMedia::getMediaUrl)
                 .filter(this::hasText)
                 .findFirst()
-                .orElseGet(() -> firstText(vendor.getCoverImageUrl(), DEFAULT_IMAGE_URL));
+                .orElseGet(() -> media.stream()
+                        .map(VendorMedia::getMediaUrl)
+                        .filter(this::hasText)
+                        .findFirst()
+                        .orElseGet(() -> firstText(vendor.getCoverImageUrl(), DEFAULT_IMAGE_URL)));
         List<String> galleryUrls = media.stream()
                 .map(VendorMedia::getMediaUrl)
                 .filter(this::hasText)
@@ -122,7 +131,7 @@ public class PublicVendorService {
                         firstText(row.getPackageName(), "Starting package"),
                         firstText(row.getDescription(), ""),
                         firstNonNull(row.getPrice(), BigDecimal.ZERO),
-                        List.of()))
+                        row.getIncludes() == null ? List.of() : row.getIncludes()))
                 .toList();
 
         if (!packageRows.isEmpty()) {
