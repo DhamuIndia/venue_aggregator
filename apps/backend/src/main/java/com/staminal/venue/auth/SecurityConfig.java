@@ -92,8 +92,8 @@ public class SecurityConfig {
                                                                 "/users/decoration",
                                                                 "/users/catering")
                                                 .permitAll()
-                                                .requestMatchers("/admin/**")
-                                                .hasRole("ADMIN")
+                                                .requestMatchers("/v1/admin/**", "/admin/**")
+                                                .hasAnyRole("ADMIN", "SUPER_ADMIN")
                                                 .requestMatchers("/v1/vendor/**", "/vendor/**")
                                                 .hasRole("VENDOR")
                                                 .requestMatchers("/v1/owner/**")

@@ -145,6 +145,13 @@ private List<String> services;
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @OneToOne
+    @JoinColumn(name = "reviewed_by_user_id")
+    private User reviewedByUser;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -161,6 +168,22 @@ private List<String> services;
 
     public void setRejectionReason(String rejectionReason) {
         this.rejectionReason = rejectionReason;
+    }
+
+    public User getReviewedByUser() {
+        return reviewedByUser;
+    }
+
+    public void setReviewedByUser(User reviewedByUser) {
+        this.reviewedByUser = reviewedByUser;
+    }
+
+    public Instant getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(Instant reviewedAt) {
+        this.reviewedAt = reviewedAt;
     }
 
     public Long getId() {
