@@ -25,9 +25,9 @@ type AuthContextValue = {
   user: AuthUser | null;
   accessToken: string | null;
   isLoading: boolean;
-  login: (payload: LoginPayload) => Promise<void>;
-  loginDemo: (role: AuthRole) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<AuthUser>;
+  loginDemo: (role: AuthRole) => Promise<AuthUser>;
+  register: (payload: RegisterPayload) => Promise<AuthUser>;
   logout: () => void;
 };
 
@@ -105,9 +105,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       accessToken,
       isLoading,
-      login: async (payload) => saveSession(await loginCustomer(payload)),
-      loginDemo: async (role) => saveSession(await loginDemo(role)),
-      register: async (payload) => saveSession(await registerCustomer(payload)),
+      login: async (payload) => {
+        const session = await loginCustomer(payload);
+        saveSession(session);
+        return session.user;
+      },
+      loginDemo: async (role) => {
+        const session = await loginDemo(role);
+        saveSession(session);
+        return session.user;
+      },
+      register: async (payload) => {
+        const session = await registerCustomer(payload);
+        saveSession(session);
+        return session.user;
+      },
       logout: () => {
         const session = getStoredSession();
         if (session && !isMockAuthMode()) {

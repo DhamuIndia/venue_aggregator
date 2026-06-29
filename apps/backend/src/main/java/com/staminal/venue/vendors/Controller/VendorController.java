@@ -45,13 +45,6 @@ public class VendorController {
         return vendorService.login(request);
     }
 
-    // @GetMapping("/profile")
-    // public VendorResponse getProfile(Principal principal) {
-    //      System.out.println("===== INSIDE PROFILE API =====");
-    // System.out.println(principal);
-    //     return vendorService.getProfile(principal.getName());
-    // }
-
     @PutMapping("/profile")
     public VendorResponse updateProfile(
             Principal principal,
@@ -62,12 +55,4 @@ public class VendorController {
                 request);
     }
 
-    // @PostMapping("/profile/submit")
-    // public VendorResponse submitProfile(
-    //         Principal principal) {
-
-    //     return vendorService.submitProfile(
-    //             principal.getName());
-
-    // }
 }
