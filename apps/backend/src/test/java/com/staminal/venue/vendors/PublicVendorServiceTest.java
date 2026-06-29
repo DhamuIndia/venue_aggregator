@@ -74,6 +74,7 @@ class PublicVendorServiceTest {
         assertThat(item.category()).isEqualTo("CATERING");
         assertThat(item.imageUrl()).isEqualTo("https://cdn.example.com/vendor-cover.jpg");
         assertThat(item.packages()).extracting("name").containsExactly("Wedding essentials");
+        assertThat(item.packages().get(0).includes()).containsExactly("Welcome drink", "Meal service");
     }
 
     @Test
@@ -145,6 +146,7 @@ class PublicVendorServiceTest {
         vendorPackage.setPackageName("Wedding essentials");
         vendorPackage.setDescription("Starter package details");
         vendorPackage.setPrice(new BigDecimal("45000"));
+        vendorPackage.setIncludes(List.of("Welcome drink", "Meal service"));
         return vendorPackage;
     }
 }

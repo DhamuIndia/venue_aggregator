@@ -122,7 +122,7 @@ public class PublicVendorService {
                         firstText(row.getPackageName(), "Starting package"),
                         firstText(row.getDescription(), ""),
                         firstNonNull(row.getPrice(), BigDecimal.ZERO),
-                        List.of()))
+                        row.getIncludes() == null ? List.of() : row.getIncludes()))
                 .toList();
 
         if (!packageRows.isEmpty()) {
