@@ -11,22 +11,26 @@ import com.staminal.venue.enums.SlotType;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
-    Optional<Booking> findByEnquiry_Id(Long enquiryId);
+        Optional<Booking> findByEnquiry_Id(Long enquiryId);
 
-    List<Booking> findByCustomer_IdOrderByEventDateDesc(Long customerId);
+        List<Booking> findByCustomer_IdOrderByEventDateDesc(Long customerId);
 
-    List<Booking> findByHall_IdOrderByEventDateDesc(Long hallId);
+        List<Booking> findByHall_IdOrderByEventDateDesc(Long hallId);
 
-    boolean existsByHall_IdAndEventDateAndSlotTypeAndStatus(
-            Long hallId,
-            LocalDate eventDate,
-            SlotType slotType,
-            BookingStatus status);
+        boolean existsByHall_IdAndEventDateAndSlotTypeAndStatus(
+                        Long hallId,
+                        LocalDate eventDate,
+                        SlotType slotType,
+                        BookingStatus status);
 
-    boolean existsByHall_IdAndEventDateAndSlotTypeAndStatusAndIdNot(
-            Long hallId,
-            LocalDate eventDate,
-            SlotType slotType,
-            BookingStatus status,
-            Long id);
+        boolean existsByHall_IdAndEventDateAndSlotTypeAndStatusAndIdNot(
+                        Long hallId,
+                        LocalDate eventDate,
+                        SlotType slotType,
+                        BookingStatus status,
+                        Long id);
+
+        List<Booking> findByHall_IdAndStatus(
+                        Long hallId,
+                        BookingStatus status);
 }

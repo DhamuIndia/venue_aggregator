@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.halls.Dto.BlockedDateResponse;
 import com.staminal.venue.halls.Dto.CreateBlockedDateRequest;
 import com.staminal.venue.halls.Entity.HallBlockedDate;
@@ -28,11 +29,40 @@ public class HallBlockedDateService {
     public BlockedDateResponse create(Long hallId, CreateBlockedDateRequest request, Authentication authentication) {
         Halls hall = findOwnedHall(hallId, authentication);
 
+        SlotType newSlot = SlotType.valueOf(request.getSlotType());
+
+        List<HallBlockedDate> existingBlocks = hallBlockedDateRepository
+                .findByHallId_Id(hallId)
+                .stream()
+                .filter(block -> block.getEventDate().equals(request.getEventDate()))
+                .toList();
+
+        for (HallBlockedDate block : existingBlocks) {
+
+            SlotType existingSlot = block.getSlotType();
+
+            if (existingSlot == newSlot) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This slot is already blocked");
+            }
+            if (existingSlot == SlotType.FULL_DAY) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Full day is already blocked");
+            }
+            if (newSlot == SlotType.FULL_DAY) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Morning/Evening slot already blocked");
+            }
+        }
+
         HallBlockedDate blockedDate = new HallBlockedDate();
 
         blockedDate.setHallId(hall);
         blockedDate.setEventDate(request.getEventDate());
-        blockedDate.setSlotType(request.getSlotType());
+        blockedDate.setSlotType(SlotType.valueOf(request.getSlotType()));
         blockedDate.setReason(request.getReason());
         blockedDate.setCreatedAt(LocalDateTime.now());
         hallBlockedDateRepository.save(blockedDate);
@@ -56,7 +86,7 @@ public class HallBlockedDateService {
         response.setId(blockedDate.getId());
         response.setHallId(blockedDate.getHallId().getId());
         response.setEventDate(blockedDate.getEventDate());
-        response.setSlotType(blockedDate.getSlotType());
+        response.setSlotType(blockedDate.getSlotType().name());
         response.setReason(blockedDate.getReason());
 
         return response;
