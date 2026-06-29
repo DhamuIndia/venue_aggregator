@@ -18,8 +18,11 @@ import com.staminal.venue.enquiries.Enquiry;
 import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.PaymentStatus;
+import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.halls.Entity.HallBlockedDate;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -34,6 +37,7 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final HallRepository hallRepository;
     private final UserRepository userRepository;
+    private final HallBlockedDateRepository hallBlockedDateRepository;
 
     @Transactional(readOnly = true)
     public BookingListResponse getCustomerBookings(Authentication authentication) {
@@ -115,6 +119,7 @@ public class BookingService {
     }
 
     private void ensureSlotStillAvailable(Booking booking) {
+
         boolean alreadyBooked = bookingRepository.existsByHall_IdAndEventDateAndSlotTypeAndStatusAndIdNot(
                 booking.getHall().getId(),
                 booking.getEventDate(),
@@ -123,7 +128,31 @@ public class BookingService {
                 booking.getId());
 
         if (alreadyBooked) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This hall slot is already booked");
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This hall slot is already booked");
+        }
+
+        List<HallBlockedDate> blockedDates = hallBlockedDateRepository.findByHallId_Id(
+                booking.getHall().getId());
+
+        for (HallBlockedDate blocked : blockedDates) {
+
+            if (!blocked.getEventDate().equals(booking.getEventDate())) {
+                continue;
+            }
+
+            SlotType blockedSlot = blocked.getSlotType();
+            SlotType bookingSlot = booking.getSlotType();
+
+            if (blockedSlot == SlotType.FULL_DAY
+                    || bookingSlot == SlotType.FULL_DAY
+                    || blockedSlot == bookingSlot) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This hall slot is blocked by the owner");
+            }
         }
     }
 
@@ -308,26 +337,26 @@ public class BookingService {
         return "ENQ-" + String.format("%06d", id);
     }
 
-    private String trimToNull(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
+    // private String trimToNull(String value) {
+    //     if (value == null || value.isBlank()) {
+    //         return null;
+    //     }
+    //     return value.trim();
+    // }
 
-    private String normalizePhone(String value) {
-        if (value == null) {
-            return null;
-        }
-        String digits = value.replaceAll("\\D", "");
-        if (digits.length() == 12 && digits.startsWith("91")) {
-            digits = digits.substring(2);
-        }
-        if (digits.length() == 11 && digits.startsWith("0")) {
-            digits = digits.substring(1);
-        }
-        return digits.isBlank() ? null : digits;
-    }
+    // private String normalizePhone(String value) {
+    //     if (value == null) {
+    //         return null;
+    //     }
+    //     String digits = value.replaceAll("\\D", "");
+    //     if (digits.length() == 12 && digits.startsWith("91")) {
+    //         digits = digits.substring(2);
+    //     }
+    //     if (digits.length() == 11 && digits.startsWith("0")) {
+    //         digits = digits.substring(1);
+    //     }
+    //     return digits.isBlank() ? null : digits;
+    // }
 
     private String slugify(String value) {
         if (value == null) {

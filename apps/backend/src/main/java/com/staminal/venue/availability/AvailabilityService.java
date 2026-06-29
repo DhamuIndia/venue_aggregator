@@ -4,15 +4,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.availability.Dto.AvailabilityResponse;
-import com.staminal.venue.availability.Dto.BlockedDateResponse;
 import com.staminal.venue.availability.Dto.BookingAvailabilityResponse;
 import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
 import com.staminal.venue.enums.BookingStatus;
+import com.staminal.venue.halls.Dto.BlockedDateResponse;
 import com.staminal.venue.halls.Entity.HallBlockedDate;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
@@ -103,13 +105,33 @@ public class AvailabilityService {
 
         private Halls getOwnerHall(Long hallId, Authentication authentication) {
 
-                Long userId = Long.valueOf(authentication.getName());
+                if (authentication == null || !authentication.isAuthenticated()) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.UNAUTHORIZED,
+                                        "Authentication required");
+                }
+
+                Long userId;
+
+                try {
+                        userId = Long.valueOf(authentication.getName());
+                } catch (NumberFormatException exception) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.UNAUTHORIZED,
+                                        "User session is invalid",
+                                        exception);
+                }
 
                 User owner = userRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("Owner not found"));
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.UNAUTHORIZED,
+                                                "User not found"));
 
                 return hallRepository.findById(hallId)
-                                .filter(hall -> hall.getOwnerUserId().getId().equals(owner.getId()))
-                                .orElseThrow(() -> new RuntimeException("Hall not found"));
+                                .filter(hall -> hall.getOwnerUserId() != null
+                                                && hall.getOwnerUserId().getId().equals(owner.getId()))
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.FORBIDDEN,
+                                                "Hall does not belong to this owner"));
         }
 }

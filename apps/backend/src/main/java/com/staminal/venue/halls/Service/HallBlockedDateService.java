@@ -9,6 +9,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.bookings.Booking;
+import com.staminal.venue.bookings.BookingRepository;
+import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.halls.Dto.BlockedDateResponse;
 import com.staminal.venue.halls.Dto.CreateBlockedDateRequest;
@@ -26,15 +29,49 @@ public class HallBlockedDateService {
     @Autowired
     private HallBlockedDateRepository hallBlockedDateRepository;
 
+    @Autowired
+    private BookingRepository bookingRepository;
+
     public BlockedDateResponse create(Long hallId, CreateBlockedDateRequest request, Authentication authentication) {
         Halls hall = findOwnedHall(hallId, authentication);
 
-        SlotType newSlot = SlotType.valueOf(request.getSlotType());
+        SlotType newSlot = SlotType.valueOf(request.getSlot());
+
+        List<Booking> confirmedBookings = bookingRepository
+                .findByHall_IdAndStatus(
+                        hallId,
+                        BookingStatus.CONFIRMED)
+                .stream()
+                .filter(booking -> booking.getEventDate().equals(request.getDate()))
+                .toList();
+
+        for (Booking booking : confirmedBookings) {
+
+            SlotType bookedSlot = booking.getSlotType();
+
+            if (bookedSlot == newSlot) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This slot is already booked");
+            }
+
+            if (bookedSlot == SlotType.FULL_DAY) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Hall is already booked for the full day");
+            }
+
+            if (newSlot == SlotType.FULL_DAY) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "A booking already exists on this date");
+            }
+        }
 
         List<HallBlockedDate> existingBlocks = hallBlockedDateRepository
                 .findByHallId_Id(hallId)
                 .stream()
-                .filter(block -> block.getEventDate().equals(request.getEventDate()))
+                .filter(block -> block.getEventDate().equals(request.getDate()))
                 .toList();
 
         for (HallBlockedDate block : existingBlocks) {
@@ -61,8 +98,8 @@ public class HallBlockedDateService {
         HallBlockedDate blockedDate = new HallBlockedDate();
 
         blockedDate.setHallId(hall);
-        blockedDate.setEventDate(request.getEventDate());
-        blockedDate.setSlotType(SlotType.valueOf(request.getSlotType()));
+        blockedDate.setEventDate(request.getDate());
+        blockedDate.setSlotType(SlotType.valueOf(request.getSlot()));
         blockedDate.setReason(request.getReason());
         blockedDate.setCreatedAt(LocalDateTime.now());
         hallBlockedDateRepository.save(blockedDate);
@@ -85,8 +122,8 @@ public class HallBlockedDateService {
 
         response.setId(blockedDate.getId());
         response.setHallId(blockedDate.getHallId().getId());
-        response.setEventDate(blockedDate.getEventDate());
-        response.setSlotType(blockedDate.getSlotType().name());
+        response.setDate(blockedDate.getEventDate());
+        response.setSlot(blockedDate.getSlotType().name());
         response.setReason(blockedDate.getReason());
 
         return response;

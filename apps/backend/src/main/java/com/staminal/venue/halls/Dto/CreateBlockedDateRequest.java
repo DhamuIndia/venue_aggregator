@@ -4,26 +4,26 @@ import java.time.LocalDate;
 
 public class CreateBlockedDateRequest {
 
-    private LocalDate eventDate;
+    private LocalDate date;
 
-    private String slotType;
+    private String slot;
 
     private String reason;
 
-    public LocalDate getEventDate() {
-        return eventDate;
+    public LocalDate getDate() {
+        return date;
     }
 
-    public void setEventDate(LocalDate eventDate) {
-        this.eventDate = eventDate;
+    public void setDate(LocalDate date) {
+        this.date = date;
     }
 
-    public String getSlotType() {
-        return slotType;
+    public String getSlot() {
+        return slot;
     }
 
-    public void setSlotType(String slotType) {
-        this.slotType = slotType;
+    public void setSlot(String slot) {
+        this.slot = slot;
     }
 
     public String getReason() {
