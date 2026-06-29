@@ -103,7 +103,8 @@ This stream can start with vendor APIs, then admin moderation. Keep admin mutati
 | P0 | `GET /vendor/profile`, `PUT /vendor/profile`, `POST /vendor/profile/submit` | `API_READY` | `/vendor`, `/vendor/onboarding` | `TODO` | Vendor can only edit own profile |
 | P1 | `GET /vendor/leads`, `GET /vendor/leads/{leadId}`, `PATCH /vendor/leads/{leadId}/status` | `TODO` | `/vendor?tab=leads` | `TODO` | Enforce valid lead transitions |
 | P1 | `GET /vendor/packages`, `POST /vendor/packages`, `PUT /vendor/packages/{packageId}`, `DELETE /vendor/packages/{packageId}` | `API_READY` | `/vendor?tab=services` | `TODO` | Package ownership derives from JWT; package inclusions are stored separately |
-| P2 | `POST /uploads/presign`, `GET /vendor/media`, `POST /vendor/media`, `PATCH /vendor/media/{mediaId}`, `DELETE /vendor/media/{mediaId}` | `TODO` | `/vendor?tab=portfolio` | `TODO` | Use `VENDOR_PORTFOLIO` purpose |
+| P2 | `GET /vendor/media`, `POST /vendor/media`, `PATCH /vendor/media/{mediaId}`, `DELETE /vendor/media/{mediaId}` | `API_READY` | `/vendor?tab=portfolio` | `TODO` | Portfolio metadata is owned by the logged-in vendor; cover updates normalize old cover |
+| P2 | `POST /uploads/presign` | `TODO` | `/vendor?tab=portfolio`, `/owner?tab=media` | `TODO` | Shared MinIO/S3 upload signing; use `VENDOR_PORTFOLIO` and `OWNER_HALL_MEDIA` purpose |
 | P2 | `GET /public/subscription-plans`, `GET /vendor/subscription`, `POST /vendor/subscription/orders`, `POST /vendor/subscription/verify` | `TODO` | `/vendor?tab=subscription` | `TODO` | Razorpay can be stubbed first |
 | P2 | `GET /vendor/reports/summary` | `TODO` | `/vendor?tab=reports` | `TODO` | Aggregated lead funnel |
 | P1 | `GET /admin/halls`, `PATCH /admin/halls/{hallId}/review` | `TODO` | `/admin?tab=venues` | `TODO` | Write audit event |
