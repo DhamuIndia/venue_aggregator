@@ -39,19 +39,23 @@ Use the authentication slice as the reference pattern for the next backend modul
 
 ## Test Login
 
-No real backend test user is seeded in the database yet.
+For API mode, login uses phone number and password. Local backend seed data can create one test user for each role:
 
-For API mode, create a user from the frontend register page or call `/api/v1/auth/register`. Login uses phone number and password.
+```bash
+cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/apps/backend
+mvn spring-boot:run -Dspring-boot.run.arguments=--app.seed.dev-data=true
+```
 
-Suggested local test account:
+Seeded local test accounts:
 
 ```text
-Role: CUSTOMER
-Full name: Test Customer
-Phone: 9876543210
-Email: test.customer@example.com
-Password: Password123
+CUSTOMER: 9876543210 / Password123
+HALL_OWNER: 9876501234 / Password123
+VENDOR: 9884012345 / Password123
+ADMIN: 9000000001 / Password123
 ```
+
+The seed switch is disabled by default. It can also be enabled with `APP_SEED_DEV_DATA=true`.
 
 Mock mode is frontend-only. If `NEXT_PUBLIC_AUTH_MODE=mock`, the demo buttons use these phone numbers:
 

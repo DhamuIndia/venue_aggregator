@@ -37,6 +37,13 @@ cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/apps/backend
 mvn spring-boot:run
 ```
 
+Start backend with local seed data:
+
+```bash
+cd /Users/dhamodharanr/Documents/VENUE_AGGREGATOR/apps/backend
+mvn spring-boot:run -Dspring-boot.run.arguments=--app.seed.dev-data=true
+```
+
 Start frontend:
 
 ```bash
@@ -54,14 +61,14 @@ Swagger/OpenAPI: http://localhost:8080/swagger-ui.html
 
 ## Test Users
 
-Seed or create one user for each role before integration QA.
+Run the backend with `--app.seed.dev-data=true` once after a local database reset.
 
 | Role | Phone | Password | Status |
 | --- | --- | --- | --- |
-| `CUSTOMER` | `9876543210` | `Password123` | `TODO` |
-| `HALL_OWNER` | `9876501234` | `Password123` | `TODO` |
-| `VENDOR` | `9884012345` | `Password123` | `TODO` |
-| `ADMIN` | `9000000001` | `Password123` | `TODO` |
+| `CUSTOMER` | `9876543210` | `Password123` | `SEEDED` |
+| `HALL_OWNER` | `9876501234` | `Password123` | `SEEDED` |
+| `VENDOR` | `9884012345` | `Password123` | `SEEDED` |
+| `ADMIN` | `9000000001` | `Password123` | `SEEDED` |
 
 ## Stream 1: Auth, Public Discovery, Customer
 
@@ -124,7 +131,7 @@ These are tasks we can handle while backend streams are moving.
 | --- | --- | --- |
 | Keep frontend API adapters aligned to the contract | `ONGOING` | Small field-name adapters only |
 | Add missing loading/error states discovered during QA | `TODO` | Fix only when real backend exposes gaps |
-| Create seed-data checklist for demos | `TODO` | Customer, owner, vendor, admin |
+| Create seed-data checklist for demos | `DONE` | Use `--app.seed.dev-data=true` after local DB reset |
 | Run module smoke tests after each backend PR | `TODO` | Use the frontend screens listed above |
 | Update contract when a backend constraint changes | `ONGOING` | Contract first, code second |
 
