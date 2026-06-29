@@ -64,6 +64,8 @@ public class SecurityConfig {
                                                                 "/v1/auth/login",
                                                                 "/v1/auth/refresh")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/v1/vendor/login")
+                                                .permitAll()
                                                 .requestMatchers(
                                                                 "/actuator/health",
                                                                 "/docs",
@@ -71,6 +73,8 @@ public class SecurityConfig {
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html",
                                                                 "/v3/api-docs/**")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/v1/public/**")
                                                 .permitAll()
                                                 .requestMatchers(
                                                                 "/admin",
@@ -88,9 +92,9 @@ public class SecurityConfig {
                                                                 "/users/decoration",
                                                                 "/users/catering")
                                                 .permitAll()
-                                                .requestMatchers("/admin/**")
-                                                .hasRole("ADMIN")
-                                                .requestMatchers("/vendors/**")
+                                                .requestMatchers("/v1/admin/**", "/admin/**")
+                                                .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                                                .requestMatchers("/v1/vendor/**", "/vendor/**")
                                                 .hasRole("VENDOR")
                                                 .requestMatchers("/v1/owner/**").hasRole("HALL_OWNER")
                                                 .requestMatchers("/v1/admin/**").hasRole("ADMIN")

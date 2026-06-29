@@ -5,9 +5,9 @@ import java.time.LocalDate;
 
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.SlotType;
+import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Entity.Vendors;
-import com.staminal.venue.vendors.Hall.VendorHallDetails;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -34,7 +34,7 @@ public class Enquiry {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hall_id")
-    private VendorHallDetails hall;
+    private Halls hall;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vendor_id")
@@ -109,11 +109,11 @@ public class Enquiry {
         this.id = id;
     }
 
-    public VendorHallDetails getHall() {
+    public Halls getHall() {
         return hall;
     }
 
-    public void setHall(VendorHallDetails hall) {
+    public void setHall(Halls hall) {
         this.hall = hall;
     }
 

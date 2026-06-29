@@ -8,8 +8,8 @@ import com.staminal.venue.enquiries.Enquiry;
 import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
+import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.users.Entity.User;
-import com.staminal.venue.vendors.Hall.VendorHallDetails;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,7 +39,7 @@ public class Booking {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hall_id")
-    private VendorHallDetails hall;
+    private Halls hall;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "enquiry_id")
@@ -115,11 +115,11 @@ public class Booking {
         this.id = id;
     }
 
-    public VendorHallDetails getHall() {
+    public Halls getHall() {
         return hall;
     }
 
-    public void setHall(VendorHallDetails hall) {
+    public void setHall(Halls hall) {
         this.hall = hall;
     }
 

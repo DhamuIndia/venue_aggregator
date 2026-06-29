@@ -70,12 +70,12 @@ Recommended first stream because it unlocks login, browsing, enquiry creation, a
 | Priority | Endpoint Group | Backend Status | Frontend Screen | Frontend Status | Notes |
 | --- | --- | --- | --- | --- | --- |
 | P0 | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/refresh`, `POST /auth/logout` | `API_READY` | `/auth/login`, `/auth/register` | `FRONTEND_VERIFIED` | Use auth pattern runbook |
-| P0 | `GET /public/halls`, `GET /public/halls/{hallId}` | `TODO` | `/`, `/halls/{id}` | `TODO` | Public approved halls only |
-| P0 | `GET /public/vendors`, `GET /public/vendors/{vendorId}` | `TODO` | `/vendors`, `/vendors/{id}` | `TODO` | Public approved vendors only |
-| P1 | `POST /public/enquiries` | `API_READY` | Hall detail enquiry form | `TODO` | Logged-in customer only; accepts numeric hall id or frontend slug; creates `PENDING_OWNER_RESPONSE` enquiry |
+| P0 | `GET /public/halls`, `GET /public/halls/{hallId}` | `API_READY` | `/`, `/halls/{id}` | `TODO` | Public approved halls only; supports search/filter/sort/page |
+| P0 | `GET /public/vendors`, `GET /public/vendors/{vendorId}` | `API_READY` | `/vendors`, `/vendors/{id}` | `TODO` | Public approved vendors only; supports search/filter/sort/page |
+| P1 | `POST /public/enquiries` | `API_READY` | Hall detail enquiry form | `TODO` | Logged-in customer only; uses new `halls` table; accepts numeric hall id or frontend slug; creates `PENDING_OWNER_RESPONSE` enquiry |
 | P1 | `GET /customer/enquiries`, `GET /customer/enquiries/{enquiryId}` | `API_READY` | `/customer?tab=enquiries` | `TODO` | Customer can only see own records |
 | P1 | `GET /customer/bookings`, `GET /customer/bookings/{bookingId}` | `API_READY` | `/customer?tab=bookings` | `TODO` | Includes booking/payment status; Razorpay endpoints remain separate |
-| P2 | `GET /customer/saved-halls`, `PUT /customer/saved-halls/{hallId}`, `DELETE /customer/saved-halls/{hallId}` | `TODO` | `/customer?tab=saved` | `TODO` | PUT/DELETE must be idempotent |
+| P2 | `GET /customer/saved-halls`, `PUT /customer/saved-halls/{hallId}`, `DELETE /customer/saved-halls/{hallId}` | `API_READY` | `/customer?tab=saved` | `TODO` | CUSTOMER only; approved halls only; PUT/DELETE are idempotent |
 | P2 | `GET /customer/review-eligibility`, `POST /customer/reviews`, `PUT /customer/reviews/{reviewId}` | `TODO` | `/customer?tab=reviews` | `TODO` | Only completed bookings are eligible |
 | P3 | `POST /customer/bookings/{bookingId}/payments/advance-order`, `POST /customer/bookings/{bookingId}/payments/verify` | `TODO` | `/customer?tab=bookings` | `TODO` | Razorpay can be stubbed first |
 
@@ -85,10 +85,10 @@ This stream owns hall-owner workflows and should verify every action with the ow
 
 | Priority | Endpoint Group | Backend Status | Frontend Screen | Frontend Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| P0 | `GET /owner/halls`, `POST /owner/halls`, `GET /owner/halls/{hallId}`, `PUT /owner/halls/{hallId}` | `TODO` | `/owner`, `/owner?tab=listing`, `/owner/onboarding` | `TODO` | Listing data must belong to logged-in owner |
-| P0 | `POST /owner/halls/{hallId}/submit` | `TODO` | `/owner?tab=listing` | `TODO` | Returns `PENDING_APPROVAL` |
-| P1 | `GET /owner/halls/{hallId}/enquiries`, `PATCH /owner/enquiries/{enquiryId}/status` | `API_READY` | `/owner?tab=enquiries` | `TODO` | Confirm creates or activates booking; decline and completion transitions enforced |
-| P1 | `GET /owner/halls/{hallId}/bookings`, `PATCH /owner/bookings/{bookingId}/status` | `API_READY` | `/owner?tab=bookings` | `TODO` | Complete booking unlocks review eligibility; cancellation transition enforced |
+| P0 | `GET /owner/halls`, `POST /owner/halls`, `GET /owner/halls/{hallId}`, `PUT /owner/halls/{hallId}` | `API_READY` | `/owner`, `/owner?tab=listing`, `/owner/onboarding` | `TODO` | Listing data belongs to logged-in owner; path `hallId` is enforced |
+| P0 | `POST /owner/halls/{hallId}/submit` | `API_READY` | `/owner?tab=listing` | `TODO` | Returns `PENDING_APPROVAL` |
+| P1 | `GET /owner/halls/{hallId}/enquiries`, `PATCH /owner/enquiries/{enquiryId}/status` | `API_READY` | `/owner?tab=enquiries` | `TODO` | Uses new `halls` table; confirm creates or activates booking; decline and completion transitions enforced |
+| P1 | `GET /owner/halls/{hallId}/bookings`, `PATCH /owner/bookings/{bookingId}/status` | `API_READY` | `/owner?tab=bookings` | `TODO` | Uses new `halls` table; complete booking unlocks review eligibility; cancellation transition enforced |
 | P1 | `GET /owner/halls/{hallId}/availability`, `POST /owner/halls/{hallId}/blocked-dates`, `DELETE /owner/halls/{hallId}/blocked-dates/{blockId}` | `TODO` | `/owner?tab=availability` | `TODO` | Prevent date/slot conflicts |
 | P2 | `POST /uploads/presign`, `POST /owner/halls/{hallId}/media`, `PATCH /owner/halls/{hallId}/media/{mediaId}`, `DELETE /owner/halls/{hallId}/media/{mediaId}` | `TODO` | `/owner?tab=media` | `TODO` | Use `OWNER_HALL_MEDIA` purpose |
 | P2 | `GET /owner/halls/{hallId}/reviews` | `TODO` | `/owner?tab=reviews` | `TODO` | Verified customer reviews |
@@ -100,14 +100,14 @@ This stream can start with vendor APIs, then admin moderation. Keep admin mutati
 
 | Priority | Endpoint Group | Backend Status | Frontend Screen | Frontend Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| P0 | `GET /vendor/profile`, `PUT /vendor/profile`, `POST /vendor/profile/submit` | `TODO` | `/vendor`, `/vendor/onboarding` | `TODO` | Vendor can only edit own profile |
+| P0 | `GET /vendor/profile`, `PUT /vendor/profile`, `POST /vendor/profile/submit` | `API_READY` | `/vendor`, `/vendor/onboarding` | `TODO` | Vendor can only edit own profile |
 | P1 | `GET /vendor/leads`, `GET /vendor/leads/{leadId}`, `PATCH /vendor/leads/{leadId}/status` | `TODO` | `/vendor?tab=leads` | `TODO` | Enforce valid lead transitions |
 | P1 | `GET /vendor/packages`, `POST /vendor/packages`, `PUT /vendor/packages/{packageId}`, `DELETE /vendor/packages/{packageId}` | `TODO` | `/vendor?tab=services` | `TODO` | Package ownership required |
 | P2 | `POST /uploads/presign`, `GET /vendor/media`, `POST /vendor/media`, `PATCH /vendor/media/{mediaId}`, `DELETE /vendor/media/{mediaId}` | `TODO` | `/vendor?tab=portfolio` | `TODO` | Use `VENDOR_PORTFOLIO` purpose |
 | P2 | `GET /public/subscription-plans`, `GET /vendor/subscription`, `POST /vendor/subscription/orders`, `POST /vendor/subscription/verify` | `TODO` | `/vendor?tab=subscription` | `TODO` | Razorpay can be stubbed first |
 | P2 | `GET /vendor/reports/summary` | `TODO` | `/vendor?tab=reports` | `TODO` | Aggregated lead funnel |
 | P1 | `GET /admin/halls`, `PATCH /admin/halls/{hallId}/review` | `TODO` | `/admin?tab=venues` | `TODO` | Write audit event |
-| P1 | `GET /admin/vendors`, `PATCH /admin/vendors/{vendorId}/review` | `TODO` | `/admin?tab=vendors` | `TODO` | Write audit event |
+| P1 | `GET /admin/vendors`, `PATCH /admin/vendors/{vendorId}/review` | `API_READY` | `/admin?tab=vendors` | `TODO` | Stores reviewer metadata; full immutable audit stream remains separate |
 | P2 | `GET /admin/users`, `PATCH /admin/users/{userId}/status` | `TODO` | `/admin?tab=users` | `TODO` | Protect admin/super-admin rules |
 | P2 | `GET /admin/reviews`, `PATCH /admin/reviews/{reviewId}/moderation` | `TODO` | `/admin?tab=reviews` | `TODO` | Preserve verified review history |
 | P2 | `GET /admin/enquiries`, `GET /admin/audit-events` | `TODO` | `/admin?tab=enquiries` | `TODO` | Support/admin visibility |

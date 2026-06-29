@@ -28,14 +28,14 @@ import com.staminal.venue.bookings.dto.UpdateBookingStatusRequest;
 import com.staminal.venue.enquiries.Enquiry;
 import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.EnquiryStatus;
+import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
-import com.staminal.venue.vendors.Entity.Vendors;
-import com.staminal.venue.vendors.Hall.VendorHallDetails;
-import com.staminal.venue.vendors.Hall.VendorHallRepository;
 
 @ExtendWith(MockitoExtension.class)
 class BookingServiceTest {
@@ -44,7 +44,7 @@ class BookingServiceTest {
     private BookingRepository bookingRepository;
 
     @Mock
-    private VendorHallRepository vendorHallRepository;
+    private HallRepository hallRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -53,7 +53,7 @@ class BookingServiceTest {
 
     @BeforeEach
     void setUp() {
-        bookingService = new BookingService(bookingRepository, vendorHallRepository, userRepository);
+        bookingService = new BookingService(bookingRepository, hallRepository, userRepository);
     }
 
     @Test
@@ -68,7 +68,7 @@ class BookingServiceTest {
         assertThat(response.total()).isEqualTo(1);
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).id()).isEqualTo("BOOK-000088");
-        assertThat(response.items().get(0).hallId()).isEqualTo("emerald-convention-centre");
+        assertThat(response.items().get(0).hallId()).isEqualTo("201");
         assertThat(response.items().get(0).paymentStatus()).isEqualTo(PaymentStatus.ADVANCE_PENDING);
     }
 
@@ -152,17 +152,17 @@ class BookingServiceTest {
         return enquiry;
     }
 
-    private VendorHallDetails hall() {
-        Vendors vendor = new Vendors();
-        vendor.setId(77L);
-        vendor.setBusinessName("Emerald Convention Centre");
-        vendor.setEmail("owner@example.com");
-        vendor.setContactNumber("9876501234");
-
-        VendorHallDetails hall = new VendorHallDetails();
+    private Halls hall() {
+        Halls hall = new Halls();
         hall.setId(201L);
-        hall.setVendor(vendor);
-        hall.setAmount(new BigDecimal("125000.00"));
+        hall.setName("Emerald Convention Centre");
+        hall.setOwnerUserId(owner());
+        hall.setCity("Chennai");
+        hall.setArea("ECR");
+        hall.setCapacityMax(900);
+        hall.setHallType("MARRIAGE_HALL");
+        hall.setFullDayAmount(new BigDecimal("125000.00"));
+        hall.setStatus(HallStatus.APPROVED);
         return hall;
     }
 
