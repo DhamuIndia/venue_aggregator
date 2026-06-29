@@ -76,16 +76,92 @@ public class HallsService {
     }
 
     public HallResponse submitHall(String hallId, Authentication authentication) {
+
         Halls hall = findOwnedHall(hallId, authentication);
+
         if (hall.getStatus() == HallStatus.APPROVED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Approved hall is already live");
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Approved hall is already live");
         }
+
+        validateHallForSubmission(hall);
 
         hall.setStatus(HallStatus.PENDING_APPROVAL);
         hall.setRejectionReason(null);
         hall.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(hallRepository.save(hall), false);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private void validateHallForSubmission(Halls hall) {
+
+        if (isBlank(hall.getName())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Hall name is required");
+        }
+
+        if (isBlank(hall.getDescription())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Description is required");
+        }
+
+        if (isBlank(hall.getAddressLine())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Address is required");
+        }
+
+        if (isBlank(hall.getCity())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "City is required");
+        }
+
+        if (isBlank(hall.getArea())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Area is required");
+        }
+
+        if (hall.getCapacityMax() == null || hall.getCapacityMax() <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Capacity is required");
+        }
+
+        if (isBlank(hall.getHallType())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Venue type is required");
+        }
+
+        if (isBlank(hall.getContactNumber())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Contact number is required");
+        }
+
+        if (hall.getMorningAmount() == null
+                && hall.getEveningAmount() == null
+                && hall.getFullDayAmount() == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Pricing is required");
+        }
+
+        if (isBlank(hall.getCoverImageUrl())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cover image is required");
+        }
     }
 
     public HallListResponse searchPublicHalls(
@@ -405,7 +481,8 @@ public class HallsService {
         if ("CAPACITY_DESC".equals(normalized)) {
             return Comparator.comparingInt(this::capacity).reversed();
         }
-        return Comparator.comparing((Halls hall) -> Boolean.TRUE.equals(hall.getRatings() != null && hall.getRatings() > 0))
+        return Comparator
+                .comparing((Halls hall) -> Boolean.TRUE.equals(hall.getRatings() != null && hall.getRatings() > 0))
                 .reversed()
                 .thenComparing(this::rating, Comparator.reverseOrder())
                 .thenComparing(Halls::getId);

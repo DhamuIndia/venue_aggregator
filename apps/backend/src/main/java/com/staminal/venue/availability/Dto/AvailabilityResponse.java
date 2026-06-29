@@ -2,6 +2,8 @@ package com.staminal.venue.availability.Dto;
 
 import java.util.List;
 
+import com.staminal.venue.halls.Dto.BlockedDateResponse;
+
 public class AvailabilityResponse {
 
     private List<BlockedDateResponse> blockedDates;
