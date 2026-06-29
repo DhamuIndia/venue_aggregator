@@ -71,7 +71,7 @@ Recommended first stream because it unlocks login, browsing, enquiry creation, a
 | --- | --- | --- | --- | --- | --- |
 | P0 | `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `POST /auth/refresh`, `POST /auth/logout` | `API_READY` | `/auth/login`, `/auth/register` | `FRONTEND_VERIFIED` | Use auth pattern runbook |
 | P0 | `GET /public/halls`, `GET /public/halls/{hallId}` | `API_READY` | `/`, `/halls/{id}` | `TODO` | Public approved halls only; supports search/filter/sort/page |
-| P0 | `GET /public/vendors`, `GET /public/vendors/{vendorId}` | `TODO` | `/vendors`, `/vendors/{id}` | `TODO` | Public approved vendors only |
+| P0 | `GET /public/vendors`, `GET /public/vendors/{vendorId}` | `API_READY` | `/vendors`, `/vendors/{id}` | `TODO` | Public approved vendors only; supports search/filter/sort/page |
 | P1 | `POST /public/enquiries` | `API_READY` | Hall detail enquiry form | `TODO` | Logged-in customer only; uses new `halls` table; accepts numeric hall id or frontend slug; creates `PENDING_OWNER_RESPONSE` enquiry |
 | P1 | `GET /customer/enquiries`, `GET /customer/enquiries/{enquiryId}` | `API_READY` | `/customer?tab=enquiries` | `TODO` | Customer can only see own records |
 | P1 | `GET /customer/bookings`, `GET /customer/bookings/{bookingId}` | `API_READY` | `/customer?tab=bookings` | `TODO` | Includes booking/payment status; Razorpay endpoints remain separate |
@@ -100,7 +100,7 @@ This stream can start with vendor APIs, then admin moderation. Keep admin mutati
 
 | Priority | Endpoint Group | Backend Status | Frontend Screen | Frontend Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| P0 | `GET /vendor/profile`, `PUT /vendor/profile`, `POST /vendor/profile/submit` | `TODO` | `/vendor`, `/vendor/onboarding` | `TODO` | Vendor can only edit own profile |
+| P0 | `GET /vendor/profile`, `PUT /vendor/profile`, `POST /vendor/profile/submit` | `API_READY` | `/vendor`, `/vendor/onboarding` | `TODO` | Vendor can only edit own profile |
 | P1 | `GET /vendor/leads`, `GET /vendor/leads/{leadId}`, `PATCH /vendor/leads/{leadId}/status` | `TODO` | `/vendor?tab=leads` | `TODO` | Enforce valid lead transitions |
 | P1 | `GET /vendor/packages`, `POST /vendor/packages`, `PUT /vendor/packages/{packageId}`, `DELETE /vendor/packages/{packageId}` | `TODO` | `/vendor?tab=services` | `TODO` | Package ownership required |
 | P2 | `POST /uploads/presign`, `GET /vendor/media`, `POST /vendor/media`, `PATCH /vendor/media/{mediaId}`, `DELETE /vendor/media/{mediaId}` | `TODO` | `/vendor?tab=portfolio` | `TODO` | Use `VENDOR_PORTFOLIO` purpose |
