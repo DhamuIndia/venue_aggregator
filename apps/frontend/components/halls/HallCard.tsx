@@ -17,6 +17,8 @@ function formatPrice(value: number) {
 }
 
 export function HallCard({ hall, initialSaved, onSavedChange }: HallCardProps) {
+  console.log(hall);
+  console.log("Image URL:", hall.imageUrl);
   return (
     <article className="group overflow-hidden rounded-lg border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">

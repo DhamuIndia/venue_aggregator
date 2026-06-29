@@ -3,8 +3,12 @@ package com.staminal.venue.halls.Entity;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import com.staminal.venue.enums.SlotType;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -27,8 +31,9 @@ public class HallBlockedDate {
     @Column(name="event_date")
     private LocalDate eventDate;
 
+    @Enumerated(EnumType.STRING)
     @Column(name="slot_type")
-    private String slotType;
+    private SlotType slotType;
 
     String reason;
 
@@ -59,11 +64,11 @@ public class HallBlockedDate {
         this.eventDate = eventDate;
     }
 
-    public String getSlotType() {
+    public SlotType getSlotType() {
         return slotType;
     }
 
-    public void setSlotType(String slotType) {
+    public void setSlotType(SlotType slotType) {
         this.slotType = slotType;
     }
 
