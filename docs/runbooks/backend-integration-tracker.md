@@ -107,7 +107,7 @@ This stream can start with vendor APIs, then admin moderation. Keep admin mutati
 | P2 | `GET /public/subscription-plans`, `GET /vendor/subscription`, `POST /vendor/subscription/orders`, `POST /vendor/subscription/verify` | `TODO` | `/vendor?tab=subscription` | `TODO` | Razorpay can be stubbed first |
 | P2 | `GET /vendor/reports/summary` | `TODO` | `/vendor?tab=reports` | `TODO` | Aggregated lead funnel |
 | P1 | `GET /admin/halls`, `PATCH /admin/halls/{hallId}/review` | `TODO` | `/admin?tab=venues` | `TODO` | Write audit event |
-| P1 | `GET /admin/vendors`, `PATCH /admin/vendors/{vendorId}/review` | `TODO` | `/admin?tab=vendors` | `TODO` | Write audit event |
+| P1 | `GET /admin/vendors`, `PATCH /admin/vendors/{vendorId}/review` | `API_READY` | `/admin?tab=vendors` | `TODO` | Stores reviewer metadata; full immutable audit stream remains separate |
 | P2 | `GET /admin/users`, `PATCH /admin/users/{userId}/status` | `TODO` | `/admin?tab=users` | `TODO` | Protect admin/super-admin rules |
 | P2 | `GET /admin/reviews`, `PATCH /admin/reviews/{reviewId}/moderation` | `TODO` | `/admin?tab=reviews` | `TODO` | Preserve verified review history |
 | P2 | `GET /admin/enquiries`, `GET /admin/audit-events` | `TODO` | `/admin?tab=enquiries` | `TODO` | Support/admin visibility |

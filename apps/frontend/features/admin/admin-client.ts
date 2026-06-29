@@ -30,20 +30,16 @@ type AdminQueueResult = {
 export async function getAdminQueues(accessToken?: string | null): Promise<AdminQueueResult> {
   if (useMockAdmin || !accessToken) return mockResult();
 
-  try {
-    const [venues, vendors, reviews, enquiries, users, events] = await Promise.all([
-      getAdminVenues(accessToken),
-      getAdminVendors(accessToken),
-      getAdminReviews(accessToken),
-      getAdminEnquiries(accessToken),
-      getAdminUsers(accessToken),
-      getAdminAuditEvents(accessToken)
-    ]);
+  const [venues, vendors, reviews, enquiries, users, events] = await Promise.all([
+    getAdminVenues(accessToken).catch(() => initialVenueApplications),
+    getAdminVendors(accessToken).catch(() => initialVendorApplications),
+    getAdminReviews(accessToken).catch(() => initialReportedReviews),
+    getAdminEnquiries(accessToken).catch(() => adminEnquiries),
+    getAdminUsers(accessToken).catch(() => adminUsers),
+    getAdminAuditEvents(accessToken).catch(() => auditEvents)
+  ]);
 
-    return { venues, vendors, reviews, enquiries, users, auditEvents: events, source: "api" };
-  } catch {
-    return mockResult();
-  }
+  return { venues, vendors, reviews, enquiries, users, auditEvents: events, source: "api" };
 }
 
 export async function reviewAdminHall(id: string, decision: Exclude<ModerationStatus, "PENDING_APPROVAL">, reason: string, accessToken?: string | null) {
@@ -121,37 +117,37 @@ export async function updateAdminUserStatus(id: string, status: Exclude<AdminUse
 async function getAdminVenues(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/halls?status=PENDING_APPROVAL", { token: accessToken });
   const venues = extractList(response).map(toVenueApplication).filter(Boolean) as VenueApplication[];
-  return venues.length ? venues : initialVenueApplications;
+  return venues;
 }
 
 async function getAdminVendors(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/vendors?status=PENDING_APPROVAL", { token: accessToken });
   const vendors = extractList(response).map(toVendorApplication).filter(Boolean) as VendorApplication[];
-  return vendors.length ? vendors : initialVendorApplications;
+  return vendors;
 }
 
 async function getAdminReviews(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/reviews?status=REPORTED", { token: accessToken });
   const reviews = extractList(response).map(toReportedReview).filter(Boolean) as ReportedReview[];
-  return reviews.length ? reviews : initialReportedReviews;
+  return reviews;
 }
 
 async function getAdminEnquiries(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/enquiries", { token: accessToken });
   const enquiries = extractList(response).map(toAdminEnquiry).filter(Boolean) as AdminEnquiry[];
-  return enquiries.length ? enquiries : adminEnquiries;
+  return enquiries;
 }
 
 async function getAdminUsers(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/users", { token: accessToken });
   const users = extractList(response).map(toAdminUser).filter(Boolean) as AdminUser[];
-  return users.length ? users : adminUsers;
+  return users;
 }
 
 async function getAdminAuditEvents(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/audit-events", { token: accessToken });
   const events = extractList(response).map(toAuditEvent).filter(Boolean) as typeof auditEvents;
-  return events.length ? events : auditEvents;
+  return events;
 }
 
 function mockResult(): AdminQueueResult {
