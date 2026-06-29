@@ -62,6 +62,15 @@ cd apps/backend
 mvn spring-boot:run
 ```
 
+Backend with local test users and sample Chennai listings:
+
+```bash
+cd apps/backend
+mvn spring-boot:run -Dspring-boot.run.arguments=--app.seed.dev-data=true
+```
+
+Seeded logins use password `Password123`: customer `9876543210`, owner `9876501234`, vendor `9884012345`, admin `9000000001`.
+
 Database:
 
 ```bash
