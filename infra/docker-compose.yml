@@ -40,6 +40,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-venue_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-venue_minio_password}
       MINIO_BUCKET: ${MINIO_BUCKET:-venue-media}
+    volumes:
+      - ./minio-cors.local.json:/tmp/minio-cors.json:ro
     entrypoint: >
       /bin/sh -c "
       until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do
@@ -48,6 +50,7 @@ services:
       done;
       mc mb --ignore-existing local/$$MINIO_BUCKET;
       mc anonymous set download local/$$MINIO_BUCKET;
+      mc cors set local/$$MINIO_BUCKET /tmp/minio-cors.json;
       "
 
 volumes:
