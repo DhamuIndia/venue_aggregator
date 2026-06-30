@@ -18,7 +18,7 @@ import com.staminal.venue.admin.Service.AdminHallService;
 import com.staminal.venue.enums.HallStatus;
 
 @RestController
-@RequestMapping("/v1/admin/halls")
+@RequestMapping("/v1/admin/hall")
 public class AdminHallController {
 
     @Autowired
