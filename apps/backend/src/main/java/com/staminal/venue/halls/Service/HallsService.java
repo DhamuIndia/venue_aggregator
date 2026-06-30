@@ -112,11 +112,11 @@ public class HallsService {
                     "Description is required");
         }
 
-        if (isBlank(hall.getAddressLine())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Address is required");
-        }
+        // if (isBlank(hall.getAddressLine())) {
+        //     throw new ResponseStatusException(
+        //             HttpStatus.BAD_REQUEST,
+        //             "Address is required");
+        // }
 
         if (isBlank(hall.getCity())) {
             throw new ResponseStatusException(
@@ -142,11 +142,11 @@ public class HallsService {
                     "Venue type is required");
         }
 
-        if (isBlank(hall.getContactNumber())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Contact number is required");
-        }
+        // if (isBlank(hall.getContactNumber())) {
+        //     throw new ResponseStatusException(
+        //             HttpStatus.BAD_REQUEST,
+        //             "Contact number is required");
+        // }
 
         if (hall.getMorningAmount() == null
                 && hall.getEveningAmount() == null
@@ -157,11 +157,11 @@ public class HallsService {
                     "Pricing is required");
         }
 
-        if (isBlank(hall.getCoverImageUrl())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Cover image is required");
-        }
+        // if (isBlank(hall.getCoverImageUrl())) {
+        //     throw new ResponseStatusException(
+        //             HttpStatus.BAD_REQUEST,
+        //             "Cover image is required");
+        // }
     }
 
     public HallListResponse searchPublicHalls(

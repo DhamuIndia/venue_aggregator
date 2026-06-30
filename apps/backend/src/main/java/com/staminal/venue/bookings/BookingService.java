@@ -337,27 +337,6 @@ public class BookingService {
         return "ENQ-" + String.format("%06d", id);
     }
 
-    // private String trimToNull(String value) {
-    //     if (value == null || value.isBlank()) {
-    //         return null;
-    //     }
-    //     return value.trim();
-    // }
-
-    // private String normalizePhone(String value) {
-    //     if (value == null) {
-    //         return null;
-    //     }
-    //     String digits = value.replaceAll("\\D", "");
-    //     if (digits.length() == 12 && digits.startsWith("91")) {
-    //         digits = digits.substring(2);
-    //     }
-    //     if (digits.length() == 11 && digits.startsWith("0")) {
-    //         digits = digits.substring(1);
-    //     }
-    //     return digits.isBlank() ? null : digits;
-    // }
-
     private String slugify(String value) {
         if (value == null) {
             return "";

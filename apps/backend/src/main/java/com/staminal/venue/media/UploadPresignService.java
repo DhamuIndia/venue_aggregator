@@ -24,6 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import com.staminal.venue.enums.UserRole;
 
@@ -42,6 +43,7 @@ public class UploadPresignService {
     private final UploadStorageProperties properties;
     private final Clock clock;
 
+    @Autowired
     public UploadPresignService(UploadStorageProperties properties) {
         this(properties, Clock.systemUTC());
     }
