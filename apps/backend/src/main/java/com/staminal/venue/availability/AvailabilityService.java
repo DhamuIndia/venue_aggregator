@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.availability.Dto.AvailabilityResponse;
+import com.staminal.venue.availability.Dto.AvailabilitySummary;
 import com.staminal.venue.availability.Dto.BookingAvailabilityResponse;
 import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
@@ -133,5 +134,16 @@ public class AvailabilityService {
                                 .orElseThrow(() -> new ResponseStatusException(
                                                 HttpStatus.FORBIDDEN,
                                                 "Hall does not belong to this owner"));
+        }
+
+        public AvailabilitySummary getAvailabilitySummary(Long hallId) {
+
+                AvailabilitySummary summary = new AvailabilitySummary();
+
+                summary.setAvailableDays(25);
+                summary.setBookedDays(5);
+                summary.setTotalDays(30);
+
+                return summary;
         }
 }

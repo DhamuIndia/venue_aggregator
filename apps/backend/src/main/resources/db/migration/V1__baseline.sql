@@ -299,6 +299,21 @@ create table payments (
     created_at timestamptz not null default now()
 );
 
+CREATE TABLE reviews (
+    id BIGSERIAL PRIMARY KEY,
+    booking_id BIGINT NOT NULL REFERENCES bookings(id),
+    enquiry_id BIGINT NOT NULL REFERENCES enquiries(id),
+    hall_id BIGINT NOT NULL REFERENCES halls(id),
+    customer_user_id BIGINT NOT NULL REFERENCES users(id),
+    rating INTEGER NOT NULL,
+    comment VARCHAR(500) NOT NULL,
+    verified_service BOOLEAN NOT NULL DEFAULT TRUE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_review_per_enquiry UNIQUE(enquiry_id)
+);
+
 create table vendor_media (
     id bigserial primary key,
     vendor_id bigint not null references vendors(id),
