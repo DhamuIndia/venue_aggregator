@@ -1,15 +1,22 @@
 "use client";
 
-import { Building2, Heart, LayoutDashboard, ShieldCheck, Store, UserRound } from "lucide-react";
+import { Building2, Heart, LayoutDashboard, LogOut, ShieldCheck, Store, UserRound } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { NotificationBell } from "@/components/notifications/NotificationCenter";
 
 export function SiteHeader() {
-  const { isLoading, user } = useAuth();
+  const { isLoading, logout, user } = useAuth();
+  const router = useRouter();
   const accountHref = user?.role === "ADMIN" ? "/admin" : user?.role === "VENDOR" ? "/vendor" : user?.role === "HALL_OWNER" ? "/owner" : "/customer";
   const workspaceHref = user?.role === "ADMIN" ? "/admin" : user?.role === "VENDOR" ? "/vendor" : user?.role === "HALL_OWNER" ? "/owner" : "/auth/login?next=/owner/onboarding";
   const workspaceLabel = user?.role === "ADMIN" ? "Admin dashboard" : user?.role === "VENDOR" ? "Vendor workspace" : user?.role === "HALL_OWNER" ? "Owner dashboard" : "List your venue";
+
+  function signOut() {
+    logout();
+    router.replace("/auth/login");
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur">
@@ -27,7 +34,10 @@ export function SiteHeader() {
           {(!user || user.role === "CUSTOMER") && <Link aria-label="Saved venues" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" href={user ? "/customer" : "/auth/login"} title="Saved venues"><Heart aria-hidden="true" size={19} /></Link>}
           {user && <NotificationBell />}
           {!isLoading && user ? (
-            <Link aria-label="My account" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted" href={accountHref}><span className="grid size-6 place-items-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800">{user.fullName.charAt(0)}</span><span className="hidden sm:inline">My account</span></Link>
+            <>
+              <Link aria-label="My account" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted" href={accountHref}><span className="grid size-6 place-items-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800">{user.fullName.charAt(0)}</span><span className="hidden sm:inline">My account</span></Link>
+              <button aria-label="Sign out" className="grid size-10 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground" onClick={signOut} title="Sign out" type="button"><LogOut aria-hidden="true" size={18} /></button>
+            </>
           ) : (
             <Link aria-label="Log in" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted" href="/auth/login"><UserRound aria-hidden="true" size={18} /><span className="hidden sm:inline">Log in</span></Link>
           )}
