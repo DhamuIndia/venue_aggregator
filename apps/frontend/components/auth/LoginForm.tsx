@@ -8,6 +8,10 @@ import { useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
 
+function routeForRole(role: AuthRole): Route {
+  return role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "VENDOR" ? "/vendor" : role === "HALL_OWNER" ? "/owner" : "/customer";
+}
+
 export function LoginForm() {
   const { login, loginDemo } = useAuth();
   const router = useRouter();
@@ -27,11 +31,11 @@ export function LoginForm() {
 
     try {
       setIsSubmitting(true);
-      await login({ phone, password });
+      const user = await login({ phone, password });
       const nextPath = new URLSearchParams(window.location.search).get("next");
       const destination: Route = nextPath?.startsWith("/") && !nextPath.startsWith("//")
         ? nextPath as Route
-        : "/customer";
+        : routeForRole(user.role);
       router.push(destination);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "We could not sign you in. Please check your details.");
@@ -43,8 +47,8 @@ export function LoginForm() {
   async function useDemoAccount(role: AuthRole) {
     setError("");
     setIsSubmitting(true);
-    await loginDemo(role);
-    router.push(role === "ADMIN" ? "/admin" : role === "VENDOR" ? "/vendor" : role === "HALL_OWNER" ? "/owner" : "/customer");
+    const user = await loginDemo(role);
+    router.push(routeForRole(user.role));
   }
 
   return (
