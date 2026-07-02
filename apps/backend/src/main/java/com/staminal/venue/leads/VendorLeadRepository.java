@@ -1,0 +1,14 @@
+package com.staminal.venue.leads;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface VendorLeadRepository
+        extends JpaRepository<VendorLead, Long> {
+
+    List<VendorLead> findByVendor_IdOrderByCreatedAtDesc(Long vendorId);
+
+    Optional<VendorLead> findByIdAndVendor_Id(Long leadId, Long vendorId);
+}
