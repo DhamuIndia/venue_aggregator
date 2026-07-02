@@ -33,6 +33,7 @@ import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -49,11 +50,14 @@ class BookingServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private HallBlockedDateRepository hallBlockedDateRepository;
+
     private BookingService bookingService;
 
     @BeforeEach
     void setUp() {
-        bookingService = new BookingService(bookingRepository, hallRepository, userRepository);
+        bookingService = new BookingService(bookingRepository, hallRepository, userRepository, hallBlockedDateRepository);
     }
 
     @Test
