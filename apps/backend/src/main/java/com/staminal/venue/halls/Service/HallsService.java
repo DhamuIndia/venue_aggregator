@@ -12,6 +12,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.availability.AvailabilityService;
+import com.staminal.venue.availability.Dto.AvailabilitySummary;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Dto.CreateHallRequest;
 import com.staminal.venue.halls.Dto.HallListResponse;
@@ -22,6 +24,9 @@ import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.reviews.Review;
+import com.staminal.venue.reviews.ReviewRepository;
+import com.staminal.venue.reviews.Dto.PublicReviewResponse;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -34,6 +39,8 @@ public class HallsService {
     private final HallRepository hallRepository;
     private final UserRepository userRepository;
     private final HallMediaRepository hallMediaRepository;
+    private final ReviewRepository reviewRepository;
+    private final AvailabilityService availabilityService;
 
     public HallResponse createHall(CreateHallRequest request, Authentication authentication) {
         User owner = currentUser(authentication);
@@ -370,9 +377,30 @@ public class HallsService {
         response.setCoverImageUrl(hall.getCoverImageUrl());
         response.setImageUrl(hall.getCoverImageUrl());
         response.setVenueType(hall.getHallType());
-        response.setRatings(rating(hall));
-        response.setRating(rating(hall));
-        response.setReviewCount(0);
+        List<Review> reviews = reviewRepository.findPublicReviewsByHallId(hall.getId());
+        response.setReviewCount(reviews.size());
+
+        double avg = reviews.stream()
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0);
+
+        response.setRating(avg);
+        response.setRatings(avg);
+        AvailabilitySummary summary = availabilityService.getAvailabilitySummary(hall.getId());
+        response.setAvailabilitySummary(summary);
+
+        List<PublicReviewResponse> reviewList = reviews.stream()
+                .map(review -> new PublicReviewResponse(
+                        review.getRating(),
+                        review.getComment(),
+                        review.getVerifiedService(),
+                        review.getCustomer() == null
+                                ? "Anonymous"
+                                : review.getCustomer().getFullName()))
+                .toList();
+
+        response.setReviews(reviewList);
         response.setStatus(hall.getStatus() != null ? hall.getStatus().name() : null);
         response.setListingStatus(hall.getStatus() != null ? hall.getStatus().name() : null);
         response.setRejectionReason(hall.getRejectionReason());

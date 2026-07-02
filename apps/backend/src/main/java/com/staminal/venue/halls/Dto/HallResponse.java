@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.staminal.venue.availability.Dto.AvailabilitySummary;
+import com.staminal.venue.reviews.Dto.PublicReviewResponse;
+
 public class HallResponse {
 
     private String addressLine;
@@ -95,6 +98,26 @@ public class HallResponse {
     private Boolean availableThisMonth;
 
     private String address;
+
+    private List<PublicReviewResponse> reviews;
+
+    private AvailabilitySummary availabilitySummary;
+
+    public AvailabilitySummary getAvailabilitySummary() {
+        return availabilitySummary;
+    }
+
+    public void setAvailabilitySummary(AvailabilitySummary availabilitySummary) {
+        this.availabilitySummary = availabilitySummary;
+    }
+
+    public List<PublicReviewResponse> getReviews() {
+        return reviews;
+    }
+
+    public void setReviews(List<PublicReviewResponse> reviews) {
+        this.reviews = reviews;
+    }
 
     public String getVenueType() {
         return venueType;
@@ -225,11 +248,11 @@ public class HallResponse {
     }
 
     // public String getHallType() {
-    //     return hallType;
+    // return hallType;
     // }
 
     // public void setHallType(String hallType) {
-    //     this.hallType = hallType;
+    // this.hallType = hallType;
     // }
 
     public Double getRatings() {
@@ -313,27 +336,27 @@ public class HallResponse {
     }
 
     // public BigDecimal getMorningAmount() {
-    //     return morningAmount;
+    // return morningAmount;
     // }
 
     // public void setMorningAmount(BigDecimal morningAmount) {
-    //     this.morningAmount = morningAmount;
+    // this.morningAmount = morningAmount;
     // }
 
     // public BigDecimal getEveningAmount() {
-    //     return eveningAmount;
+    // return eveningAmount;
     // }
 
     // public void setEveningAmount(BigDecimal eveningAmount) {
-    //     this.eveningAmount = eveningAmount;
+    // this.eveningAmount = eveningAmount;
     // }
 
     // public BigDecimal getFullDayAmount() {
-    //     return fullDayAmount;
+    // return fullDayAmount;
     // }
 
     // public void setFullDayAmount(BigDecimal fullDayAmount) {
-    //     this.fullDayAmount = fullDayAmount;
+    // this.fullDayAmount = fullDayAmount;
     // }
 
     public String getAddressLine() {
