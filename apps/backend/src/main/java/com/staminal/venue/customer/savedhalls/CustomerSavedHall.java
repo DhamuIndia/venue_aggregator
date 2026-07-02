@@ -15,9 +15,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "customer_saved_halls")
+@Table(name = "customer_saved_halls", uniqueConstraints = @UniqueConstraint(columnNames = { "customer_user_id",
+        "hall_id" }))
 public class CustomerSavedHall {
 
     @Id

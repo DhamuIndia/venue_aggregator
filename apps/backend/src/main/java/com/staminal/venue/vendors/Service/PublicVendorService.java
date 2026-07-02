@@ -18,7 +18,6 @@ import com.staminal.venue.vendors.Dto.PublicVendorPackageResponse;
 import com.staminal.venue.vendors.Dto.PublicVendorResponse;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.VendorMedia;
-import com.staminal.venue.vendors.Entity.VendorPackage;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorMediaRepository;
 import com.staminal.venue.vendors.Repository.VendorPackageRepository;

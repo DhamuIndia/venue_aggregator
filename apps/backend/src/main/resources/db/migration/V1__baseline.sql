@@ -346,6 +346,24 @@ create table vendor_blocked_dates (
     created_at timestamptz default now()
 );
 
+create table vendor_leads (
+    id bigserial primary key,
+    vendor_id bigint not null references vendors(id),
+    customer_user_id bigint not null references users(id),
+    customer_name varchar(160) not null,
+    customer_phone varchar(32),
+    customer_email varchar(255),
+    service varchar(120) not null,
+    event_type varchar(120),
+    event_date date,
+    location varchar(255),
+    budget numeric(12,2),
+    notes text,
+    status varchar(40) not null default 'NEW',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
 insert into roles(name) values
     ('CUSTOMER'),
     ('HALL_OWNER'),
