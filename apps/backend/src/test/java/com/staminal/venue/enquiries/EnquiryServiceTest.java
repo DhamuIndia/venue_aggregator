@@ -32,6 +32,8 @@ import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -50,11 +52,19 @@ class EnquiryServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private NotificationService notificationService;
+
     private EnquiryService enquiryService;
 
     @BeforeEach
     void setUp() {
-        enquiryService = new EnquiryService(enquiryRepository, hallRepository, bookingRepository, userRepository);
+        enquiryService = new EnquiryService(
+                enquiryRepository,
+                hallRepository,
+                bookingRepository,
+                userRepository,
+                notificationService);
     }
 
     @Test
@@ -92,6 +102,18 @@ class EnquiryServiceTest {
         assertThat(response.id()).isEqualTo("ENQ-000055");
         assertThat(response.hallName()).isEqualTo("Emerald Convention Centre");
         assertThat(response.customerId()).isEqualTo("101");
+        verify(notificationService).notifyUser(
+                customer,
+                NotificationType.ENQUIRY,
+                "Enquiry submitted",
+                "Your enquiry for Emerald Convention Centre was sent to the owner.",
+                "/customer?tab=enquiries");
+        verify(notificationService).notifyUser(
+                hall.getOwnerUserId(),
+                NotificationType.ENQUIRY,
+                "New enquiry received",
+                "Priya Raman enquired for Emerald Convention Centre.",
+                "/owner?tab=enquiries");
     }
 
     @Test
@@ -136,6 +158,12 @@ class EnquiryServiceTest {
         assertThat(bookingCaptor.getValue().getEnquiry()).isEqualTo(enquiry);
         assertThat(bookingCaptor.getValue().getHall()).isEqualTo(enquiry.getHall());
         assertThat(bookingCaptor.getValue().getStatus()).isEqualTo(Booking.STATUS_CONFIRMED);
+        verify(notificationService).notifyUser(
+                enquiry.getCustomer(),
+                NotificationType.BOOKING,
+                "Booking confirmed",
+                "Emerald Convention Centre confirmed your Wedding enquiry.",
+                "/customer?tab=bookings");
     }
 
     @Test
