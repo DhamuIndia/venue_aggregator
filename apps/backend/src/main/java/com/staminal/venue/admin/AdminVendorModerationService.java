@@ -65,9 +65,6 @@ public class AdminVendorModerationService {
         Vendors vendor = findVendor(vendorId);
         VendorStatus decision = reviewDecision(request);
 
-        System.out.println(authentication.getName());
-        System.out.println(authentication.getAuthorities());
-
         if (decision == VendorStatus.REJECTED && !hasText(request.reason())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rejection reason is required");
         }
@@ -91,9 +88,6 @@ public class AdminVendorModerationService {
         if (savedVendor.getRejectionReason() != null) {
             newValues.put("reason", savedVendor.getRejectionReason());
         }
-
-        System.out.println("Reviewer = " + reviewer);
-        System.out.println("Reviewer Id = " + (reviewer == null ? null : reviewer.getId()));
 
         auditService.record(
                 new AuditCommand(

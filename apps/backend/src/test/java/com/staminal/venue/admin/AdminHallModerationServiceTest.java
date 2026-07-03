@@ -97,7 +97,7 @@ class AdminHallModerationServiceTest {
         assertThat(saved.getApprovedBy()).isSameAs(legacyAdmin);
         assertThat(saved.getApprovedAt()).isNotNull();
         assertThat(response.status()).isEqualTo("APPROVED");
-        assertThat(response.reviewedBy()).isEqualTo("Test Admin");
+        assertThat(response.reviewedBy()).isEqualTo(100L);
         assertThat(response.reviewedAt()).isNotNull();
     }
 

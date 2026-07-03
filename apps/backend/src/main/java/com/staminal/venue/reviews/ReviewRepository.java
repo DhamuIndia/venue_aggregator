@@ -2,6 +2,7 @@ package com.staminal.venue.reviews;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,10 +21,52 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @Query("""
             SELECT r
             FROM Review r
+            LEFT JOIN FETCH r.hall
+            LEFT JOIN FETCH r.customer
+            ORDER BY r.createdAt DESC
+            """)
+    List<Review> findAllForAdmin();
+
+    @Query("""
+            SELECT r
+            FROM Review r
+            LEFT JOIN FETCH r.hall
+            LEFT JOIN FETCH r.customer
+            WHERE r.moderationStatus IN :statuses
+            ORDER BY r.createdAt DESC
+            """)
+    List<Review> findForAdminByStatuses(@Param("statuses") Collection<ReviewModerationStatus> statuses);
+
+    @Query("""
+            SELECT r
+            FROM Review r
+            LEFT JOIN FETCH r.hall
+            LEFT JOIN FETCH r.customer
+            WHERE r.id = :reviewId
+            """)
+    Optional<Review> findByIdForAdmin(@Param("reviewId") Long reviewId);
+
+    @Query("""
+            SELECT r
+            FROM Review r
             LEFT JOIN FETCH r.customer
             WHERE r.hall.id = :hallId
             AND r.active = true
+            AND r.moderationStatus = com.staminal.venue.reviews.ReviewModerationStatus.PUBLISHED
             """)
     List<Review> findPublicReviewsByHallId(@Param("hallId") Long hallId);
+
+    @Query("""
+            SELECT r
+            FROM Review r
+            LEFT JOIN FETCH r.customer
+            LEFT JOIN FETCH r.enquiry
+            LEFT JOIN FETCH r.booking
+            WHERE r.hall.id = :hallId
+            AND r.active = true
+            AND r.moderationStatus = com.staminal.venue.reviews.ReviewModerationStatus.PUBLISHED
+            ORDER BY r.createdAt DESC
+            """)
+    List<Review> findOwnerPublishedReviewsByHallId(@Param("hallId") Long hallId);
 
 }

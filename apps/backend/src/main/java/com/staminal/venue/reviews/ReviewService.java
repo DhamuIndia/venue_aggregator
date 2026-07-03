@@ -82,6 +82,7 @@ public class ReviewService {
 
                 review.setVerifiedService(true);
                 review.setActive(true);
+                review.setModerationStatus(ReviewModerationStatus.PENDING);
 
                 Review savedReview = reviewRepository.save(review);
 
@@ -126,6 +127,11 @@ public class ReviewService {
 
                 review.setRating(request.rating());
                 review.setComment(request.comment());
+                review.setModerationStatus(ReviewModerationStatus.PENDING);
+                review.setActive(true);
+                review.setModerationReason(null);
+                review.setModeratedByAdmin(null);
+                review.setModeratedAt(null);
 
                 Review savedReview = reviewRepository.save(review);
 

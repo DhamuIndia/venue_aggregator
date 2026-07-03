@@ -22,6 +22,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.bookings.dto.BookingListResponse;
 import com.staminal.venue.bookings.dto.BookingResponse;
 import com.staminal.venue.bookings.dto.UpdateBookingStatusRequest;
@@ -55,26 +56,23 @@ class BookingServiceTest {
     @Mock
     private HallBlockedDateRepository hallBlockedDateRepository;
 
-<<<<<<< HEAD
-=======
+    @Mock
+    private AuditService auditService;
+
     @Mock
     private NotificationService notificationService;
 
->>>>>>> 7e3489d (NOTIFICATION)
     private BookingService bookingService;
 
     @BeforeEach
     void setUp() {
-<<<<<<< HEAD
-        bookingService = new BookingService(bookingRepository, hallRepository, userRepository, hallBlockedDateRepository);
-=======
         bookingService = new BookingService(
                 bookingRepository,
                 hallRepository,
                 userRepository,
                 hallBlockedDateRepository,
+                auditService,
                 notificationService);
->>>>>>> 7e3489d (NOTIFICATION)
     }
 
     @Test

@@ -98,7 +98,7 @@ This stream owns hall-owner workflows and should verify every action with the ow
 | P1 | `GET /owner/halls/{hallId}/bookings`, `PATCH /owner/bookings/{bookingId}/status` | `API_READY` | `/owner?tab=bookings` | `TODO` | Uses new `halls` table; complete booking unlocks review eligibility; cancellation transition enforced |
 | P1 | `GET /owner/halls/{hallId}/availability`, `POST /owner/halls/{hallId}/blocked-dates`, `DELETE /owner/halls/{hallId}/blocked-dates/{blockId}` | `TODO` | `/owner?tab=availability` | `TODO` | Prevent date/slot conflicts |
 | P2 | `POST /owner/halls/{hallId}/media`, `PATCH /owner/halls/{hallId}/media/{mediaId}`, `DELETE /owner/halls/{hallId}/media/{mediaId}` | `TODO` | `/owner?tab=media` | `TODO` | Save metadata after shared upload presign |
-| P2 | `GET /owner/halls/{hallId}/reviews` | `TODO` | `/owner?tab=reviews` | `TODO` | Verified customer reviews |
+| P2 | `GET /owner/halls/{hallId}/reviews` | `API_READY` | `/owner?tab=reviews` | `TODO` | Owner-scoped published verified customer reviews |
 | P3 | `GET /owner/halls/{hallId}/reports/summary` | `API_READY` | `/owner?tab=reports` | `TODO` | Aggregated numbers only; browser smoke test pending |
 
 ## Stream 3: Vendor, Admin, Cross-Cutting
@@ -117,7 +117,7 @@ This stream can start with vendor APIs, then admin moderation. Keep admin mutati
 | P1 | `GET /admin/halls`, `PATCH /admin/halls/{hallId}/review` | `API_READY` | `/admin?tab=venues` | `TODO` | Only pending hall listings can be reviewed; returns reviewer metadata |
 | P1 | `GET /admin/vendors`, `PATCH /admin/vendors/{vendorId}/review` | `API_READY` | `/admin?tab=vendors` | `TODO` | Stores reviewer metadata; full immutable audit stream remains separate |
 | P2 | `GET /admin/users`, `PATCH /admin/users/{userId}/status` | `TODO` | `/admin?tab=users` | `TODO` | Protect admin/super-admin rules |
-| P2 | `GET /admin/reviews`, `PATCH /admin/reviews/{reviewId}/moderation` | `TODO` | `/admin?tab=reviews` | `TODO` | Preserve verified review history |
+| P2 | `GET /admin/reviews`, `PATCH /admin/reviews/{reviewId}/moderation` | `API_READY` | `/admin?tab=reviews` | `TODO` | Lists pending/reported reviews and publishes or hides them with audit |
 | P2 | `GET /admin/enquiries`, `GET /admin/audit-events` | `TODO` | `/admin?tab=enquiries` | `TODO` | Support/admin visibility |
 | P3 | `GET /admin/reports/summary` | `API_READY` | `/admin?tab=reports` | `TODO` | Platform aggregates; browser smoke test pending |
 | P3 | `GET /notifications`, `PATCH /notifications/{notificationId}/read`, `PATCH /notifications/read-all` | `API_READY` | Notification bell/activity tabs | `TODO` | Backend stores in-app notifications; frontend client already calls these endpoints, browser smoke test pending |

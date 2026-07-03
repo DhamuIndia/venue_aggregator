@@ -103,7 +103,7 @@ public class BookingService {
         Booking savedBooking = bookingRepository.save(booking);
  
         if (statusChanged) {
-            notifyCustomerOfBookingStatus(saved, nextStatus);
+            notifyCustomerOfBookingStatus(savedBooking, nextStatus);
         }
       
          auditService.record(
@@ -121,7 +121,7 @@ public class BookingService {
                   null));
 
 
-        return toResponse(saved);
+        return toResponse(savedBooking);
     }
 
     private void applyStatus(Booking booking, BookingStatus nextStatus) {

@@ -23,8 +23,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.users.Entity.User;
-import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
@@ -36,7 +34,7 @@ class AdminVendorModerationServiceTest {
     private VendorRepository vendorRepository;
 
     @Mock
-    private UserRepository userRepository;
+    private AdminRepository adminRepository;
 
     @Mock
     private AuditService auditService;
@@ -45,7 +43,7 @@ class AdminVendorModerationServiceTest {
 
     @BeforeEach
     void setUp() {
-        adminVendorModerationService = new AdminVendorModerationService(vendorRepository, userRepository, auditService);
+        adminVendorModerationService = new AdminVendorModerationService(vendorRepository, auditService, adminRepository);
     }
 
     @Test
@@ -68,10 +66,10 @@ class AdminVendorModerationServiceTest {
     @Test
     void approvePendingVendorStoresReviewerAndTimestamp() {
         Vendors vendor = vendor(501L, VendorStatus.PENDING);
-        User admin = admin();
+        Admin admin = admin();
 
         when(vendorRepository.findById(501L)).thenReturn(Optional.of(vendor));
-        when(userRepository.findById(900L)).thenReturn(Optional.of(admin));
+        when(adminRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
         when(vendorRepository.save(any(Vendors.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         AdminVendorResponse response = adminVendorModerationService.reviewVendor(
@@ -85,10 +83,10 @@ class AdminVendorModerationServiceTest {
         Vendors saved = vendorCaptor.getValue();
         assertThat(saved.getStatus()).isEqualTo(VendorStatus.APPROVED);
         assertThat(saved.getRejectionReason()).isNull();
-        assertThat(saved.getReviewedByUser()).isSameAs(admin);
+        assertThat(saved.getReviewedByAdmin()).isSameAs(admin);
         assertThat(saved.getReviewedAt()).isNotNull();
         assertThat(response.status()).isEqualTo("APPROVED");
-        assertThat(response.reviewedBy()).isEqualTo("Test Admin");
+        assertThat(response.reviewedBy()).isEqualTo(900L);
         assertThat(response.reviewedAt()).isNotNull();
     }
 
@@ -140,11 +138,11 @@ class AdminVendorModerationServiceTest {
         return category;
     }
 
-    private User admin() {
-        User admin = new User();
+    private Admin admin() {
+        Admin admin = new Admin();
         admin.setId(900L);
         admin.setFullName("Test Admin");
-        admin.setPhone("9000000001");
+        admin.setContactNumber("9000000001");
         admin.setEmail("admin@example.com");
         admin.setStatus("ACTIVE");
         admin.setPasswordHash("hashed-password");
@@ -153,7 +151,7 @@ class AdminVendorModerationServiceTest {
 
     private UsernamePasswordAuthenticationToken auth() {
         return new UsernamePasswordAuthenticationToken(
-                "900",
+                "admin@example.com",
                 null,
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
     }

@@ -30,8 +30,6 @@ public class ReviewController {
             @RequestParam Long enquiryId,
             Authentication authentication) {
 
-        System.out.println("Authentication = " + authentication);
-
         return reviewService.getEligibility(enquiryId, authentication);
     }
 

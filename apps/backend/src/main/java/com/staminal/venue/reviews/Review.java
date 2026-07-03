@@ -4,11 +4,14 @@ import java.time.Instant;
 
 import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.enquiries.Enquiry;
+import com.staminal.venue.admin.Admin;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.users.Entity.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -54,6 +57,23 @@ public class Review {
 
     private Boolean active;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "moderation_status", nullable = false, length = 30)
+    private ReviewModerationStatus moderationStatus;
+
+    @Column(name = "report_reason", length = 500)
+    private String reportReason;
+
+    @Column(name = "moderation_reason", length = 500)
+    private String moderationReason;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "moderated_by_admin_id")
+    private Admin moderatedByAdmin;
+
+    @Column(name = "moderated_at")
+    private Instant moderatedAt;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -72,6 +92,10 @@ public class Review {
 
         if (active == null) {
             active = true;
+        }
+
+        if (moderationStatus == null) {
+            moderationStatus = ReviewModerationStatus.PENDING;
         }
     }
 
@@ -150,6 +174,46 @@ public class Review {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public ReviewModerationStatus getModerationStatus() {
+        return moderationStatus;
+    }
+
+    public void setModerationStatus(ReviewModerationStatus moderationStatus) {
+        this.moderationStatus = moderationStatus;
+    }
+
+    public String getReportReason() {
+        return reportReason;
+    }
+
+    public void setReportReason(String reportReason) {
+        this.reportReason = reportReason;
+    }
+
+    public String getModerationReason() {
+        return moderationReason;
+    }
+
+    public void setModerationReason(String moderationReason) {
+        this.moderationReason = moderationReason;
+    }
+
+    public Admin getModeratedByAdmin() {
+        return moderatedByAdmin;
+    }
+
+    public void setModeratedByAdmin(Admin moderatedByAdmin) {
+        this.moderatedByAdmin = moderatedByAdmin;
+    }
+
+    public Instant getModeratedAt() {
+        return moderatedAt;
+    }
+
+    public void setModeratedAt(Instant moderatedAt) {
+        this.moderatedAt = moderatedAt;
     }
 
     public Instant getCreatedAt() {
