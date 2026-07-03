@@ -15,3 +15,4 @@ Current ops scripts:
 - `ops/restore-postgres.sh`: restore a dump into another PostgreSQL database
 - `ops/sync-media-rclone.sh`: copy or sync S3-compatible media between providers
 - `ops/deploy-bookvenuemart-hetzner.sh`: deploy the production compose stack to `/home/algo/bookvenuemart`
+- `ops/deploy-bookvenuemart-shared-caddy.sh`: deploy BookVenueMart beside the existing CRM Caddy on the same Hetzner server
