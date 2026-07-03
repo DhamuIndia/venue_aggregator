@@ -25,6 +25,8 @@ import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -44,6 +46,7 @@ public class EnquiryService {
     private final HallRepository hallRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public EnquiryResponse createHallEnquiry(CreateEnquiryRequest request, Authentication authentication) {
         User customer = currentUser(authentication, UserRole.CUSTOMER);
@@ -64,7 +67,9 @@ public class EnquiryService {
         enquiry.setMessage(trimToNull(request.notes()));
         enquiry.setStatus(EnquiryStatus.PENDING_OWNER_RESPONSE);
 
-        return toResponse(enquiryRepository.save(enquiry));
+        Enquiry saved = enquiryRepository.save(enquiry);
+        notifyEnquiryCreated(saved);
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -110,14 +115,20 @@ public class EnquiryService {
         EnquiryStatus nextStatus = request.status();
         assertValidTransition(enquiry.getStatus(), nextStatus);
 
-        if (enquiry.getStatus() != nextStatus) {
+        boolean statusChanged = enquiry.getStatus() != nextStatus;
+        if (statusChanged) {
             enquiry.setStatus(nextStatus);
             enquiry.setOwnerResponseMessage(trimToNull(request.message()));
             enquiry.setRespondedAt(Instant.now());
             syncBookingForStatus(enquiry, nextStatus);
         }
 
-        return toResponse(enquiryRepository.save(enquiry));
+        Enquiry saved = enquiryRepository.save(enquiry);
+        if (statusChanged) {
+            notifyCustomerOfOwnerResponse(saved, nextStatus);
+        }
+
+        return toResponse(saved);
     }
 
     private void syncBookingForStatus(Enquiry enquiry, EnquiryStatus nextStatus) {
@@ -326,6 +337,69 @@ public class EnquiryService {
                 .toLowerCase()
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
+    }
+
+    private void notifyEnquiryCreated(Enquiry enquiry) {
+        Halls hall = enquiry.getHall();
+        String hallName = hallName(hall);
+
+        notificationService.notifyUser(
+                enquiry.getCustomer(),
+                NotificationType.ENQUIRY,
+                "Enquiry submitted",
+                "Your enquiry for " + hallName + " was sent to the owner.",
+                "/customer?tab=enquiries");
+
+        notificationService.notifyUser(
+                hall != null ? hall.getOwnerUserId() : null,
+                NotificationType.ENQUIRY,
+                "New enquiry received",
+                safe(enquiry.getCustomerName(), "A customer") + " enquired for " + hallName + ".",
+                "/owner?tab=enquiries");
+    }
+
+    private void notifyCustomerOfOwnerResponse(Enquiry enquiry, EnquiryStatus nextStatus) {
+        Halls hall = enquiry.getHall();
+        String hallName = hallName(hall);
+
+        if (nextStatus == EnquiryStatus.CONFIRMED) {
+            notificationService.notifyUser(
+                    enquiry.getCustomer(),
+                    NotificationType.BOOKING,
+                    "Booking confirmed",
+                    hallName + " confirmed your " + safe(enquiry.getEventType(), "event") + " enquiry.",
+                    "/customer?tab=bookings");
+            return;
+        }
+
+        if (nextStatus == EnquiryStatus.DECLINED) {
+            notificationService.notifyUser(
+                    enquiry.getCustomer(),
+                    NotificationType.ENQUIRY,
+                    "Enquiry declined",
+                    hallName + " declined your " + safe(enquiry.getEventType(), "event") + " enquiry.",
+                    "/customer?tab=enquiries");
+            return;
+        }
+
+        if (nextStatus == EnquiryStatus.COMPLETED) {
+            notificationService.notifyUser(
+                    enquiry.getCustomer(),
+                    NotificationType.REVIEW,
+                    "Review your completed service",
+                    "Your completed event at " + hallName + " is ready for a verified review.",
+                    "/customer?tab=reviews");
+        }
+    }
+
+    private String hallName(Halls hall) {
+        return hall != null && hall.getName() != null && !hall.getName().isBlank()
+                ? hall.getName()
+                : "the venue";
+    }
+
+    private String safe(String value, String fallback) {
+        return value != null && !value.isBlank() ? value.trim() : fallback;
     }
 
     private EnquiryResponse toResponse(Enquiry enquiry) {

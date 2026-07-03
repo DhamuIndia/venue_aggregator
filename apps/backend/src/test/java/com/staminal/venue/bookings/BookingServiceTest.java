@@ -35,6 +35,8 @@ import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -53,11 +55,26 @@ class BookingServiceTest {
     @Mock
     private HallBlockedDateRepository hallBlockedDateRepository;
 
+<<<<<<< HEAD
+=======
+    @Mock
+    private NotificationService notificationService;
+
+>>>>>>> 7e3489d (NOTIFICATION)
     private BookingService bookingService;
 
     @BeforeEach
     void setUp() {
+<<<<<<< HEAD
         bookingService = new BookingService(bookingRepository, hallRepository, userRepository, hallBlockedDateRepository);
+=======
+        bookingService = new BookingService(
+                bookingRepository,
+                hallRepository,
+                userRepository,
+                hallBlockedDateRepository,
+                notificationService);
+>>>>>>> 7e3489d (NOTIFICATION)
     }
 
     @Test
@@ -108,6 +125,12 @@ class BookingServiceTest {
         assertThat(response.status()).isEqualTo(BookingStatus.COMPLETED);
         assertThat(bookingCaptor.getValue().getCompletedAt()).isNotNull();
         assertThat(bookingCaptor.getValue().getEnquiry().getStatus()).isEqualTo(EnquiryStatus.COMPLETED);
+        verify(notificationService).notifyUser(
+                booking.getCustomer(),
+                NotificationType.REVIEW,
+                "Review your completed service",
+                "Your completed event at Emerald Convention Centre is ready for a verified review.",
+                "/customer?tab=reviews");
     }
 
     @Test

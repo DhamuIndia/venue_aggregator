@@ -28,6 +28,8 @@ import com.staminal.venue.halls.Entity.HallBlockedDate;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -43,6 +45,7 @@ public class BookingService {
     private final UserRepository userRepository;
     private final HallBlockedDateRepository hallBlockedDateRepository;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public BookingListResponse getCustomerBookings(Authentication authentication) {
@@ -92,26 +95,33 @@ public class BookingService {
         BookingStatus oldStatus = currentStatus;
         assertValidTransition(currentStatus, nextStatus);
 
-        if (currentStatus != nextStatus) {
+        boolean statusChanged = currentStatus != nextStatus;
+        if (statusChanged) {
             applyStatus(booking, nextStatus);
         }
 
         Booking savedBooking = bookingRepository.save(booking);
-        auditService.record(
-                new AuditCommand(
-                        owner.getId(),
-                        "HALL_OWNER",
-                        AuditAction.BOOKING_STATUS_CHANGED,
-                        "BOOKING",
-                        String.valueOf(savedBooking.getId()),
-                        "Owner changed booking status",
-                        Map.of(
-                                "status", oldStatus.name()),
-                        Map.of(
-                                "status", savedBooking.getStatus().name()),
-                        null));
+ 
+        if (statusChanged) {
+            notifyCustomerOfBookingStatus(saved, nextStatus);
+        }
+      
+         auditService.record(
+          new AuditCommand(
+                  owner.getId(),
+                  "HALL_OWNER",
+                  AuditAction.BOOKING_STATUS_CHANGED,
+                  "BOOKING",
+                  String.valueOf(savedBooking.getId()),
+                  "Owner changed booking status",
+                  Map.of(
+                          "status", oldStatus.name()),
+                  Map.of(
+                          "status", savedBooking.getStatus().name()),
+                  null));
 
-        return toResponse(savedBooking);
+
+        return toResponse(saved);
     }
 
     private void applyStatus(Booking booking, BookingStatus nextStatus) {
@@ -304,6 +314,42 @@ public class BookingService {
 
     private String hallDisplayName(Halls hall) {
         return hall != null ? hall.getName() : null;
+    }
+
+    private void notifyCustomerOfBookingStatus(Booking booking, BookingStatus nextStatus) {
+        Halls hall = booking.getHall();
+        String hallName = hall != null && hall.getName() != null && !hall.getName().isBlank()
+                ? hall.getName()
+                : "the venue";
+
+        if (nextStatus == BookingStatus.CONFIRMED) {
+            notificationService.notifyUser(
+                    booking.getCustomer(),
+                    NotificationType.BOOKING,
+                    "Booking confirmed",
+                    hallName + " confirmed your booking.",
+                    "/customer?tab=bookings");
+            return;
+        }
+
+        if (nextStatus == BookingStatus.CANCELLED) {
+            notificationService.notifyUser(
+                    booking.getCustomer(),
+                    NotificationType.BOOKING,
+                    "Booking cancelled",
+                    "Your booking at " + hallName + " was cancelled.",
+                    "/customer?tab=bookings");
+            return;
+        }
+
+        if (nextStatus == BookingStatus.COMPLETED) {
+            notificationService.notifyUser(
+                    booking.getCustomer(),
+                    NotificationType.REVIEW,
+                    "Review your completed service",
+                    "Your completed event at " + hallName + " is ready for a verified review.",
+                    "/customer?tab=reviews");
+        }
     }
 
     private BigDecimal startingPrice(Halls hall) {
