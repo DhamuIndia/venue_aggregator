@@ -122,7 +122,7 @@ create table vendor_categories (
 
 create table vendors (
     id bigserial primary key,
-   user_id bigint not null references users(id),
+    user_id bigint not null references users(id),
     vendor_name varchar(100) not null,
     cover_image_url varchar(255) not null,
     business_name varchar(180) not null,
@@ -137,7 +137,7 @@ create table vendors (
     contact_number varchar(20),
     whatsapp_number varchar(20),
     password_hash varchar(100) not null,
-     years_in_business integer,
+    years_in_business integer,
     service_radius integer,
     package_name varchar(150),
     package_description text,

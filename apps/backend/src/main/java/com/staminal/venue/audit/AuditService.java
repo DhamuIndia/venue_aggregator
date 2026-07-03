@@ -1,5 +1,6 @@
 package com.staminal.venue.audit;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -71,5 +72,54 @@ public class AuditService {
     }
 
     private record CurrentRequest(String ipAddress, String userAgent) {
+    }
+
+    private Map<String, Object> fromJson(String json) {
+
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(json, Map.class);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("Invalid audit json", ex);
+        }
+    }
+
+    private AuditEventResponse mapToResponse(AuditEvent event) {
+
+        AuditEventResponse response = new AuditEventResponse();
+
+        response.setId(event.getId());
+        response.setActorUserId(event.getActorUserId());
+        response.setActorRole(event.getActorRole());
+        response.setAction(event.getAction());
+
+        response.setEntityType(event.getEntityType());
+        response.setEntityId(event.getEntityId());
+
+        response.setSummary(event.getSummary());
+
+        response.setOldValues(fromJson(event.getOldValues()));
+        response.setNewValues(fromJson(event.getNewValues()));
+        response.setMetadata(fromJson(event.getMetadata()));
+
+        response.setRequestIp(event.getRequestIp());
+        response.setUserAgent(event.getUserAgent());
+
+        response.setCreatedAt(event.getCreatedAt());
+
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<AuditEventResponse> getAuditEvents() {
+
+        return auditEventRepository.findAll()
+                .stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .map(this::mapToResponse)
+                .toList();
     }
 }

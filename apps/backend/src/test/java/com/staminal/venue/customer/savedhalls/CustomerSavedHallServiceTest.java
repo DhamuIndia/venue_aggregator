@@ -20,6 +20,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.availability.AvailabilityService;
 import com.staminal.venue.customer.savedhalls.dto.CustomerSavedHallsResponse;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.UserRole;
@@ -28,6 +29,7 @@ import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.halls.Service.HallsService;
+import com.staminal.venue.reviews.ReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -46,12 +48,20 @@ class CustomerSavedHallServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private AvailabilityService availabilityService;
+
+    @Mock
+    private ReviewRepository reviewRepository;
+
     private CustomerSavedHallService savedHallService;
 
     @BeforeEach
     void setUp() {
-        HallsService hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository);
-        savedHallService = new CustomerSavedHallService(savedHallRepository, hallRepository, hallsService, userRepository);
+        HallsService hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository,
+                reviewRepository, availabilityService);
+        savedHallService = new CustomerSavedHallService(savedHallRepository, hallRepository, hallsService,
+                userRepository);
     }
 
     @Test

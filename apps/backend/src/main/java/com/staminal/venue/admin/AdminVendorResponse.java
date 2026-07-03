@@ -11,6 +11,6 @@ public record AdminVendorResponse(
         Instant submittedAt,
         String status,
         String rejectionReason,
-        String reviewedBy,
+        Long reviewedBy,
         Instant reviewedAt) {
 }

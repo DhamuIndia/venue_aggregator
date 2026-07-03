@@ -3,8 +3,10 @@ package com.staminal.venue.admin;
 import java.text.Normalizer;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -14,9 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditAction;
+import com.staminal.venue.audit.AuditCommand;
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.users.Entity.User;
-import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
@@ -28,7 +31,8 @@ import lombok.RequiredArgsConstructor;
 public class AdminVendorModerationService {
 
     private final VendorRepository vendorRepository;
-    private final UserRepository userRepository;
+    private final AuditService auditService;
+    private final AdminRepository adminRepository;
 
     @Transactional(readOnly = true)
     public AdminVendorListResponse getVendors(String status, int page, int size) {
@@ -36,7 +40,8 @@ public class AdminVendorModerationService {
         int safeSize = Math.min(Math.max(size, 1), 100);
         VendorStatus vendorStatus = toVendorStatus(status);
 
-        List<Vendors> filtered = (vendorStatus == null ? vendorRepository.findAll() : vendorRepository.findByStatus(vendorStatus))
+        List<Vendors> filtered = (vendorStatus == null ? vendorRepository.findAll()
+                : vendorRepository.findByStatus(vendorStatus))
                 .stream()
                 .sorted(Comparator.comparing(Vendors::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
@@ -60,6 +65,9 @@ public class AdminVendorModerationService {
         Vendors vendor = findVendor(vendorId);
         VendorStatus decision = reviewDecision(request);
 
+        System.out.println(authentication.getName());
+        System.out.println(authentication.getAuthorities());
+
         if (decision == VendorStatus.REJECTED && !hasText(request.reason())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rejection reason is required");
         }
@@ -68,14 +76,42 @@ public class AdminVendorModerationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending vendor profiles can be reviewed");
         }
 
-        User reviewer = currentAdmin(authentication).orElse(null);
+        Admin reviewer = currentAdmin(authentication).orElse(null);
         vendor.setStatus(decision);
         vendor.setRejectionReason(decision == VendorStatus.REJECTED ? request.reason().trim() : null);
-        vendor.setReviewedByUser(reviewer);
+        vendor.setReviewedByAdmin(reviewer);
         vendor.setReviewedAt(Instant.now());
         vendor.setUpdatedAt(Instant.now());
 
-        return toResponse(vendorRepository.save(vendor));
+        Vendors savedVendor = vendorRepository.save(vendor);
+
+        Map<String, Object> newValues = new HashMap<>();
+        newValues.put("status", savedVendor.getStatus().name());
+
+        if (savedVendor.getRejectionReason() != null) {
+            newValues.put("reason", savedVendor.getRejectionReason());
+        }
+
+        System.out.println("Reviewer = " + reviewer);
+        System.out.println("Reviewer Id = " + (reviewer == null ? null : reviewer.getId()));
+
+        auditService.record(
+                new AuditCommand(
+                        reviewer == null ? null : reviewer.getId(),
+                        "ADMIN",
+                        decision == VendorStatus.APPROVED
+                                ? AuditAction.VENDOR_APPROVED
+                                : AuditAction.VENDOR_REJECTED,
+                        "VENDOR",
+                        String.valueOf(savedVendor.getId()),
+                        decision == VendorStatus.APPROVED
+                                ? "Vendor approved"
+                                : "Vendor rejected",
+                        null,
+                        newValues,
+                        null));
+
+        return toResponse(savedVendor);
     }
 
     private Vendors findVendor(String vendorId) {
@@ -97,27 +133,27 @@ public class AdminVendorModerationService {
         return new AdminVendorResponse(
                 String.valueOf(vendor.getId()),
                 firstText(vendor.getBusinessName(), vendor.getVendorName(), "Vendor"),
-                firstText(vendor.getVendorName(), vendor.getUser() == null ? null : vendor.getUser().getFullName(), "Vendor"),
+                firstText(vendor.getVendorName(), vendor.getUser() == null ? null : vendor.getUser().getFullName(),
+                        "Vendor"),
                 category(vendor),
                 firstText(vendor.getCity(), ""),
                 firstNonNull(vendor.getReviewedAt(), vendor.getUpdatedAt(), vendor.getCreatedAt()),
                 toModerationStatus(vendor.getStatus()),
                 vendor.getRejectionReason(),
-                vendor.getReviewedByUser() == null ? null : vendor.getReviewedByUser().getFullName(),
+                vendor.getReviewedByAdmin() == null ? null
+                        : vendor.getReviewedByAdmin() == null
+                                ? null
+                                : vendor.getReviewedByAdmin().getId(),
                 vendor.getReviewedAt());
     }
 
-    private Optional<User> currentAdmin(Authentication authentication) {
+    private Optional<Admin> currentAdmin(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return Optional.empty();
         }
 
         String principal = authentication.getName();
-        Long userId = tryParseLong(principal);
-        if (userId != null) {
-            return userRepository.findById(userId);
-        }
-        return userRepository.findByEmail(principal);
+        return adminRepository.findByEmail(principal);
     }
 
     private VendorStatus reviewDecision(AdminReviewRequest request) {
@@ -127,7 +163,8 @@ public class AdminVendorModerationService {
         return switch (decision) {
             case "APPROVED" -> VendorStatus.APPROVED;
             case "REJECTED" -> VendorStatus.REJECTED;
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Decision must be APPROVED or REJECTED");
+            default ->
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Decision must be APPROVED or REJECTED");
         };
     }
 

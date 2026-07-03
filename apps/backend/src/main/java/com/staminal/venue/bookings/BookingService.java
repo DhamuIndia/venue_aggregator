@@ -3,6 +3,7 @@ package com.staminal.venue.bookings;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -11,6 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditAction;
+import com.staminal.venue.audit.AuditCommand;
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.bookings.dto.BookingListResponse;
 import com.staminal.venue.bookings.dto.BookingResponse;
 import com.staminal.venue.bookings.dto.UpdateBookingStatusRequest;
@@ -40,6 +44,7 @@ public class BookingService {
     private final HallRepository hallRepository;
     private final UserRepository userRepository;
     private final HallBlockedDateRepository hallBlockedDateRepository;
+    private final AuditService auditService;
     private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
@@ -86,6 +91,8 @@ public class BookingService {
 
         BookingStatus currentStatus = normalizeStatus(booking.getStatus());
         BookingStatus nextStatus = request.status();
+
+        BookingStatus oldStatus = currentStatus;
         assertValidTransition(currentStatus, nextStatus);
 
         boolean statusChanged = currentStatus != nextStatus;
@@ -93,10 +100,26 @@ public class BookingService {
             applyStatus(booking, nextStatus);
         }
 
-        Booking saved = bookingRepository.save(booking);
+        Booking savedBooking = bookingRepository.save(booking);
+ 
         if (statusChanged) {
             notifyCustomerOfBookingStatus(saved, nextStatus);
         }
+      
+         auditService.record(
+          new AuditCommand(
+                  owner.getId(),
+                  "HALL_OWNER",
+                  AuditAction.BOOKING_STATUS_CHANGED,
+                  "BOOKING",
+                  String.valueOf(savedBooking.getId()),
+                  "Owner changed booking status",
+                  Map.of(
+                          "status", oldStatus.name()),
+                  Map.of(
+                          "status", savedBooking.getStatus().name()),
+                  null));
+
 
         return toResponse(saved);
     }
@@ -383,24 +406,24 @@ public class BookingService {
     }
 
     // private String trimToNull(String value) {
-    //     if (value == null || value.isBlank()) {
-    //         return null;
-    //     }
-    //     return value.trim();
+    // if (value == null || value.isBlank()) {
+    // return null;
+    // }
+    // return value.trim();
     // }
 
     // private String normalizePhone(String value) {
-    //     if (value == null) {
-    //         return null;
-    //     }
-    //     String digits = value.replaceAll("\\D", "");
-    //     if (digits.length() == 12 && digits.startsWith("91")) {
-    //         digits = digits.substring(2);
-    //     }
-    //     if (digits.length() == 11 && digits.startsWith("0")) {
-    //         digits = digits.substring(1);
-    //     }
-    //     return digits.isBlank() ? null : digits;
+    // if (value == null) {
+    // return null;
+    // }
+    // String digits = value.replaceAll("\\D", "");
+    // if (digits.length() == 12 && digits.startsWith("91")) {
+    // digits = digits.substring(2);
+    // }
+    // if (digits.length() == 11 && digits.startsWith("0")) {
+    // digits = digits.substring(1);
+    // }
+    // return digits.isBlank() ? null : digits;
     // }
 
     private String slugify(String value) {
