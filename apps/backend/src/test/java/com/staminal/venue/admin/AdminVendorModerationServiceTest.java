@@ -21,6 +21,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -37,11 +38,14 @@ class AdminVendorModerationServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private AuditService auditService;
+
     private AdminVendorModerationService adminVendorModerationService;
 
     @BeforeEach
     void setUp() {
-        adminVendorModerationService = new AdminVendorModerationService(vendorRepository, userRepository);
+        adminVendorModerationService = new AdminVendorModerationService(vendorRepository, userRepository, auditService);
     }
 
     @Test

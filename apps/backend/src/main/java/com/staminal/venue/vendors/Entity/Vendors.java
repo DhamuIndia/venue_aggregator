@@ -2,9 +2,10 @@ package com.staminal.venue.vendors.Entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+
+import com.staminal.venue.admin.Admin;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.users.Entity.User;
-
 
 import jakarta.persistence.FetchType;
 import jakarta.persistence.CollectionTable;
@@ -65,70 +66,18 @@ public class Vendors {
 
     private Integer yearsInBusiness;
 
-private Integer serviceRadius;
+    private Integer serviceRadius;
 
-private String packageName;
+    private String packageName;
 
-private BigDecimal startingPrice;
+    private BigDecimal startingPrice;
 
-private String packageDescription;
+    private String packageDescription;
 
-public Integer getYearsInBusiness() {
-    return yearsInBusiness;
-}
-
-public void setYearsInBusiness(Integer yearsInBusiness) {
-    this.yearsInBusiness = yearsInBusiness;
-}
-
-public Integer getServiceRadius() {
-    return serviceRadius;
-}
-
-public void setServiceRadius(Integer serviceRadius) {
-    this.serviceRadius = serviceRadius;
-}
-
-public String getPackageName() {
-    return packageName;
-}
-
-public void setPackageName(String packageName) {
-    this.packageName = packageName;
-}
-
-public BigDecimal getStartingPrice() {
-    return startingPrice;
-}   
-
-public void setStartingPrice(BigDecimal startingPrice) {
-    this.startingPrice = startingPrice;
-}
-
-public String getPackageDescription() {
-    return packageDescription;
-}
-
-public void setPackageDescription(String packageDescription) {
-    this.packageDescription = packageDescription;
-}
-
-public List<String> getServices() {
-    return services;
-}
-
-public void setServices(List<String> services) {
-    this.services = services;
-}
-
-
-@ElementCollection(fetch = FetchType.EAGER)
-@CollectionTable(
-    name = "vendor_services",
-    joinColumns = @JoinColumn(name = "vendor_id")
-)
-@Column(name = "service_name")
-private List<String> services;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "vendor_services", joinColumns = @JoinColumn(name = "vendor_id"))
+    @Column(name = "service_name")
+    private List<String> services;
 
     @Column(name = "contact_number")
     private String contactNumber;
@@ -146,8 +95,8 @@ private List<String> services;
     private String rejectionReason;
 
     @OneToOne
-    @JoinColumn(name = "reviewed_by_user_id")
-    private User reviewedByUser;
+    @JoinColumn(name = "reviewed_by_admin_id")
+    private Admin reviewedByAdmin;
 
     @Column(name = "reviewed_at")
     private Instant reviewedAt;
@@ -157,6 +106,54 @@ private List<String> services;
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    public Integer getYearsInBusiness() {
+        return yearsInBusiness;
+    }
+
+    public void setYearsInBusiness(Integer yearsInBusiness) {
+        this.yearsInBusiness = yearsInBusiness;
+    }
+
+    public Integer getServiceRadius() {
+        return serviceRadius;
+    }
+
+    public void setServiceRadius(Integer serviceRadius) {
+        this.serviceRadius = serviceRadius;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
+    }
+
+    public BigDecimal getStartingPrice() {
+        return startingPrice;
+    }
+
+    public void setStartingPrice(BigDecimal startingPrice) {
+        this.startingPrice = startingPrice;
+    }
+
+    public String getPackageDescription() {
+        return packageDescription;
+    }
+
+    public void setPackageDescription(String packageDescription) {
+        this.packageDescription = packageDescription;
+    }
+
+    public List<String> getServices() {
+        return services;
+    }
+
+    public void setServices(List<String> services) {
+        this.services = services;
+    }
 
     @ManyToMany
     @JoinTable(name = "vendor_category_mapping", joinColumns = @JoinColumn(name = "vendor_id"), inverseJoinColumns = @JoinColumn(name = "category_id"))
@@ -170,12 +167,12 @@ private List<String> services;
         this.rejectionReason = rejectionReason;
     }
 
-    public User getReviewedByUser() {
-        return reviewedByUser;
+    public Admin getReviewedByAdmin() {
+        return reviewedByAdmin;
     }
 
-    public void setReviewedByUser(User reviewedByUser) {
-        this.reviewedByUser = reviewedByUser;
+    public void setReviewedByAdmin(Admin reviewedByAdmin) {
+        this.reviewedByAdmin = reviewedByAdmin;
     }
 
     public Instant getReviewedAt() {

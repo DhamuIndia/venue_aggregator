@@ -17,6 +17,6 @@ public record AdminHallResponse(
         String imageUrl,
         String status,
         String rejectionReason,
-        String reviewedBy,
+        Long reviewedBy,
         LocalDateTime reviewedAt) {
 }

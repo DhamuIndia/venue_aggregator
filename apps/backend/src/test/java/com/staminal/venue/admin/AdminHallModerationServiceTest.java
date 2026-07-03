@@ -21,6 +21,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallRepository;
@@ -39,6 +40,9 @@ class AdminHallModerationServiceTest {
     @Mock
     private AdminRepository adminRepository;
 
+    @Mock
+    AuditService auditService;
+
     private AdminHallModerationService adminHallModerationService;
 
     @BeforeEach
@@ -46,7 +50,7 @@ class AdminHallModerationServiceTest {
         adminHallModerationService = new AdminHallModerationService(
                 hallRepository,
                 userRepository,
-                adminRepository);
+                adminRepository, auditService);
     }
 
     @Test

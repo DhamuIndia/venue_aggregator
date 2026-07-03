@@ -21,6 +21,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.availability.AvailabilityService;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.halls.Dto.HallListResponse;
@@ -32,6 +33,7 @@ import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.halls.Service.HallsService;
+import com.staminal.venue.reviews.ReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -47,11 +49,18 @@ class HallsServiceTest {
     @Mock
     private HallMediaRepository hallMediaRepository;
 
+    @Mock
+    private AvailabilityService availabilityService;
+
+    @Mock
+    ReviewRepository reviewRepository;
+
     private HallsService hallsService;
 
     @BeforeEach
     void setUp() {
-        hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository);
+        hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository, reviewRepository,
+                availabilityService);
     }
 
     @Test
@@ -78,7 +87,8 @@ class HallsServiceTest {
         assertThat(response.content()).hasSize(1);
         assertThat(response.content().get(0).getId()).isEqualTo(11L);
         assertThat(response.content().get(0).getVerified()).isTrue();
-        assertThat(response.content().get(0).getGalleryUrls()).containsExactly("https://cdn.example.com/emerald-cover.jpg");
+        assertThat(response.content().get(0).getGalleryUrls())
+                .containsExactly("https://cdn.example.com/emerald-cover.jpg");
         assertThat(draftHall.getStatus()).isEqualTo(HallStatus.DRAFT);
     }
 

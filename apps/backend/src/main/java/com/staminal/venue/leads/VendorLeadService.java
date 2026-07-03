@@ -1,6 +1,7 @@
 package com.staminal.venue.leads;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -9,6 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditAction;
+import com.staminal.venue.audit.AuditCommand;
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.enums.VendorLeadStatus;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
@@ -29,6 +33,7 @@ public class VendorLeadService {
     private final VendorLeadRepository vendorLeadRepository;
     private final VendorRepository vendorRepository;
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     private Vendors currentVendor(Authentication authentication) {
 
@@ -221,10 +226,25 @@ public class VendorLeadService {
                 lead.getStatus(),
                 request.getStatus());
 
-        lead.setStatus(request.getStatus());
+        VendorLeadStatus oldStatus = lead.getStatus();
 
         lead.setStatus(request.getStatus());
-        return mapToResponse(lead);
+
+        VendorLead savedLead = vendorLeadRepository.save(lead);
+
+        auditService.record(
+                new AuditCommand(
+                        vendor.getUser().getId(),
+                        "VENDOR",
+                        AuditAction.LEAD_STATUS_CHANGED,
+                        "VENDOR_LEAD",
+                        String.valueOf(savedLead.getId()),
+                        "Lead status changed",
+                        Map.of("status", oldStatus.name()),
+                        Map.of("status", savedLead.getStatus().name()),
+                        null));
+
+        return mapToResponse(savedLead);
     }
 
     private void validateTransition(

@@ -3,8 +3,10 @@ package com.staminal.venue.admin;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
@@ -13,6 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditAction;
+import com.staminal.venue.audit.AuditCommand;
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallRepository;
@@ -28,6 +33,7 @@ public class AdminHallModerationService {
     private final HallRepository hallRepository;
     private final UserRepository userRepository;
     private final AdminRepository adminRepository;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public AdminHallListResponse getHalls(String status, int page, int size) {
@@ -77,7 +83,32 @@ public class AdminHallModerationService {
         hall.setApprovedAt(reviewedAt);
         hall.setUpdatedAt(reviewedAt);
 
-        return toResponse(hallRepository.save(hall), reviewer.displayName());
+        Halls savedHall = hallRepository.save(hall);
+
+        Map<String, Object> newValues = new HashMap<>();
+        newValues.put("status", savedHall.getStatus().name());
+
+        if (savedHall.getRejectionReason() != null) {
+            newValues.put("reason", savedHall.getRejectionReason());
+        }
+
+        auditService.record(
+                new AuditCommand(
+                        reviewer == null ? null : reviewer.legacyAdmin().map(Admin::getId).orElse(null),
+                        "ADMIN",
+                        decision == HallStatus.APPROVED
+                                ? AuditAction.HALL_APPROVED
+                                : AuditAction.HALL_REJECTED,
+                        "HALL",
+                        String.valueOf(savedHall.getId()),
+                        decision == HallStatus.APPROVED
+                                ? "Hall approved"
+                                : "Hall rejected",
+                        null,
+                        newValues,
+                        null));
+
+        return toResponse(savedHall, reviewer.displayName());
     }
 
     private Halls findHall(String hallId) {
@@ -96,15 +127,17 @@ public class AdminHallModerationService {
     }
 
     private AdminHallResponse toResponse(Halls hall, String reviewerOverride) {
-        String reviewedBy = firstText(
-                reviewerOverride,
-                hall.getApprovedBy() == null ? null : hall.getApprovedBy().getFullName());
+        Long reviewedBy = hall.getApprovedBy() == null
+                ? null
+                : hall.getApprovedBy().getId();
 
         return new AdminHallResponse(
                 String.valueOf(hall.getId()),
                 firstText(hall.getName(), "Hall"),
-                firstText(hall.getOwnerName(), hall.getOwnerUserId() == null ? null : hall.getOwnerUserId().getFullName(), "Owner"),
-                firstText(hall.getOwnerUserId() == null ? null : hall.getOwnerUserId().getPhone(), hall.getContactNumber(), ""),
+                firstText(hall.getOwnerName(),
+                        hall.getOwnerUserId() == null ? null : hall.getOwnerUserId().getFullName(), "Owner"),
+                firstText(hall.getOwnerUserId() == null ? null : hall.getOwnerUserId().getPhone(),
+                        hall.getContactNumber(), ""),
                 location(hall),
                 firstText(hall.getHallType(), "Venue"),
                 hall.getCapacityMax(),
@@ -127,7 +160,8 @@ public class AdminHallModerationService {
         Long userId = tryParseLong(principal);
         if (userId != null) {
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Admin session is invalid"));
+                    .orElseThrow(
+                            () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Admin session is invalid"));
             Optional<Admin> legacyAdmin = hasText(user.getEmail())
                     ? adminRepository.findByEmail(user.getEmail())
                     : Optional.empty();
@@ -153,7 +187,8 @@ public class AdminHallModerationService {
         return switch (decision) {
             case "APPROVED" -> HallStatus.APPROVED;
             case "REJECTED" -> HallStatus.REJECTED;
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Decision must be APPROVED or REJECTED");
+            default ->
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Decision must be APPROVED or REJECTED");
         };
     }
 

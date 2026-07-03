@@ -2,6 +2,7 @@ package com.staminal.venue.halls.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -9,6 +10,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.staminal.venue.audit.AuditAction;
+import com.staminal.venue.audit.AuditCommand;
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
 import com.staminal.venue.enums.BookingStatus;
@@ -19,6 +23,8 @@ import com.staminal.venue.halls.Entity.HallBlockedDate;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.users.Entity.User;
+import com.staminal.venue.users.Repository.UserRepository;
 
 @Service
 public class HallBlockedDateService {
@@ -32,8 +38,21 @@ public class HallBlockedDateService {
     @Autowired
     private BookingRepository bookingRepository;
 
+    @Autowired
+    private AuditService auditService;
+
+    @Autowired
+    private UserRepository userRepository;
+
     public BlockedDateResponse create(Long hallId, CreateBlockedDateRequest request, Authentication authentication) {
         Halls hall = findOwnedHall(hallId, authentication);
+
+        Long ownerId = currentUserId(authentication);
+
+        User owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not found"));
 
         SlotType newSlot = SlotType.valueOf(request.getSlot());
 
@@ -102,9 +121,25 @@ public class HallBlockedDateService {
         blockedDate.setSlotType(SlotType.valueOf(request.getSlot()));
         blockedDate.setReason(request.getReason());
         blockedDate.setCreatedAt(LocalDateTime.now());
-        hallBlockedDateRepository.save(blockedDate);
+        HallBlockedDate savedBlockedDate = hallBlockedDateRepository.save(blockedDate);
 
-        return map(blockedDate);
+        auditService.record(
+                new AuditCommand(
+                        owner.getId(),
+                        "HALL_OWNER",
+                        AuditAction.AVAILABILITY_BLOCKED,
+                        "HALL_BLOCKED_DATE",
+                        String.valueOf(savedBlockedDate.getId()),
+                        "Owner blocked availability",
+                        null,
+                        Map.of(
+                                "hallId", hall.getId(),
+                                "date", savedBlockedDate.getEventDate().toString(),
+                                "slot", savedBlockedDate.getSlotType().name(),
+                                "reason", savedBlockedDate.getReason()),
+                        null));
+
+        return map(savedBlockedDate);
     }
 
     public List<BlockedDateResponse> getByHall(Long hallId, Authentication authentication) {
@@ -132,12 +167,34 @@ public class HallBlockedDateService {
     public void delete(Long hallId, Long blockId, Authentication authentication) {
         findOwnedHall(hallId, authentication);
 
+        Long ownerId = currentUserId(authentication);
+
+        User owner = userRepository.findById(ownerId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not found"));
+
         HallBlockedDate blockedDate = hallBlockedDateRepository.findById(blockId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Blocked date not found"));
 
         if (blockedDate.getHallId().getId() != hallId.longValue()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Blocked date does not belong to this hall");
         }
+        auditService.record(
+                new AuditCommand(
+                        owner.getId(),
+                        "HALL_OWNER",
+                        AuditAction.AVAILABILITY_DELETED,
+                        "HALL_BLOCKED_DATE",
+                        String.valueOf(blockedDate.getId()),
+                        "Owner deleted blocked availability",
+                        Map.of(
+                                "hallId", blockedDate.getHallId().getId(),
+                                "date", blockedDate.getEventDate().toString(),
+                                "slot", blockedDate.getSlotType().name(),
+                                "reason", blockedDate.getReason()),
+                        null,
+                        null));
 
         hallBlockedDateRepository.delete(blockedDate);
     }

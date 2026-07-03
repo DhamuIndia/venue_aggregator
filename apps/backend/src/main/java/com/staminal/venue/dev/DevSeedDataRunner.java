@@ -114,7 +114,7 @@ public class DevSeedDataRunner implements ApplicationRunner {
                 0.0);
 
         VendorCategory catering = ensureVendorCategory("Catering");
-        Vendors vendor = ensureVendor(vendorUser, adminUser, catering);
+        Vendors vendor = ensureVendor(vendorUser, admin, catering);
         ensureVendorPackage(vendor);
         ensureVendorMedia(vendor, VENDOR_IMAGE_URL);
 
@@ -268,7 +268,7 @@ public class DevSeedDataRunner implements ApplicationRunner {
                 });
     }
 
-    private Vendors ensureVendor(User vendorUser, User adminUser, VendorCategory category) {
+    private Vendors ensureVendor(User vendorUser, Admin adminUser, VendorCategory category) {
         Instant now = Instant.now();
         Vendors vendor = vendorRepository.findByUserId(vendorUser.getId())
                 .or(() -> vendorRepository.findByEmail("vendor@example.com"))
@@ -290,7 +290,7 @@ public class DevSeedDataRunner implements ApplicationRunner {
         vendor.setPasswordHash(passwordEncoder.encode(DEFAULT_PASSWORD));
         vendor.setStatus(VendorStatus.APPROVED);
         vendor.setRejectionReason(null);
-        vendor.setReviewedByUser(adminUser);
+        vendor.setReviewedByAdmin(adminUser);
         vendor.setReviewedAt(now.minusSeconds(172800));
         vendor.setYearsInBusiness(8);
         vendor.setServiceRadius(35);
