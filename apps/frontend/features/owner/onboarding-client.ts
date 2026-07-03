@@ -11,9 +11,13 @@ export type OwnerOnboardingDraft = {
   hallName: string;
   venueType: string;
   description: string;
+  addressLine: string;
   city: string;
   area: string;
   pincode: string;
+  contactNumber: string;
+  whatsappNumber: string;
+  coverImageUrl: string;
   capacity: number;
   morningPrice: number;
   eveningPrice: number;
@@ -27,9 +31,13 @@ export const emptyOwnerOnboardingDraft: OwnerOnboardingDraft = {
   hallName: "",
   venueType: "Marriage Hall",
   description: "",
+  addressLine: "",
   city: "Chennai",
   area: "",
   pincode: "",
+  contactNumber: "",
+  whatsappNumber: "",
+  coverImageUrl: "",
   capacity: 0,
   morningPrice: 0,
   eveningPrice: 0,
@@ -119,9 +127,13 @@ function toRequestPayload(draft: OwnerOnboardingDraft) {
     hallName: draft.hallName,
     venueType: toBackendVenueType(draft.venueType),
     description: draft.description,
+    addressLine: draft.addressLine,
     city: draft.city,
     area: draft.area,
     pincode: draft.pincode,
+    contactNumber: draft.contactNumber,
+    whatsappNumber: draft.whatsappNumber,
+    coverImageUrl: draft.coverImageUrl,
     capacity: draft.capacity,
     capacityMax: draft.capacity,
     startingPrice: draft.fullDayPrice,
@@ -151,9 +163,13 @@ function toOwnerDraft(value: unknown): OwnerOnboardingDraft | undefined {
     hallName,
     venueType: venueTypeValue(record) ?? "Marriage Hall",
     description: stringValue(record, ["description", "summary"]) ?? "",
+    addressLine: stringValue(record, ["addressLine", "address_line", "address"]) ?? "",
     city: stringValue(record, ["city"]) ?? "Chennai",
     area: stringValue(record, ["area", "locality", "location"]) ?? "",
     pincode: stringValue(record, ["pincode", "pinCode", "postalCode"]) ?? "",
+    contactNumber: stringValue(record, ["contactNumber", "contact_number", "phone"]) ?? "",
+    whatsappNumber: stringValue(record, ["whatsappNumber", "whatsapp_number", "whatsAppNumber"]) ?? "",
+    coverImageUrl: stringValue(record, ["coverImageUrl", "cover_image_url", "imageUrl", "primaryImageUrl"]) ?? "",
     capacity: numberValue(record, ["capacity", "capacityMax", "capacity_max"]) ?? 0,
     morningPrice: numberValue(record, ["morningPrice", "morning_price"], ["pricing", "morningPrice"]) ?? 0,
     eveningPrice: numberValue(record, ["eveningPrice", "evening_price"], ["pricing", "eveningPrice"]) ?? 0,
