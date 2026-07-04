@@ -240,16 +240,16 @@ Create vendor lead request:
 }
 ```
 
-The server derives customer and vendor identity. Return `201` with status `NEW`.
+`vendorId` may be the public vendor slug or numeric id. The server derives customer identity from JWT and only creates leads for approved vendors. Return `201` with status `NEW`.
 
 Create vendor lead response:
 
 ```json
 {
   "id": "LEAD-804231",
-  "vendorId": "saffron-leaf-catering",
+  "vendorId": "501",
   "vendorName": "Saffron Leaf Catering",
-  "customerId": "customer-411",
+  "customerId": "411",
   "customerName": "Deepa Raj",
   "eventDate": "2026-08-02",
   "eventType": "Reception",
@@ -262,7 +262,7 @@ Create vendor lead response:
 }
 ```
 
-Return `401` when the user is not logged in, `403` when the logged-in user is not a customer, and `400` for invalid event date, service, location, or budget.
+Return `401` when the user is not logged in, `403` when the logged-in user is not a customer, `404` when the vendor is not approved or not found, and `400` for invalid event date, service, location, or budget.
 
 ## Customer APIs
 
@@ -575,8 +575,13 @@ Vendor profile request:
 {
   "businessName": "Saffron Leaf Catering",
   "category": "CATERING",
+  "coverImageUrl": "https://cdn.example.com/vendor-cover.jpg",
+  "addressLine": "12 South Mada Street",
   "city": "Chennai",
   "area": "Adyar",
+  "pincode": "600020",
+  "contactNumber": "9884012345",
+  "whatsAppNumber": "9884012345",
   "serviceRadius": 25,
   "yearsInBusiness": 5,
   "description": "South Indian celebration menus with trained event service staff.",
@@ -632,6 +637,26 @@ Vendor media request:
 ```
 
 Vendor media response should include `id`, `url`, `caption`, `isCover`, `sortOrder`, and optional `storageKey`. Cover updates should normalize the previous cover to `isCover=false`.
+
+Vendor reviews response:
+
+```json
+{
+  "reviews": [
+    {
+      "id": "901",
+      "customerName": "Priya Raman",
+      "rating": 5,
+      "eventType": "Wedding",
+      "comment": "Excellent service.",
+      "eventDate": "2026-08-12",
+      "verifiedService": true
+    }
+  ],
+  "reviewCount": 1,
+  "averageRating": 5.0
+}
+```
 
 Vendor lead status: `NEW`, `CONTACTED`, `QUOTE_SENT`, `BOOKED`, `DECLINED`.
 

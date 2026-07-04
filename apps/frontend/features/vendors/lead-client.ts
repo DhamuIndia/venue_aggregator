@@ -69,7 +69,7 @@ export async function getVendorLeads(vendorId: string, accessToken?: string | nu
     const response = await apiRequest<unknown>("/vendor/leads", {
       token: accessToken
     });
-    const leads = extractVendorLeads(response).filter((lead) => lead.vendorId === vendorId || !lead.vendorId);
+    const leads = extractVendorLeads(response);
     leads.forEach(cacheLocalVendorLead);
     return { leads, source: "api" };
   } catch {

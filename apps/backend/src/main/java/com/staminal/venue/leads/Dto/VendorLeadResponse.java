@@ -10,6 +10,12 @@ public class VendorLeadResponse {
 
     private Long id;
 
+    private String vendorId;
+
+    private String vendorName;
+
+    private String customerId;
+
     private String customerName;
 
     private String customerPhone;
@@ -40,6 +46,30 @@ public class VendorLeadResponse {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getVendorId() {
+        return vendorId;
+    }
+
+    public void setVendorId(String vendorId) {
+        this.vendorId = vendorId;
+    }
+
+    public String getVendorName() {
+        return vendorName;
+    }
+
+    public void setVendorName(String vendorName) {
+        this.vendorName = vendorName;
+    }
+
+    public String getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(String customerId) {
+        this.customerId = customerId;
     }
 
     public String getCustomerName() {

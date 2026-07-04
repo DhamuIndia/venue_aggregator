@@ -118,8 +118,10 @@ public class VendorService {
                 response.setBusinessName(vendor.getBusinessName());
                 response.setDescription(vendor.getDescription());
                 response.setCoverImageUrl(vendor.getCoverImageUrl());
+                response.setAddressLine(vendor.getAddressLine());
                 response.setCity(vendor.getCity());
                 response.setArea(vendor.getArea());
+                response.setPincode(vendor.getPincode());
                 response.setContactNumber(vendor.getContactNumber());
                 response.setWhatsAppNumber(vendor.getWhatsAppNumber());
                 response.setYearsInBusiness(vendor.getYearsInBusiness());
@@ -227,8 +229,13 @@ public class VendorService {
                                 .orElseGet(() -> newDraftVendor(user));
 
                 vendor.setBusinessName(defaultText(request.getBusinessName(), user.getFullName()));
+                vendor.setCoverImageUrl(firstText(request.getCoverImageUrl(), vendor.getCoverImageUrl(), ""));
+                vendor.setAddressLine(firstText(request.getAddressLine(), vendor.getAddressLine(), ""));
                 vendor.setCity(defaultText(request.getCity(), "Chennai"));
                 vendor.setArea(defaultText(request.getArea(), ""));
+                vendor.setPincode(firstText(request.getPincode(), vendor.getPincode(), ""));
+                vendor.setContactNumber(firstText(request.getContactNumber(), vendor.getContactNumber(), user.getPhone()));
+                vendor.setWhatsAppNumber(firstText(request.getWhatsAppNumber(), vendor.getWhatsAppNumber(), user.getPhone()));
                 vendor.setDescription(trimToNull(request.getDescription()));
                 vendor.setYearsInBusiness(request.getYearsInBusiness());
                 vendor.setServiceRadius(request.getServiceRadius());
@@ -308,8 +315,10 @@ public class VendorService {
                 response.setVendorName(defaultText(user.getFullName(), "Vendor"));
                 response.setBusinessName(defaultText(user.getFullName(), "Vendor business"));
                 response.setCategory("CATERING");
+                response.setAddressLine("");
                 response.setCity("Chennai");
                 response.setArea("");
+                response.setPincode("");
                 response.setContactNumber(user.getPhone());
                 response.setWhatsAppNumber(user.getPhone());
                 response.setStatus(VendorStatus.DRAFT.name());
@@ -383,6 +392,16 @@ public class VendorService {
         private String defaultText(String value, String fallback) {
                 String trimmed = trimToNull(value);
                 return trimmed == null ? fallback : trimmed;
+        }
+
+        private String firstText(String... values) {
+                for (String value : values) {
+                        String trimmed = trimToNull(value);
+                        if (trimmed != null) {
+                                return trimmed;
+                        }
+                }
+                return "";
         }
 
         private String trimToNull(String value) {

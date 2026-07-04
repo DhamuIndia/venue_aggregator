@@ -156,7 +156,8 @@ function venueType(record: ApiHallRecord): VenueType | undefined {
   if (normalized === "MARRIAGE_HALL") return "Marriage Hall";
   if (normalized === "BANQUET_HALL") return "Banquet Hall";
   if (normalized === "MINI_HALL") return "Mini Hall";
-  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall") return value;
+  if (normalized === "CONVENTION_CENTRE" || normalized === "CONVENTION_CENTER") return "Convention Centre";
+  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall" || value === "Convention Centre") return value;
   return undefined;
 }
 

@@ -13,9 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.reviews.Review;
+import com.staminal.venue.reviews.ReviewRepository;
 import com.staminal.venue.vendors.Dto.PublicVendorListResponse;
 import com.staminal.venue.vendors.Dto.PublicVendorPackageResponse;
 import com.staminal.venue.vendors.Dto.PublicVendorResponse;
+import com.staminal.venue.vendors.Dto.PublicVendorReviewResponse;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.VendorMedia;
 import com.staminal.venue.vendors.Entity.Vendors;
@@ -34,6 +37,7 @@ public class PublicVendorService {
     private final VendorRepository vendorRepository;
     private final VendorPackageRepository vendorPackageRepository;
     private final VendorMediaRepository vendorMediaRepository;
+    private final ReviewRepository reviewRepository;
 
     @Transactional(readOnly = true)
     public PublicVendorListResponse searchPublicVendors(
@@ -99,6 +103,11 @@ public class PublicVendorService {
                 .filter(this::hasText)
                 .distinct()
                 .toList();
+        List<Review> publishedReviews = reviewRepository.findPublishedReviewsByVendorId(vendor.getId());
+        List<PublicVendorReviewResponse> reviews = publishedReviews.stream()
+                .map(this::reviewResponse)
+                .toList();
+        double rating = averageRating(publishedReviews);
 
         return new PublicVendorResponse(
                 String.valueOf(vendor.getId()),
@@ -107,18 +116,18 @@ public class PublicVendorService {
                 frontendCategory(vendor),
                 firstText(vendor.getCity(), ""),
                 firstText(vendor.getArea(), ""),
-                0.0,
-                0,
+                rating,
+                reviews.size(),
                 firstNonNull(vendor.getStartingPrice(), BigDecimal.ZERO),
                 imageUrl,
                 galleryUrls.isEmpty() ? List.of(imageUrl) : galleryUrls,
                 true,
                 "Within 24 hours",
-                0,
+                reviews.size(),
                 vendor.getServices() == null ? List.of() : vendor.getServices(),
                 firstText(vendor.getDescription(), ""),
                 packages(vendor),
-                List.of(),
+                reviews,
                 "APPROVED");
     }
 
@@ -174,6 +183,13 @@ public class PublicVendorService {
             return Comparator
                     .comparing((Vendors vendor) -> startingPrice(vendor) == null)
                     .thenComparing(this::startingPrice, Comparator.nullsLast(Comparator.naturalOrder()));
+        }
+        if ("RATING_DESC".equals(normalized)) {
+            return Comparator
+                    .comparingDouble((Vendors vendor) -> averageRating(
+                            reviewRepository.findPublishedReviewsByVendorId(vendor.getId())))
+                    .reversed()
+                    .thenComparing(Vendors::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
         }
         return Comparator
                 .comparing((Vendors vendor) -> vendor.getStartingPrice() == null)
@@ -242,6 +258,45 @@ public class PublicVendorService {
             case "WEDDING_PLANNER" -> "EVENT_PLANNING";
             default -> "CATERING";
         };
+    }
+
+    private PublicVendorReviewResponse reviewResponse(Review review) {
+        return new PublicVendorReviewResponse(
+                String.valueOf(review.getId()),
+                review.getCustomer() == null || !hasText(review.getCustomer().getFullName())
+                        ? "Customer"
+                        : review.getCustomer().getFullName(),
+                review.getRating() == null ? 0 : review.getRating(),
+                eventType(review),
+                firstText(review.getComment(), ""),
+                eventDate(review),
+                Boolean.TRUE.equals(review.getVerifiedService()));
+    }
+
+    private double averageRating(List<Review> reviews) {
+        double average = reviews.stream()
+                .filter(review -> review.getRating() != null)
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0.0);
+        return Math.round(average * 10.0) / 10.0;
+    }
+
+    private String eventType(Review review) {
+        if (review.getEnquiry() != null && hasText(review.getEnquiry().getEventType())) {
+            return review.getEnquiry().getEventType();
+        }
+        return "Completed event";
+    }
+
+    private String eventDate(Review review) {
+        if (review.getEnquiry() != null && review.getEnquiry().getEventDate() != null) {
+            return review.getEnquiry().getEventDate().toString();
+        }
+        if (review.getBooking() != null && review.getBooking().getEventDate() != null) {
+            return review.getBooking().getEventDate().toString();
+        }
+        return review.getCreatedAt() == null ? "" : review.getCreatedAt().toString();
     }
 
     private BigDecimal startingPrice(Vendors vendor) {

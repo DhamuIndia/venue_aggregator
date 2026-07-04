@@ -7,6 +7,7 @@ import com.staminal.venue.enquiries.Enquiry;
 import com.staminal.venue.admin.Admin;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.users.Entity.User;
+import com.staminal.venue.vendors.Entity.Vendors;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,6 +43,10 @@ public class Review {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hall_id")
     private Halls hall;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_id")
+    private Vendors vendor;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_user_id")
@@ -134,6 +139,14 @@ public class Review {
 
     public void setHall(Halls hall) {
         this.hall = hall;
+    }
+
+    public Vendors getVendor() {
+        return vendor;
+    }
+
+    public void setVendor(Vendors vendor) {
+        this.vendor = vendor;
     }
 
     public User getCustomer() {

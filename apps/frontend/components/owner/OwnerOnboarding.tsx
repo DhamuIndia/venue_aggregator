@@ -118,8 +118,9 @@ export function OwnerOnboarding() {
       setError("");
       setNotice("");
       setIsSubmitting(true);
-      await submitOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), accessToken);
-      router.push("/owner?submitted=true");
+      const submittedDraft = await submitOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), accessToken);
+      const submittedHallId = submittedDraft.id ? `&hallId=${encodeURIComponent(submittedDraft.id)}` : "";
+      router.push(`/owner?submitted=true${submittedHallId}`);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Could not submit venue for approval.");
     } finally {

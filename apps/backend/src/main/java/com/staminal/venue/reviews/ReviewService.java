@@ -75,6 +75,7 @@ public class ReviewService {
                 review.setBooking(booking);
                 review.setEnquiry(enquiry);
                 review.setHall(booking.getHall());
+                review.setVendor(enquiry.getVendor());
                 review.setCustomer(customer);
 
                 review.setRating(request.rating());

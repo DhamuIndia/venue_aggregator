@@ -19,9 +19,13 @@ public class VendorResponse {
 
     private String coverImageUrl;
 
+    private String addressLine;
+
     private String city;
 
     private String area;
+
+    private String pincode;
 
     private String contactNumber;
 
@@ -149,6 +153,14 @@ public class VendorResponse {
         this.coverImageUrl = coverImageUrl;
     }
 
+    public String getAddressLine() {
+        return addressLine;
+    }
+
+    public void setAddressLine(String addressLine) {
+        this.addressLine = addressLine;
+    }
+
     public String getCity() {
         return city;
     }
@@ -163,6 +175,14 @@ public class VendorResponse {
 
     public void setArea(String area) {
         this.area = area;
+    }
+
+    public String getPincode() {
+        return pincode;
+    }
+
+    public void setPincode(String pincode) {
+        this.pincode = pincode;
     }
 
     public String getContactNumber() {

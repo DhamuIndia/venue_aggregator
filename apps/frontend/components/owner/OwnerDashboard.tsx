@@ -116,6 +116,10 @@ const ownerListingFallback: OwnerHallListing = {
   status: "APPROVED"
 };
 
+const OWNER_ONBOARDING_DRAFT_KEY = "venue-owner-onboarding-draft";
+const LEGACY_OWNER_ONBOARDING_DRAFT_KEY = "venue-owner-onboarding";
+const OWNER_LISTINGS_KEY = "venue-aggregator-owner-listings";
+
 type ListingForm = {
   name: string;
   venueType: VenueType;
@@ -213,6 +217,105 @@ function validateListingForm(form: ListingForm) {
   return "";
 }
 
+function preferredOwnerHallId() {
+  if (typeof window === "undefined") return ownerHall.id;
+
+  const queryHallId = new URLSearchParams(window.location.search).get("hallId");
+  if (queryHallId) return queryHallId;
+
+  const draft = readLocalRecord(OWNER_ONBOARDING_DRAFT_KEY) ?? readLocalRecord(LEGACY_OWNER_ONBOARDING_DRAFT_KEY);
+  const draftId = stringValue(draft, ["id", "hallId", "hall_id", "slug"]);
+  if (draftId) return draftId;
+
+  const listings = readLocalRecord(OWNER_LISTINGS_KEY);
+  const firstListingId = listings ? Object.keys(listings).find(Boolean) : undefined;
+  return firstListingId ?? ownerHall.id;
+}
+
+function fallbackListingForHall(hallId: string): OwnerHallListing {
+  const draft = readLocalRecord(OWNER_ONBOARDING_DRAFT_KEY) ?? readLocalRecord(LEGACY_OWNER_ONBOARDING_DRAFT_KEY);
+  if (!draft || stringValue(draft, ["id", "hallId", "hall_id", "slug"]) !== hallId) {
+    return { ...ownerListingFallback, id: hallId };
+  }
+
+  const amenities = Array.isArray(draft.amenities)
+    ? draft.amenities.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : ownerListingFallback.amenities;
+  const coverImageUrl = stringValue(draft, ["coverImageUrl", "cover_image_url", "imageUrl"]) ?? ownerListingFallback.imageUrl;
+
+  return {
+    ...ownerListingFallback,
+    id: hallId,
+    name: stringValue(draft, ["hallName", "name", "title"]) ?? ownerListingFallback.name,
+    city: stringValue(draft, ["city"]) ?? ownerListingFallback.city,
+    area: stringValue(draft, ["area", "locality", "location"]) ?? ownerListingFallback.area,
+    capacity: numberValue(draft, ["capacity", "capacityMax", "capacity_max"]) ?? ownerListingFallback.capacity,
+    startingPrice: numberValue(draft, ["fullDayPrice", "full_day_price", "startingPrice", "amount"]) ?? ownerListingFallback.startingPrice,
+    imageUrl: coverImageUrl,
+    galleryUrls: coverImageUrl ? [coverImageUrl] : ownerListingFallback.galleryUrls,
+    venueType: venueTypeFromDraft(draft) ?? ownerListingFallback.venueType,
+    amenities,
+    description: stringValue(draft, ["description", "summary"]) ?? ownerListingFallback.description,
+    status: statusFromDraft(draft) ?? "DRAFT",
+    isVerified: false
+  };
+}
+
+function readLocalRecord(key: string) {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "null") as unknown;
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function venueTypeFromDraft(record: Record<string, unknown>): VenueType | undefined {
+  const value = stringValue(record, ["venueType", "venue_type", "hallType", "type"]);
+  if (!value) return undefined;
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized === "MARRIAGE_HALL") return "Marriage Hall";
+  if (normalized === "BANQUET_HALL") return "Banquet Hall";
+  if (normalized === "MINI_HALL") return "Mini Hall";
+  if (normalized === "CONVENTION_CENTRE" || normalized === "CONVENTION_CENTER") return "Convention Centre";
+  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall" || value === "Convention Centre") return value;
+  return undefined;
+}
+
+function statusFromDraft(record: Record<string, unknown>): OwnerListingStatus | undefined {
+  const value = stringValue(record, ["status", "listingStatus", "listing_status", "approvalStatus"]);
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === "DRAFT") return "DRAFT";
+  if (normalized === "PENDING" || normalized === "PENDING_APPROVAL" || normalized === "SUBMITTED") return "PENDING_APPROVAL";
+  if (normalized === "APPROVED") return "APPROVED";
+  if (normalized === "REJECTED") return "REJECTED";
+  return undefined;
+}
+
+function stringValue(record: Record<string, unknown> | undefined, keys: string[]) {
+  if (!record) return undefined;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number") return String(value);
+  }
+  return undefined;
+}
+
+function numberValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number") return value;
+    if (typeof value === "string" && value.trim() && !Number.isNaN(Number(value))) return Number(value);
+  }
+  return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function normalizeMediaCover(media: OwnerMediaItem[]) {
   if (media.length === 0) return media;
   const coverIndex = media.findIndex((item) => item.isCover);
@@ -233,6 +336,7 @@ function reviewCounts(reviews: OwnerReview[]) {
 export function OwnerDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<OwnerTab>("overview");
+  const [activeHallId, setActiveHallId] = useState(() => preferredOwnerHallId());
   const [listing, setListing] = useState<OwnerHallListing>(ownerListingFallback);
   const [listingForm, setListingForm] = useState<ListingForm>(() => formFromListing(ownerListingFallback));
   const [isLoadingListing, setIsLoadingListing] = useState(true);
@@ -268,7 +372,9 @@ export function OwnerDashboard() {
   const [analyticsError, setAnalyticsError] = useState("");
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("submitted") === "true") setNotice("Your venue was submitted for admin approval.");
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("submitted") === "true") setNotice("Your venue was submitted for admin approval.");
+    setActiveHallId(preferredOwnerHallId());
   }, []);
 
   useEffect(() => {
@@ -279,7 +385,7 @@ export function OwnerDashboard() {
       setAnalyticsError("");
 
       try {
-        const response = await getOwnerAnalytics(ownerHall.id, accessToken);
+        const response = await getOwnerAnalytics(activeHallId, accessToken);
         if (!isCurrent) return;
         setAnalytics(response);
       } catch {
@@ -296,7 +402,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -306,16 +412,19 @@ export function OwnerDashboard() {
       setListingError("");
 
       try {
-        const response = await getOwnerHallListing(ownerHall.id, accessToken, ownerListingFallback);
+        const fallbackListing = fallbackListingForHall(activeHallId);
+        const response = await getOwnerHallListing(activeHallId, accessToken, fallbackListing);
         if (!isCurrent) return;
         setListing(response);
+        setActiveHallId(response.id);
         setListingForm(formFromListing(response));
         setMedia(getLocalOwnerMedia(response.id, mediaFromListing(response)));
       } catch {
         if (!isCurrent) return;
-        setListing(ownerListingFallback);
-        setListingForm(formFromListing(ownerListingFallback));
-        setMedia(getLocalOwnerMedia(ownerListingFallback.id, mediaFromListing(ownerListingFallback)));
+        const fallbackListing = fallbackListingForHall(activeHallId);
+        setListing(fallbackListing);
+        setListingForm(formFromListing(fallbackListing));
+        setMedia(getLocalOwnerMedia(fallbackListing.id, mediaFromListing(fallbackListing)));
         setListingError("Could not load latest listing details.");
       } finally {
         if (isCurrent) setIsLoadingListing(false);
@@ -327,7 +436,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -340,7 +449,7 @@ export function OwnerDashboard() {
         const fallbackBookings = fallbackOwnerEnquiries
           .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
           .map(lifecycleBookingFromEnquiry);
-        const response = await getOwnerBookings(ownerHall.id, accessToken, fallbackBookings);
+        const response = await getOwnerBookings(activeHallId, accessToken, fallbackBookings);
         if (!isCurrent) return;
         setBookings(response.bookings);
       } catch {
@@ -357,7 +466,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -367,7 +476,7 @@ export function OwnerDashboard() {
       setEnquiriesError("");
 
       try {
-        const response = await getOwnerHallEnquiries(ownerHall.id, ownerHall.name, accessToken);
+        const response = await getOwnerHallEnquiries(activeHallId, listing.name, accessToken);
         if (!isCurrent) return;
 
         const loadedIds = new Set(response.enquiries.map((enquiry) => enquiry.id));
@@ -389,7 +498,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId, listing.name]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -402,7 +511,7 @@ export function OwnerDashboard() {
         const fallbackBookings = fallbackOwnerEnquiries
           .filter((enquiry) => enquiry.status === "CONFIRMED")
           .map(bookingFromEnquiry);
-        const response = await getOwnerAvailability(ownerHall.id, accessToken, initialBlockedDates, fallbackBookings);
+        const response = await getOwnerAvailability(activeHallId, accessToken, initialBlockedDates, fallbackBookings);
         if (!isCurrent) return;
 
         setBlockedDates(response.blockedDates);
@@ -422,7 +531,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -432,7 +541,7 @@ export function OwnerDashboard() {
       setReviewsError("");
 
       try {
-        const response = await getOwnerHallReviews(ownerHall.id, accessToken, ownerReviews);
+        const response = await getOwnerHallReviews(activeHallId, accessToken, ownerReviews);
         if (!isCurrent) return;
         setReviews(response.reviews);
         setAverageRating(response.averageRating || ownerHall.rating);
@@ -453,7 +562,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   const pendingCount = enquiries.filter((enquiry) => enquiry.status === "NEW" || enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const activeBookingCount = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED").length;
@@ -528,7 +637,7 @@ export function OwnerDashboard() {
 
   async function addBlockedDate(date: BlockDatePayload) {
     try {
-      const blockedDate = await createOwnerBlockedDate(ownerHall.id, date, accessToken);
+      const blockedDate = await createOwnerBlockedDate(activeHallId, date, accessToken);
       setBlockedDates((current) => [blockedDate, ...current.filter((item) => item.id !== blockedDate.id)]);
       setNotice("The selected date and slot are now blocked.");
     } catch (exception) {
@@ -544,7 +653,7 @@ export function OwnerDashboard() {
     try {
       setDeletingBlockId(blockId);
       setBlockedDates((current) => current.filter((item) => item.id !== blockId));
-      await deleteOwnerBlockedDate(ownerHall.id, blockId, accessToken);
+      await deleteOwnerBlockedDate(activeHallId, blockId, accessToken);
       setNotice("Blocked date removed.");
     } catch (exception) {
       setBlockedDates(previousBlockedDates);
@@ -579,7 +688,7 @@ export function OwnerDashboard() {
     try {
       setIsSavingListing(true);
       setListingError("");
-      const saved = await updateOwnerHallListing(ownerHall.id, payloadFromForm(listingForm), accessToken, listing);
+      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm), accessToken, listing);
       setListing(saved);
       setListingForm(formFromListing(saved));
       setNotice("Listing draft saved.");
@@ -600,8 +709,8 @@ export function OwnerDashboard() {
     try {
       setIsSubmittingListing(true);
       setListingError("");
-      const saved = await updateOwnerHallListing(ownerHall.id, payloadFromForm(listingForm), accessToken, listing);
-      const submitted = await submitOwnerHallListing(ownerHall.id, accessToken, saved);
+      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm), accessToken, listing);
+      const submitted = await submitOwnerHallListing(listing.id, accessToken, saved);
       setListing(submitted);
       setListingForm(formFromListing(submitted));
       setNotice("Listing submitted for admin approval.");
@@ -679,12 +788,14 @@ export function OwnerDashboard() {
     }
   }
 
+  const isListingPublic = listing.status === "APPROVED";
+
   return (
     <>
       <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div><div className="flex items-center gap-2 text-sm font-semibold text-primary"><BadgeCheck size={17} /> Owner workspace</div><h1 className="mt-2 text-3xl font-semibold">{listing.name}</h1><p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listing.area}, {listing.city}</p></div>
-          <div className="flex flex-wrap items-center gap-2"><NotificationBell /><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link><Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
+          <div className="flex flex-wrap items-center gap-2"><NotificationBell />{isListingPublic ? <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link> : <button className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-muted-foreground" disabled type="button"><Eye size={17} /> Awaiting approval</button>}<Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
         </div>
 
         {notice && <div className="mt-6 flex items-start justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><span className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0" size={18} />{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")}><X size={17} /></button></div>}
@@ -1024,7 +1135,7 @@ export function OwnerDashboard() {
                 <section className="rounded-lg border border-border bg-white p-5 sm:p-6">
                   <div className="grid gap-5 sm:grid-cols-2">
                     <label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("name", event.target.value)} value={listingForm.name} /></label>
-                    <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option></select></label>
+                    <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label>
                     <label className="text-sm font-medium">Maximum guests<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateListingField("capacity", event.target.value)} type="number" value={listingForm.capacity} /></label>
                     <label className="text-sm font-medium">City<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("city", event.target.value)} value={listingForm.city} /></label>
                     <label className="text-sm font-medium">Area<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("area", event.target.value)} value={listingForm.area} /></label>
@@ -1069,7 +1180,7 @@ export function OwnerDashboard() {
                       <div><p className="text-xs text-muted-foreground">Amenities</p><p className="mt-1 font-semibold">{listingForm.amenities.length}</p></div>
                       <div><p className="text-xs text-muted-foreground">Rating</p><p className="mt-1 font-semibold">{listing.rating}</p></div>
                     </div>
-                    <Link className="mt-6 inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-semibold hover:border-primary" href={`/halls/${listing.id}`}>Preview public page</Link>
+                    {isListingPublic ? <Link className="mt-6 inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-semibold hover:border-primary" href={`/halls/${listing.id}`}>Preview public page</Link> : <button className="mt-6 inline-flex h-10 cursor-not-allowed items-center rounded-md border border-border px-4 text-sm font-semibold text-muted-foreground" disabled type="button">Preview after approval</button>}
                   </div>
                 </aside>
               </div>

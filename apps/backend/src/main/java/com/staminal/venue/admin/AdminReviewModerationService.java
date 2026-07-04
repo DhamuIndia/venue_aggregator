@@ -163,9 +163,7 @@ public class AdminReviewModerationService {
     private AdminReviewResponse toResponse(Review review) {
         return new AdminReviewResponse(
                 String.valueOf(review.getId()),
-                review.getHall() == null || !hasText(review.getHall().getName())
-                        ? "Venue"
-                        : review.getHall().getName(),
+                reviewTargetName(review),
                 review.getCustomer() == null || !hasText(review.getCustomer().getFullName())
                         ? "Customer"
                         : review.getCustomer().getFullName(),
@@ -177,6 +175,16 @@ public class AdminReviewModerationService {
                 review.getCreatedAt(),
                 review.getModeratedByAdmin() == null ? null : review.getModeratedByAdmin().getId(),
                 review.getModeratedAt());
+    }
+
+    private String reviewTargetName(Review review) {
+        if (review.getHall() != null && hasText(review.getHall().getName())) {
+            return review.getHall().getName();
+        }
+        if (review.getVendor() != null && hasText(review.getVendor().getBusinessName())) {
+            return review.getVendor().getBusinessName();
+        }
+        return "Marketplace listing";
     }
 
     private ReviewModerationStatus safeStatus(ReviewModerationStatus status) {

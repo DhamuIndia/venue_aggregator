@@ -1,4 +1,4 @@
-export type VenueType = "Marriage Hall" | "Banquet Hall" | "Mini Hall";
+export type VenueType = "Marriage Hall" | "Banquet Hall" | "Mini Hall" | "Convention Centre";
 
 export type HallSummary = {
   id: string;

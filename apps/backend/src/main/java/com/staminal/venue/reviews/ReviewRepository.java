@@ -22,6 +22,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             SELECT r
             FROM Review r
             LEFT JOIN FETCH r.hall
+            LEFT JOIN FETCH r.vendor
             LEFT JOIN FETCH r.customer
             ORDER BY r.createdAt DESC
             """)
@@ -31,6 +32,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             SELECT r
             FROM Review r
             LEFT JOIN FETCH r.hall
+            LEFT JOIN FETCH r.vendor
             LEFT JOIN FETCH r.customer
             WHERE r.moderationStatus IN :statuses
             ORDER BY r.createdAt DESC
@@ -41,6 +43,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             SELECT r
             FROM Review r
             LEFT JOIN FETCH r.hall
+            LEFT JOIN FETCH r.vendor
             LEFT JOIN FETCH r.customer
             WHERE r.id = :reviewId
             """)
@@ -68,5 +71,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             ORDER BY r.createdAt DESC
             """)
     List<Review> findOwnerPublishedReviewsByHallId(@Param("hallId") Long hallId);
+
+    @Query("""
+            SELECT r
+            FROM Review r
+            LEFT JOIN FETCH r.customer
+            LEFT JOIN FETCH r.enquiry
+            LEFT JOIN FETCH r.booking
+            WHERE r.vendor.id = :vendorId
+            AND r.active = true
+            AND r.moderationStatus = com.staminal.venue.reviews.ReviewModerationStatus.PUBLISHED
+            ORDER BY r.createdAt DESC
+            """)
+    List<Review> findPublishedReviewsByVendorId(@Param("vendorId") Long vendorId);
 
 }

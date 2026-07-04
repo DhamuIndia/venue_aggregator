@@ -1,6 +1,9 @@
 package com.staminal.venue.leads;
 
+import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -15,6 +18,7 @@ import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.enums.VendorLeadStatus;
+import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
@@ -87,6 +91,13 @@ public class VendorLeadService {
         VendorLeadResponse response = new VendorLeadResponse();
 
         response.setId(lead.getId());
+        if (lead.getVendor() != null) {
+            response.setVendorId(String.valueOf(lead.getVendor().getId()));
+            response.setVendorName(firstText(lead.getVendor().getBusinessName(), lead.getVendor().getVendorName(), ""));
+        }
+        if (lead.getCustomer() != null && lead.getCustomer().getId() != null) {
+            response.setCustomerId(String.valueOf(lead.getCustomer().getId()));
+        }
         response.setCustomerName(lead.getCustomerName());
         response.setCustomerPhone(lead.getCustomerPhone());
         response.setCustomerEmail(lead.getCustomerEmail());
@@ -124,6 +135,8 @@ public class VendorLeadService {
                     "CUSTOMER role is required");
         }
 
+        validateCreateRequest(request);
+
         Long userId;
 
         try {
@@ -139,20 +152,13 @@ public class VendorLeadService {
                         HttpStatus.UNAUTHORIZED,
                         "User not found"));
 
-        Long vendorId;
-
-        try {
-            vendorId = Long.valueOf(request.getVendorId());
-        } catch (NumberFormatException ex) {
+        if (!"ACTIVE".equalsIgnoreCase(customer.getStatus())) {
             throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Invalid vendor id");
+                    HttpStatus.FORBIDDEN,
+                    "User account is not active");
         }
 
-        Vendors vendor = vendorRepository.findById(vendorId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Vendor not found"));
+        Vendors vendor = findApprovedVendor(request.getVendorId());
 
         VendorLead lead = new VendorLead();
 
@@ -169,6 +175,7 @@ public class VendorLeadService {
         lead.setLocation(request.getLocation());
         lead.setBudget(request.getBudget());
         lead.setNotes(request.getNotes());
+        lead.setStatus(VendorLeadStatus.NEW);
 
         VendorLead saved = vendorLeadRepository.save(lead);
 
@@ -208,7 +215,7 @@ public class VendorLeadService {
             UpdateVendorLeadStatusRequest request,
             Authentication authentication) {
 
-        if (request.getStatus() == null) {
+        if (request == null || request.getStatus() == null) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Status is required");
@@ -264,6 +271,7 @@ public class VendorLeadService {
             case NEW -> {
 
                 if (next != VendorLeadStatus.CONTACTED &&
+                        next != VendorLeadStatus.QUOTE_SENT &&
                         next != VendorLeadStatus.DECLINED) {
 
                     throw new ResponseStatusException(
@@ -275,6 +283,7 @@ public class VendorLeadService {
             case CONTACTED -> {
 
                 if (next != VendorLeadStatus.QUOTE_SENT &&
+                        next != VendorLeadStatus.BOOKED &&
                         next != VendorLeadStatus.DECLINED) {
 
                     throw new ResponseStatusException(
@@ -297,6 +306,80 @@ public class VendorLeadService {
             default -> {
             }
         }
+    }
+
+    private void validateCreateRequest(CreateVendorLeadRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lead details are required");
+        }
+        if (!hasText(request.getVendorId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vendor id is required");
+        }
+        if (!hasText(request.getService())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Service is required");
+        }
+        if (!hasText(request.getEventType())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Event type is required");
+        }
+        if (request.getEventDate() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Event date is required");
+        }
+        if (!hasText(request.getLocation())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location is required");
+        }
+        if (request.getBudget() == null || request.getBudget().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Budget must be greater than zero");
+        }
+    }
+
+    private Vendors findApprovedVendor(String vendorId) {
+        Long numericId = tryParseLong(vendorId);
+        if (numericId != null) {
+            Vendors vendor = vendorRepository.findById(numericId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor not found"));
+            if (vendor.getStatus() != VendorStatus.APPROVED) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor not found");
+            }
+            return vendor;
+        }
+
+        String requestedSlug = slugify(vendorId);
+        return vendorRepository.findByStatus(VendorStatus.APPROVED)
+                .stream()
+                .filter(candidate -> slugify(candidate.getBusinessName()).equals(requestedSlug)
+                        || slugify(candidate.getVendorName()).equals(requestedSlug))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor not found"));
+    }
+
+    private Long tryParseLong(String value) {
+        try {
+            return Long.valueOf(value);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private String slugify(String value) {
+        String normalized = Normalizer.normalize(firstText(value, ""), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
+        return normalized;
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
 }

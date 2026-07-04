@@ -73,10 +73,16 @@ class VendorServiceTest {
         Vendors savedVendor = vendorCaptor.getValue();
         assertThat(savedVendor.getUser()).isSameAs(user);
         assertThat(savedVendor.getBusinessName()).isEqualTo("Saffron Leaf Catering");
+        assertThat(savedVendor.getAddressLine()).isEqualTo("12 South Mada Street");
+        assertThat(savedVendor.getPincode()).isEqualTo("600017");
+        assertThat(savedVendor.getContactNumber()).isEqualTo("9884012345");
+        assertThat(savedVendor.getWhatsAppNumber()).isEqualTo("9884012346");
+        assertThat(savedVendor.getCoverImageUrl()).isEqualTo("https://cdn.example.com/vendor-cover.jpg");
         assertThat(savedVendor.getStatus()).isEqualTo(VendorStatus.DRAFT);
         assertThat(savedVendor.getCategories()).extracting(VendorCategory::getCategoryName).containsExactly("Catering");
         assertThat(response.getStatus()).isEqualTo("DRAFT");
         assertThat(response.getCategory()).isEqualTo("CATERING");
+        assertThat(response.getAddressLine()).isEqualTo("12 South Mada Street");
     }
 
     @Test
@@ -119,8 +125,13 @@ class VendorServiceTest {
         UpdateVendorRequest request = new UpdateVendorRequest();
         request.setBusinessName("Saffron Leaf Catering");
         request.setCategory("CATERING");
+        request.setAddressLine("12 South Mada Street");
         request.setCity("Chennai");
         request.setArea("T Nagar");
+        request.setPincode("600017");
+        request.setContactNumber("9884012345");
+        request.setWhatsAppNumber("9884012346");
+        request.setCoverImageUrl("https://cdn.example.com/vendor-cover.jpg");
         request.setServiceRadius(25);
         request.setYearsInBusiness(5);
         request.setDescription("Premium event catering service");
