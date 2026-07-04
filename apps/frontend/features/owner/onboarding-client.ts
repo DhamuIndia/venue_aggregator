@@ -57,7 +57,10 @@ export async function getOwnerOnboardingDraft(accessToken?: string | null) {
     const draft = toOwnerDraft(response) ?? localDraft;
     saveLocalDraft(draft);
     return draft;
-  } catch {
+  } catch (exception) {
+    if (exception instanceof ApiError && exception.status === 404) {
+      return clearLocalDraft();
+    }
     return localDraft;
   }
 }
@@ -119,6 +122,14 @@ function saveLocalDraft(draft: OwnerOnboardingDraft) {
   const nextDraft = { ...draft, id: draft.id ?? `HALL-${Date.now().toString().slice(-6)}`, updatedAt: new Date().toISOString() };
   if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextDraft));
   return nextDraft;
+}
+
+function clearLocalDraft() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  }
+  return emptyOwnerOnboardingDraft;
 }
 
 function toRequestPayload(draft: OwnerOnboardingDraft) {
