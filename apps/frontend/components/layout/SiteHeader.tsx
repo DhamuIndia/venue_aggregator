@@ -1,10 +1,11 @@
 "use client";
 
-import { Building2, Heart, LayoutDashboard, LogOut, ShieldCheck, Store, UserRound } from "lucide-react";
+import { Heart, LayoutDashboard, LogOut, ShieldCheck, Store, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { NotificationBell } from "@/components/notifications/NotificationCenter";
+import { VenueMartLogo } from "@/components/brand/VenueMartLogo";
 
 export function SiteHeader() {
   const { isLoading, logout, user } = useAuth();
@@ -22,8 +23,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-6 px-4 sm:px-6">
         <Link className="flex items-center gap-2 font-semibold text-foreground" href="/">
-          <span className="grid size-9 place-items-center rounded-md bg-primary text-white"><Building2 aria-hidden="true" size={20} /></span>
-          <span>Venue Aggregator</span>
+          <VenueMartLogo />
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
           <Link className="hover:text-foreground" href="/">Halls</Link>

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
+import { APP_NAME } from "@/lib/constants";
 
 function routeForRole(role: AuthRole): Route {
   return role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "VENDOR" ? "/vendor" : role === "HALL_OWNER" ? "/owner" : "/customer";
@@ -105,7 +106,7 @@ export function LoginForm() {
         <button className="h-10 rounded-md border border-border text-sm font-medium hover:border-primary hover:text-primary" onClick={() => useDemoAccount("ADMIN")} type="button">Admin demo</button>
       </div>
       <p className="text-center text-sm text-muted-foreground">
-        New to Venue Aggregator? <Link className="font-semibold text-primary" href="/auth/register">Create account</Link>
+        New to {APP_NAME}? <Link className="font-semibold text-primary" href="/auth/register">Create account</Link>
       </p>
     </form>
   );

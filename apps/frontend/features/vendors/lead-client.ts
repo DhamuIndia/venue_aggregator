@@ -77,6 +77,23 @@ export async function getVendorLeads(vendorId: string, accessToken?: string | nu
   }
 }
 
+export async function getCustomerVendorLeads(accessToken?: string | null): Promise<VendorLeadListResult> {
+  if (useMockVendorLeads || !accessToken) {
+    return { leads: getLocalVendorLeads(), source: "mock" };
+  }
+
+  try {
+    const response = await apiRequest<unknown>("/customer/vendor-leads", {
+      token: accessToken
+    });
+    const leads = extractVendorLeads(response);
+    leads.forEach(cacheLocalVendorLead);
+    return { leads, source: "api" };
+  } catch {
+    return { leads: getLocalVendorLeads(), source: "mock" };
+  }
+}
+
 export async function updateVendorLeadStatus(id: string, status: VendorLeadStatus, accessToken?: string | null) {
   if (useMockVendorLeads || !accessToken) return updateLocalVendorLeadStatus(id, status);
 

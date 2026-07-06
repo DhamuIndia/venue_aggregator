@@ -30,6 +30,8 @@ import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
 import type { HallSummary } from "@/features/halls/types";
+import { getCustomerVendorLeads } from "@/features/vendors/lead-client";
+import type { VendorLead } from "@/features/vendors/types";
 import { ReviewDialog } from "./ReviewDialog";
 
 type DashboardTab = "overview" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
@@ -82,6 +84,14 @@ function formatMoney(value: number) {
 function advanceAmount(booking: BookingItem) {
   if (booking.amount && booking.amount > 0) return Math.max(5000, Math.round(booking.amount * 0.2));
   return 25000;
+}
+
+function bookingDetailLine(booking: BookingItem) {
+  if (booking.guestCount > 0) {
+    return `${formatDate(booking.eventDate)} | ${formatSlot(booking.slot)} | ${formatGuestCount(booking.guestCount)} guests`;
+  }
+
+  return `${formatDate(booking.eventDate)} | Service booking`;
 }
 
 const fallbackReviewEligibility: ReviewEligibility = {
@@ -142,11 +152,17 @@ export function CustomerDashboard() {
       setEnquiriesError("");
 
       try {
-        const response = await getCustomerEnquiries(accessToken);
+        const [response, vendorResponse] = await Promise.all([
+          getCustomerEnquiries(accessToken),
+          getCustomerVendorLeads(accessToken)
+        ]);
         if (!isCurrent) return;
 
-        const apiEnquiries = response.enquiries.map(toCustomerEnquiry);
-        setEnquiries(response.source === "api" || !useCustomerEnquiryDemoFallback ? apiEnquiries : [...apiEnquiries, ...customerEnquiries]);
+        const apiEnquiries = sortCustomerEnquiries([
+          ...response.enquiries.map(toCustomerEnquiry),
+          ...vendorResponse.leads.map(toCustomerVendorEnquiry)
+        ]);
+        setEnquiries(response.source === "api" || !useCustomerEnquiryDemoFallback ? apiEnquiries : sortCustomerEnquiries([...apiEnquiries, ...customerEnquiries]));
       } catch {
         if (!isCurrent) return;
         setEnquiries(useCustomerEnquiryDemoFallback ? customerEnquiries : []);
@@ -175,9 +191,16 @@ export function CustomerDashboard() {
           .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
           .map(toStoredCustomerEnquiry)
           .map(bookingFromEnquiry);
-        const response = await getCustomerBookings(accessToken, fallbackBookings);
+        const [response, vendorResponse] = await Promise.all([
+          getCustomerBookings(accessToken, fallbackBookings),
+          getCustomerVendorLeads(accessToken)
+        ]);
         if (!isCurrent) return;
-        setBookings(response.source === "api" || useCustomerBookingDemoFallback ? response.bookings : []);
+        const hallBookings = response.source === "api" || useCustomerBookingDemoFallback ? response.bookings : [];
+        const vendorBookings = vendorResponse.leads
+          .filter((lead) => lead.status === "BOOKED")
+          .map(bookingFromVendorLead);
+        setBookings(sortBookings([...hallBookings, ...vendorBookings]));
       } catch {
         if (!isCurrent) return;
         setBookings([]);
@@ -416,7 +439,7 @@ export function CustomerDashboard() {
                       <div className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><CalendarDays size={22} /></div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{booking.hallName}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bookingStatusStyles[booking.status]}`}>{bookingStatusLabel(booking.status)}</span></div>
-                        <p className="mt-2 text-sm text-muted-foreground">{formatDate(booking.eventDate)} | {formatSlot(booking.slot)} | {formatGuestCount(booking.guestCount)} guests</p>
+                        <p className="mt-2 text-sm text-muted-foreground">{bookingDetailLine(booking)}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{booking.eventType} | Booking {booking.id}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -502,10 +525,63 @@ function toCustomerEnquiry(enquiry: StoredEnquiry): CustomerEnquiry {
   return {
     id: enquiry.id,
     venue: enquiry.hallName,
-    eventDate: new Intl.DateTimeFormat("en-IN", { dateStyle: "long" }).format(new Date(`${enquiry.eventDate}T00:00:00`)),
+    eventDate: formatCustomerEventDate(enquiry.eventDate),
     submittedAt: enquiry.submittedAt,
     status: enquiry.status
   };
+}
+
+function toCustomerVendorEnquiry(lead: VendorLead): CustomerEnquiry {
+  return {
+    id: vendorLeadReference(lead.id),
+    venue: lead.vendorName || lead.service,
+    eventDate: formatCustomerEventDate(lead.eventDate),
+    submittedAt: lead.submittedAt,
+    status: vendorLeadCustomerStatus(lead)
+  };
+}
+
+function bookingFromVendorLead(lead: VendorLead): BookingItem {
+  return {
+    id: `VBOOK-${lead.id.replace(/^V?LEAD-/, "")}`,
+    enquiryId: vendorLeadReference(lead.id),
+    hallId: lead.vendorId || `vendor-${lead.id}`,
+    hallName: lead.vendorName || lead.service,
+    customerId: lead.customerId,
+    customerName: lead.customerName,
+    eventDate: lead.eventDate,
+    eventType: lead.service || lead.eventType,
+    guestCount: 0,
+    slot: "FULL_DAY",
+    status: "CONFIRMED",
+    amount: lead.budget,
+    paymentStatus: "NOT_STARTED",
+    notes: lead.notes,
+    confirmedAt: lead.submittedAt,
+    updatedAt: lead.submittedAt
+  };
+}
+
+function vendorLeadCustomerStatus(lead: VendorLead): CustomerEnquiry["status"] {
+  if (lead.status === "BOOKED") return "CONFIRMED";
+  if (lead.status === "DECLINED") return "DECLINED";
+  return "AWAITING_RESPONSE";
+}
+
+function vendorLeadReference(id: string) {
+  return id.startsWith("VLEAD-") ? id : `VLEAD-${id.replace(/^LEAD-/, "")}`;
+}
+
+function formatCustomerEventDate(value: string) {
+  return new Intl.DateTimeFormat("en-IN", { dateStyle: "long" }).format(new Date(`${value}T00:00:00`));
+}
+
+function sortCustomerEnquiries(items: CustomerEnquiry[]) {
+  return [...items].sort((first, second) => Date.parse(second.submittedAt) - Date.parse(first.submittedAt));
+}
+
+function sortBookings(items: BookingItem[]) {
+  return [...items].sort((first, second) => first.eventDate.localeCompare(second.eventDate));
 }
 
 function toStoredCustomerEnquiry(enquiry: CustomerEnquiry): StoredEnquiry {

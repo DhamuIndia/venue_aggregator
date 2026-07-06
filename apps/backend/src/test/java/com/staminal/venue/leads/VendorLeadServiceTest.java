@@ -121,6 +121,24 @@ class VendorLeadServiceTest {
         verify(auditService).record(any());
     }
 
+    @Test
+    void getMyCustomerLeadsReturnsOnlyAuthenticatedCustomerLeads() {
+        User customer = customer();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        VendorLead lead = lead(vendor, VendorLeadStatus.BOOKED);
+
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
+        when(vendorLeadRepository.findByCustomer_IdOrderByCreatedAtDesc(101L)).thenReturn(List.of(lead));
+
+        List<VendorLeadResponse> response = vendorLeadService.getMyCustomerLeads(customerAuth());
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).getId()).isEqualTo(901L);
+        assertThat(response.get(0).getVendorName()).isEqualTo("Saffron Leaf Catering");
+        assertThat(response.get(0).getCustomerId()).isEqualTo("101");
+        assertThat(response.get(0).getStatus()).isEqualTo(VendorLeadStatus.BOOKED);
+    }
+
     private CreateVendorLeadRequest createRequest(String vendorId) {
         CreateVendorLeadRequest request = new CreateVendorLeadRequest();
         request.setVendorId(vendorId);

@@ -1,7 +1,8 @@
-import { Building2, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { VenueMartLogo } from "@/components/brand/VenueMartLogo";
 
 type AuthShellProps = {
   title: string;
@@ -24,10 +25,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
         <div className="absolute inset-0 bg-black/45" />
         <div className="absolute inset-0 flex flex-col justify-between p-10 text-white xl:p-14">
           <Link className="flex items-center gap-2 font-semibold" href="/">
-            <span className="grid size-10 place-items-center rounded-md bg-white text-primary">
-              <Building2 aria-hidden="true" size={22} />
-            </span>
-            Venue Aggregator
+            <VenueMartLogo inverted markClassName="size-10" />
           </Link>
           <div className="max-w-md">
             <h2 className="text-3xl font-semibold">Plan with confidence.</h2>
@@ -43,8 +41,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
       <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8">
         <div className="w-full max-w-md">
           <Link className="mb-10 flex items-center gap-2 font-semibold lg:hidden" href="/">
-            <span className="grid size-9 place-items-center rounded-md bg-primary text-white"><Building2 size={20} /></span>
-            Venue Aggregator
+            <VenueMartLogo />
           </Link>
           <h1 className="text-3xl font-semibold text-foreground">{title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>

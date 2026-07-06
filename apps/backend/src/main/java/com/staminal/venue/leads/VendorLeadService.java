@@ -74,6 +74,38 @@ public class VendorLeadService {
                         "Vendor profile not found"));
     }
 
+    private User currentUser(
+            Authentication authentication,
+            UserRole role) {
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Authentication required");
+        }
+
+        if (!hasRole(authentication, role)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    role.name() + " role is required");
+        }
+
+        Long userId;
+
+        try {
+            userId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid user session");
+        }
+
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "User not found"));
+    }
+
     private boolean hasRole(
             Authentication authentication,
             UserRole role) {
@@ -189,6 +221,18 @@ public class VendorLeadService {
 
         return vendorLeadRepository
                 .findByVendor_IdOrderByCreatedAtDesc(vendor.getId())
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<VendorLeadResponse> getMyCustomerLeads(Authentication authentication) {
+
+        User customer = currentUser(authentication, UserRole.CUSTOMER);
+
+        return vendorLeadRepository
+                .findByCustomer_IdOrderByCreatedAtDesc(customer.getId())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
