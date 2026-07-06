@@ -141,9 +141,9 @@ function SlotStatusChip({ slot, status }: { slot: HallBaseSlot; status: "AVAILAB
   const detail = HALL_SLOT_DETAILS[slot];
 
   return (
-    <span className={`flex min-h-8 items-center justify-between gap-2 rounded-md border px-2 text-xs font-medium ${statusStyle[status]}`}>
-      <span>{detail.label}</span>
-      <span className="text-[11px] font-normal">{detail.shortTime}</span>
+    <span className={`grid min-h-[52px] content-center gap-1 rounded-md border px-2 py-1.5 text-left ${statusStyle[status]}`}>
+      <span className="truncate text-xs font-semibold leading-tight">{detail.label}</span>
+      <span className="whitespace-nowrap text-[11px] font-medium leading-none opacity-80">{detail.shortTime}</span>
     </span>
   );
 }
