@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 import type { EnquirySlot, StoredEnquiry } from "@/features/enquiries/types";
 
 const STORAGE_KEY = "venue-aggregator-bookings";
@@ -185,7 +186,7 @@ function toBookingItem(value: unknown): BookingItem | undefined {
     id,
     enquiryId: stringValue(record, ["enquiryId", "enquiry_id"]),
     hallId,
-    hallName,
+    hallName: toTitleCase(hallName),
     customerId: stringValue(record, ["customerId", "customer_id"]),
     customerName: stringValue(record, ["customerName", "customer_name", "name"]),
     eventDate,

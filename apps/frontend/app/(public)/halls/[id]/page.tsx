@@ -18,6 +18,7 @@ import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { getPublicHall } from "@/features/halls/hall-client";
 import { halls } from "@/features/halls/mock-data";
+import { formatGuestCount } from "@/lib/display-format";
 
 type HallDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -85,7 +86,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
               <h2 className="text-xl font-semibold">Venue overview</h2>
               <p className="mt-3 max-w-3xl leading-7 text-muted-foreground">{hall.description}</p>
               <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="flex items-center gap-3"><UsersRound className="text-primary" size={20} /><span className="text-sm"><strong className="block">{hall.capacity}</strong>Guests</span></div>
+                <div className="flex items-center gap-3"><UsersRound className="text-primary" size={20} /><span className="text-sm"><strong className="block">{formatGuestCount(hall.capacity)}</strong>Guests</span></div>
                 <div className="flex items-center gap-3"><Snowflake className="text-primary" size={20} /><span className="text-sm"><strong className="block">Available</strong>Air conditioning</span></div>
                 <div className="flex items-center gap-3"><Car className="text-primary" size={20} /><span className="text-sm"><strong className="block">On site</strong>Parking</span></div>
                 <div className="flex items-center gap-3"><CalendarDays className="text-primary" size={20} /><span className="text-sm"><strong className="block">3 slots</strong>Event timings</span></div>

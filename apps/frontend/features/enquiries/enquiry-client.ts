@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 import type { CreateEnquiryPayload, EnquiryStatus, StoredEnquiry } from "./types";
 
 const STORAGE_KEY = "venue-aggregator-enquiries";
@@ -173,7 +174,7 @@ function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnqu
   return {
     id,
     hallId,
-    hallName,
+    hallName: toTitleCase(hallName),
     customerId: stringValue(value, ["customerId", "customer_id"]) ?? fallback?.customerId ?? "",
     eventDate,
     eventType,
@@ -188,6 +189,7 @@ function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnqu
 function createStoredFromFallback(fallback: CreateEnquiryPayload): StoredEnquiry {
   return {
     ...fallback,
+    hallName: toTitleCase(fallback.hallName),
     id: `ENQ-${Date.now().toString().slice(-6)}`,
     status: "PENDING_OWNER_RESPONSE",
     submittedAt: new Date().toISOString()

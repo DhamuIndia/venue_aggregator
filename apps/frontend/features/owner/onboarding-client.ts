@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 
 const STORAGE_KEY = "venue-owner-onboarding-draft";
 const LEGACY_STORAGE_KEY = "venue-owner-onboarding";
@@ -133,14 +134,19 @@ function clearLocalDraft() {
 }
 
 function toRequestPayload(draft: OwnerOnboardingDraft) {
+  const hallName = toTitleCase(draft.hallName);
+  const addressLine = toTitleCase(draft.addressLine);
+  const city = toTitleCase(draft.city);
+  const area = toTitleCase(draft.area);
+
   return {
-    name: draft.hallName,
-    hallName: draft.hallName,
+    name: hallName,
+    hallName,
     venueType: toBackendVenueType(draft.venueType),
     description: draft.description,
-    addressLine: draft.addressLine,
-    city: draft.city,
-    area: draft.area,
+    addressLine,
+    city,
+    area,
     pincode: draft.pincode,
     contactNumber: draft.contactNumber,
     whatsappNumber: draft.whatsappNumber,
@@ -171,12 +177,12 @@ function toOwnerDraft(value: unknown): OwnerOnboardingDraft | undefined {
 
   return {
     id: stringValue(record, ["id", "hallId", "hall_id", "slug"]),
-    hallName,
+    hallName: toTitleCase(hallName),
     venueType: venueTypeValue(record) ?? "Marriage Hall",
     description: stringValue(record, ["description", "summary"]) ?? "",
-    addressLine: stringValue(record, ["addressLine", "address_line", "address"]) ?? "",
-    city: stringValue(record, ["city"]) ?? "Chennai",
-    area: stringValue(record, ["area", "locality", "location"]) ?? "",
+    addressLine: toTitleCase(stringValue(record, ["addressLine", "address_line", "address"]) ?? ""),
+    city: toTitleCase(stringValue(record, ["city"]) ?? "Chennai"),
+    area: toTitleCase(stringValue(record, ["area", "locality", "location"]) ?? ""),
     pincode: stringValue(record, ["pincode", "pinCode", "postalCode"]) ?? "",
     contactNumber: stringValue(record, ["contactNumber", "contact_number", "phone"]) ?? "",
     whatsappNumber: stringValue(record, ["whatsappNumber", "whatsapp_number", "whatsAppNumber"]) ?? "",

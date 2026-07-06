@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
 import { VenueCompare } from "@/components/customer/VenueCompare";
+import { formatGuestCount } from "@/lib/display-format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
 import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
@@ -86,7 +87,6 @@ function advanceAmount(booking: BookingItem) {
 const fallbackReviewEligibility: ReviewEligibility = {
   eligible: reviewEligibleBooking.verified,
   enquiryId: reviewEligibleBooking.enquiryId,
-  hallId: reviewEligibleBooking.hallId,
   hallName: reviewEligibleBooking.venue,
   eventDate: reviewEligibleBooking.eventDate,
   eventType: reviewEligibleBooking.serviceType,
@@ -102,7 +102,6 @@ function emptyReviewEligibility(reason = "Completed eligible services will appea
   return {
     eligible: false,
     enquiryId: "",
-    hallId: "",
     hallName: "",
     eventDate: "",
     reason
@@ -205,7 +204,7 @@ export function CustomerDashboard() {
       setReviewError("");
 
       const completedReviewBooking = bookings.find((booking): booking is BookingItem & { enquiryId: string } => (
-        booking.status === "COMPLETED" && Boolean(booking.enquiryId) && Boolean(booking.hallId)
+        booking.status === "COMPLETED" && Boolean(booking.enquiryId)
       ));
       const fallback = completedReviewBooking ? reviewEligibilityFromBooking(completedReviewBooking) : fallbackReviewEligibility;
 
@@ -276,13 +275,12 @@ export function CustomerDashboard() {
     if (!reviewEligibility.eligible) {
       throw new Error(reviewEligibility.reason ?? "This completed service is not eligible for review.");
     }
-    if (!reviewEligibility.enquiryId || !reviewEligibility.hallId) {
+    if (!reviewEligibility.enquiryId) {
       throw new Error("No completed eligible service is available for review.");
     }
 
     const review = await submitCustomerReview({
       enquiryId: reviewEligibility.enquiryId,
-      hallId: reviewEligibility.hallId,
       rating: payload.rating,
       comment: payload.comment
     }, accessToken);
@@ -418,7 +416,7 @@ export function CustomerDashboard() {
                       <div className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><CalendarDays size={22} /></div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{booking.hallName}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bookingStatusStyles[booking.status]}`}>{bookingStatusLabel(booking.status)}</span></div>
-                        <p className="mt-2 text-sm text-muted-foreground">{formatDate(booking.eventDate)} | {formatSlot(booking.slot)} | {booking.guestCount} guests</p>
+                        <p className="mt-2 text-sm text-muted-foreground">{formatDate(booking.eventDate)} | {formatSlot(booking.slot)} | {formatGuestCount(booking.guestCount)} guests</p>
                         <p className="mt-1 text-sm text-muted-foreground">{booking.eventType} | Booking {booking.id}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -493,7 +491,6 @@ function reviewEligibilityFromBooking(booking: BookingItem & { enquiryId: string
   return {
     eligible: true,
     enquiryId: booking.enquiryId,
-    hallId: booking.hallId,
     hallName: booking.hallName,
     eventDate: booking.eventDate,
     eventType: booking.eventType,

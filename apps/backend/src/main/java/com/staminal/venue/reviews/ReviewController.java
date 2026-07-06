@@ -27,7 +27,7 @@ public class ReviewController {
 
     @GetMapping("/review-eligibility")
     public ReviewEligibilityResponse getEligibility(
-            @RequestParam Long enquiryId,
+            @RequestParam String enquiryId,
             Authentication authentication) {
 
         return reviewService.getEligibility(enquiryId, authentication);

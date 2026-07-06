@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import type { HallSummary } from "@/features/halls/types";
+import { formatGuestCount } from "@/lib/display-format";
 
 type HallCardProps = {
   hall: HallSummary;
@@ -17,8 +18,6 @@ function formatPrice(value: number) {
 }
 
 export function HallCard({ hall, initialSaved, onSavedChange }: HallCardProps) {
-  console.log(hall);
-  console.log("Image URL:", hall.imageUrl);
   return (
     <article className="group overflow-hidden rounded-lg border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
@@ -61,7 +60,7 @@ export function HallCard({ hall, initialSaved, onSavedChange }: HallCardProps) {
         </div>
         <div className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
           <UsersRound aria-hidden="true" size={15} />
-          Up to {hall.capacity} guests
+          Up to {formatGuestCount(hall.capacity)} guests
           {hall.isVerified && (
             <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
               <BadgeCheck aria-hidden="true" size={15} /> Verified

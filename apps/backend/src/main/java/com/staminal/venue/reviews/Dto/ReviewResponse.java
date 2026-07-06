@@ -8,7 +8,7 @@ public record ReviewResponse(
 
         Long bookingId,
 
-        Long enquiryId,
+        String enquiryId,
 
         Long hallId,
 

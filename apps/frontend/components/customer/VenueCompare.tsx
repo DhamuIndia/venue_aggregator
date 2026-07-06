@@ -4,6 +4,7 @@ import { ArrowRight, BadgeCheck, Check, MapPin, Minus, Star, UsersRound } from "
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { HallSummary } from "@/features/halls/types";
+import { formatGuestCount } from "@/lib/display-format";
 
 type VenueCompareProps = {
   halls: HallSummary[];
@@ -101,7 +102,7 @@ export function VenueCompare({ halls }: VenueCompareProps) {
               </tr>
             </thead>
             <tbody>
-              <CompareRow label="Capacity" halls={selectedHalls} render={(hall) => <span className="inline-flex items-center gap-1.5"><UsersRound size={15} /> {hall.capacity} guests</span>} />
+              <CompareRow label="Capacity" halls={selectedHalls} render={(hall) => <span className="inline-flex items-center gap-1.5"><UsersRound size={15} /> {formatGuestCount(hall.capacity)} guests</span>} />
               <CompareRow label="Starting price" halls={selectedHalls} render={(hall) => `INR ${formatMoney(hall.startingPrice)}`} />
               <CompareRow label="Rating" halls={selectedHalls} render={(hall) => <span className="inline-flex items-center gap-1.5"><Star className="fill-amber-400 text-amber-400" size={15} /> {hall.rating} ({hall.reviewCount})</span>} />
               <CompareRow label="Venue type" halls={selectedHalls} render={(hall) => hall.venueType} />

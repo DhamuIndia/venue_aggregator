@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 import { getHallById, halls as mockHalls } from "@/features/halls/mock-data";
 import type { HallSummary, VenueType } from "@/features/halls/types";
 
@@ -146,14 +147,16 @@ function toHallSummary(value: unknown): HallSummary | undefined {
 
   const fallback = getHallById(id) ?? mockHalls[0];
   const name = stringValue(record, ["name", "hallName", "hall_name", "title"]) ?? fallback.name;
+  const city = stringValue(record, ["city"]) ?? fallback.city;
+  const area = stringValue(record, ["area", "locality", "location"]) ?? fallback.area;
   const imageUrl = stringValue(record, ["imageUrl", "image_url", "coverImageUrl", "cover_image_url", "primaryImageUrl", "mediaUrl"])
     ?? fallback.imageUrl;
 
   return {
     id,
-    name,
-    city: stringValue(record, ["city"]) ?? fallback.city,
-    area: stringValue(record, ["area", "locality", "location"]) ?? fallback.area,
+    name: toTitleCase(name),
+    city: toTitleCase(city),
+    area: toTitleCase(area),
     capacity: numberValue(record, ["capacity", "capacityMax", "maxCapacity", "capacity_max"]) ?? fallback.capacity,
     startingPrice: numberValue(record, ["startingPrice", "starting_price", "amount", "price"]) ?? fallback.startingPrice,
     rating: numberValue(record, ["rating", "ratings", "averageRating", "average_rating"]) ?? fallback.rating,

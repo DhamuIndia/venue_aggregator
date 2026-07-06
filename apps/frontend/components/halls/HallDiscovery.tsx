@@ -11,6 +11,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { formatGuestCount, guestCapacityOptions } from "@/lib/display-format";
 import { searchPublicHalls, type HallSort } from "@/features/halls/hall-client";
 import type { HallSummary, VenueType } from "@/features/halls/types";
 import { HallCard } from "./HallCard";
@@ -125,25 +126,38 @@ export function HallDiscovery() {
               <UsersRound aria-hidden="true" className="shrink-0 text-primary" size={20} />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium text-muted-foreground">Guests</span>
-                <input
-                  className="mt-1 w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground"
-                  min="1"
+                <select
+                  className="mt-1 w-full bg-transparent text-sm font-medium outline-none"
                   onChange={(event) => setGuests(Number(event.target.value))}
-                  placeholder="Any capacity"
-                  type="number"
-                  value={guests || ""}
-                />
+                  value={guests}
+                >
+                  <option value={0}>Any capacity</option>
+                  {guestCapacityOptions.map((option) => (
+                    <option key={option} value={option}>{formatGuestCount(option)}+ guests</option>
+                  ))}
+                </select>
               </span>
             </label>
-            <button
-              className="m-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
-              disabled={isLoading}
-              onClick={() => setRefreshKey((value) => value + 1)}
-              type="button"
-            >
-              {isLoading ? <LoaderCircle aria-hidden="true" className="animate-spin" size={18} /> : <Search aria-hidden="true" size={18} />}
-              Search
-            </button>
+            <div className="m-2 grid grid-cols-[1fr_auto] gap-2">
+              <button
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+                disabled={isLoading}
+                onClick={() => setRefreshKey((value) => value + 1)}
+                type="button"
+              >
+                {isLoading ? <LoaderCircle aria-hidden="true" className="animate-spin" size={18} /> : <Search aria-hidden="true" size={18} />}
+                Search
+              </button>
+              <button
+                aria-label="Reset search filters"
+                className="inline-flex min-h-12 items-center justify-center rounded-md border border-border bg-white px-4 text-muted-foreground hover:border-primary hover:text-primary"
+                onClick={resetFilters}
+                title="Reset filters"
+                type="button"
+              >
+                <RotateCcw size={17} />
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -164,14 +178,6 @@ export function HallDiscovery() {
               {type}
             </button>
           ))}
-          <button
-            className="ml-auto hidden size-10 shrink-0 place-items-center rounded-md border border-border bg-white text-muted-foreground hover:text-foreground sm:grid"
-            onClick={resetFilters}
-            title="Reset filters"
-            type="button"
-          >
-            <RotateCcw aria-label="Reset filters" size={17} />
-          </button>
         </div>
 
         <div className="mt-6 flex flex-wrap items-end justify-between gap-4">

@@ -15,6 +15,7 @@ import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
 import com.staminal.venue.enquiries.Enquiry;
+import com.staminal.venue.enquiries.EnquiryIds;
 import com.staminal.venue.enquiries.EnquiryRepository;
 import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.UserRole;
@@ -43,17 +44,18 @@ public class ReviewService {
                         Authentication authentication) {
 
                 User customer = currentUser(authentication);
+                Long enquiryId = EnquiryIds.parse(request.enquiryId());
 
                 Enquiry enquiry = enquiryRepository
                                 .findByIdAndCustomer_Id(
-                                                request.enquiryId(),
+                                                enquiryId,
                                                 customer.getId())
                                 .orElseThrow(() -> new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND,
                                                 "Enquiry not found"));
 
                 Booking booking = bookingRepository
-                                .findByEnquiry_Id(request.enquiryId())
+                                .findByEnquiry_Id(enquiryId)
                                 .orElseThrow(() -> new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND,
                                                 "Booking not found"));
@@ -64,7 +66,7 @@ public class ReviewService {
                                         "Booking is not completed");
                 }
 
-                if (reviewRepository.existsByEnquiry_IdAndActiveTrue(request.enquiryId())) {
+                if (reviewRepository.existsByEnquiry_IdAndActiveTrue(enquiryId)) {
                         throw new ResponseStatusException(
                                         HttpStatus.CONFLICT,
                                         "Review already exists");
@@ -156,10 +158,11 @@ public class ReviewService {
         }
 
         public ReviewEligibilityResponse getEligibility(
-                        Long enquiryId,
+                        String requestedEnquiryId,
                         Authentication authentication) {
 
                 User customer = currentUser(authentication);
+                Long enquiryId = EnquiryIds.parse(requestedEnquiryId);
 
                 enquiryRepository
                                 .findByIdAndCustomer_Id(enquiryId, customer.getId())
@@ -252,7 +255,7 @@ public class ReviewService {
 
                                 review.getEnquiry() == null
                                                 ? null
-                                                : review.getEnquiry().getId(),
+                                                : EnquiryIds.format(review.getEnquiry().getId()),
 
                                 review.getHall() == null
                                                 ? null

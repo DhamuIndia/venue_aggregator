@@ -14,6 +14,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { createEnquiry } from "@/features/enquiries/enquiry-client";
 import type { EnquirySlot } from "@/features/enquiries/types";
 import type { HallSummary } from "@/features/halls/types";
+import { formatGuestCount } from "@/lib/display-format";
 
 type EnquiryPanelProps = {
   hall: HallSummary;
@@ -42,7 +43,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   function validateCoreFields() {
     if (!eventDate) return "Choose an event date.";
     if (!guestCount || Number(guestCount) < 1) return "Enter the expected guest count.";
-    if (Number(guestCount) > hall.capacity) return `This venue supports up to ${hall.capacity} guests.`;
+    if (Number(guestCount) > hall.capacity) return `This venue supports up to ${formatGuestCount(hall.capacity)} guests.`;
     return "";
   }
 
@@ -133,7 +134,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         </fieldset>
 
         <label className="text-sm font-medium">Event type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => setEventType(event.target.value)} required value={eventType}><option value="">Select event</option><option>Wedding</option><option>Reception</option><option>Engagement</option><option>Birthday celebration</option><option>Corporate event</option><option>Other</option></select></label>
-        <label className="text-sm font-medium">Guest count<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" max={hall.capacity} min="1" onChange={(event) => { setGuestCount(event.target.value); setAvailability("idle"); }} placeholder={`Up to ${hall.capacity}`} required type="number" value={guestCount} /></label>
+        <label className="text-sm font-medium">Guest count<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" max={hall.capacity} min="1" onChange={(event) => { setGuestCount(event.target.value); setAvailability("idle"); }} placeholder={`Up to ${formatGuestCount(hall.capacity)}`} required type="number" value={guestCount} /></label>
         <label className="text-sm font-medium">Message <span className="font-normal text-muted-foreground">(optional)</span><textarea className="mt-2 min-h-20 w-full resize-y rounded-md border border-border p-3 font-normal outline-none focus:border-primary" maxLength={300} onChange={(event) => setNotes(event.target.value)} placeholder="Package, catering, or timing requirements" value={notes} /></label>
 
         {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}

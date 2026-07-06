@@ -24,6 +24,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
+import { formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
 import { fallbackOwnerAnalytics, getOwnerAnalytics, type OwnerAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -130,6 +131,8 @@ const OWNER_LISTINGS_KEY = "venue-aggregator-owner-listings";
 type ListingForm = {
   name: string;
   venueType: VenueType;
+  addressLine: string;
+  contactNumber: string;
   city: string;
   area: string;
   capacity: string;
@@ -207,6 +210,8 @@ function formFromListing(listing: OwnerHallListing): ListingForm {
   return {
     name: listing.name,
     venueType: listing.venueType,
+    addressLine: listing.addressLine ?? "",
+    contactNumber: listing.contactNumber ?? "",
     city: listing.city,
     area: listing.area,
     capacity: String(listing.capacity || ""),
@@ -216,10 +221,18 @@ function formFromListing(listing: OwnerHallListing): ListingForm {
   };
 }
 
-function payloadFromForm(form: ListingForm): OwnerHallUpdatePayload {
+function currentCoverImageUrl(listing: OwnerHallListing, media: OwnerMediaItem[]) {
+  const coverMedia = media.find((item) => item.isCover) ?? media[0];
+  return coverMedia?.url || listing.imageUrl || listing.galleryUrls[0] || "";
+}
+
+function payloadFromForm(form: ListingForm, coverImageUrl: string): OwnerHallUpdatePayload {
   return {
     name: form.name.trim(),
     venueType: form.venueType,
+    addressLine: form.addressLine.trim(),
+    contactNumber: form.contactNumber.trim(),
+    coverImageUrl,
     city: form.city.trim(),
     area: form.area.trim(),
     capacity: Number(form.capacity),
@@ -229,10 +242,11 @@ function payloadFromForm(form: ListingForm): OwnerHallUpdatePayload {
   };
 }
 
-function validateListingForm(form: ListingForm) {
-  if (!form.name.trim() || !form.area.trim() || !form.city.trim()) return "Enter venue name, city, and area.";
+function validateListingForm(form: ListingForm, coverImageUrl: string) {
+  if (!form.name.trim() || !form.addressLine.trim() || !form.contactNumber.trim() || !form.area.trim() || !form.city.trim()) return "Enter venue name, address, contact number, city, and area.";
   if (!form.capacity || Number(form.capacity) < 1) return "Enter a valid guest capacity.";
   if (!form.startingPrice || Number(form.startingPrice) < 1) return "Enter a valid starting price.";
+  if (!coverImageUrl) return "Add a cover image from the Media tab.";
   if (form.amenities.length === 0) return "Select at least one amenity.";
   if (form.description.trim().length < 20) return "Add a short description with at least 20 characters.";
   return "";
@@ -622,6 +636,13 @@ export function OwnerDashboard() {
     { label: "Pricing and amenities added", complete: listingHealthChecks[1] },
     { label: "Add 3 or more gallery photos", complete: listingHealthChecks[2] }
   ];
+  const listingCapacityOptions = useMemo(() => {
+    const currentCapacity = Number(listingForm.capacity);
+    if (currentCapacity > 0 && !guestCapacityOptions.includes(currentCapacity)) {
+      return [currentCapacity, ...guestCapacityOptions].sort((first, second) => first - second);
+    }
+    return guestCapacityOptions;
+  }, [listingForm.capacity]);
   const confirmedBookings = useMemo(() => {
     const bookingMap = new Map<string, AvailabilityBooking>();
     availabilityBookings.forEach((booking) => bookingMap.set(booking.enquiryId ?? booking.id, booking));
@@ -734,7 +755,8 @@ export function OwnerDashboard() {
   }
 
   async function saveListingDraft() {
-    const validationMessage = validateListingForm(listingForm);
+    const coverImageUrl = currentCoverImageUrl(listing, media);
+    const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
       setListingError(validationMessage);
       return;
@@ -743,7 +765,7 @@ export function OwnerDashboard() {
     try {
       setIsSavingListing(true);
       setListingError("");
-      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm), accessToken, listing);
+      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm, coverImageUrl), accessToken, listing);
       setListing(saved);
       setListingForm(formFromListing(saved));
       setNotice("Listing draft saved.");
@@ -755,7 +777,8 @@ export function OwnerDashboard() {
   }
 
   async function submitListingForApproval() {
-    const validationMessage = validateListingForm(listingForm);
+    const coverImageUrl = currentCoverImageUrl(listing, media);
+    const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
       setListingError(validationMessage);
       return;
@@ -764,7 +787,7 @@ export function OwnerDashboard() {
     try {
       setIsSubmittingListing(true);
       setListingError("");
-      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm), accessToken, listing);
+      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm, coverImageUrl), accessToken, listing);
       const submitted = await submitOwnerHallListing(listing.id, accessToken, saved);
       setListing(submitted);
       setListingForm(formFromListing(submitted));
@@ -1263,9 +1286,11 @@ export function OwnerDashboard() {
                   <div className="grid gap-5 sm:grid-cols-2">
                     <label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("name", event.target.value)} value={listingForm.name} /></label>
                     <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label>
-                    <label className="text-sm font-medium">Maximum guests<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateListingField("capacity", event.target.value)} type="number" value={listingForm.capacity} /></label>
+                    <label className="text-sm font-medium">Maximum guests<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("capacity", event.target.value)} value={listingForm.capacity}><option value="">Select capacity</option>{listingCapacityOptions.map((option) => <option key={option} value={option}>{formatGuestCount(option)} guests</option>)}</select></label>
                     <label className="text-sm font-medium">City<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("city", event.target.value)} value={listingForm.city} /></label>
                     <label className="text-sm font-medium">Area<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("area", event.target.value)} value={listingForm.area} /></label>
+                    <label className="text-sm font-medium sm:col-span-2">Address line<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("addressLine", event.target.value)} placeholder="Door number, street, landmark" value={listingForm.addressLine} /></label>
+                    <label className="text-sm font-medium sm:col-span-2">Contact number<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(event) => updateListingField("contactNumber", event.target.value)} placeholder="Owner or venue phone" value={listingForm.contactNumber} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Starting price<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateListingField("startingPrice", event.target.value)} type="number" value={listingForm.startingPrice} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(event) => updateListingField("description", event.target.value)} value={listingForm.description} /></label>
                   </div>
@@ -1304,11 +1329,13 @@ export function OwnerDashboard() {
                   </div>
                   <div className="p-5">
                     <p className="text-sm font-semibold text-primary">{listingForm.venueType}</p>
-                    <h3 className="mt-2 text-2xl font-semibold">{listingForm.name || "Untitled venue"}</h3>
-                    <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listingForm.area || "Area"}, {listingForm.city || "City"}</p>
+                    <h3 className="mt-2 text-2xl font-semibold">{listingForm.name ? toTitleCase(listingForm.name) : "Untitled venue"}</h3>
+                    <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listingForm.area ? toTitleCase(listingForm.area) : "Area"}, {listingForm.city ? toTitleCase(listingForm.city) : "City"}</p>
+                    {listingForm.addressLine && <p className="mt-2 text-sm leading-6 text-muted-foreground">{toTitleCase(listingForm.addressLine)}</p>}
+                    {listingForm.contactNumber && <p className="mt-2 text-sm font-medium text-muted-foreground">Contact: {listingForm.contactNumber}</p>}
                     <p className="mt-5 leading-7 text-muted-foreground">{listingForm.description || "Add a description for customers."}</p>
                     <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-5">
-                      <div><p className="text-xs text-muted-foreground">Capacity</p><p className="mt-1 font-semibold">{listingForm.capacity || "0"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Capacity</p><p className="mt-1 font-semibold">{listingForm.capacity ? formatGuestCount(listingForm.capacity) : "0"}</p></div>
                       <div><p className="text-xs text-muted-foreground">Starting price</p><p className="mt-1 font-semibold">INR {new Intl.NumberFormat("en-IN").format(Number(listingForm.startingPrice || 0))}</p></div>
                       <div><p className="text-xs text-muted-foreground">Amenities</p><p className="mt-1 font-semibold">{listingForm.amenities.length}</p></div>
                       <div><p className="text-xs text-muted-foreground">Rating</p><p className="mt-1 font-semibold">{listing.rating}</p></div>

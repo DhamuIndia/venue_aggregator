@@ -282,16 +282,8 @@ public class EnquiryService {
     }
 
     private Enquiry findEnquiry(String enquiryId) {
-        return enquiryRepository.findById(parseEnquiryId(enquiryId))
+        return enquiryRepository.findById(EnquiryIds.parse(enquiryId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Enquiry not found"));
-    }
-
-    private long parseEnquiryId(String value) {
-        String normalized = value == null ? "" : value.trim();
-        if (normalized.toUpperCase().startsWith("ENQ-")) {
-            normalized = normalized.substring(4);
-        }
-        return parseNumericId(normalized, "enquiry");
     }
 
     private long parseNumericId(String value, String resourceName) {
@@ -427,10 +419,7 @@ public class EnquiryService {
     }
 
     private String formatEnquiryId(Long id) {
-        if (id == null) {
-            return null;
-        }
-        return "ENQ-" + String.format("%06d", id);
+        return EnquiryIds.format(id);
     }
 
     private String trimToNull(String value) {

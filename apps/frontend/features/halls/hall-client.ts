@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 import { getHallById as getMockHallById, halls as mockHalls } from "./mock-data";
 import type { HallSummary, VenueType } from "./types";
 
@@ -116,9 +117,9 @@ function toHallSummary(value: unknown): HallSummary | undefined {
 
   return {
     id,
-    name,
-    city,
-    area,
+    name: toTitleCase(name),
+    city: toTitleCase(city),
+    area: toTitleCase(area),
     capacity: numberValue(value, ["capacity", "capacityMax", "maxCapacity", "capacity_max"]) ?? fallback.capacity,
     startingPrice: numberValue(value, ["startingPrice", "amount", "price"], ["pricing", "startingPrice"])
       ?? fallback.startingPrice,

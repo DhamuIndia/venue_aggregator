@@ -8,8 +8,8 @@ import jakarta.validation.constraints.Size;
 
 public record CreateReviewRequest(
 
-        @NotNull
-        Long enquiryId,
+        @NotBlank
+        String enquiryId,
 
         @NotNull
         @Min(1)
