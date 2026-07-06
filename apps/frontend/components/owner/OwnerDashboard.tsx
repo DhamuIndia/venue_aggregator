@@ -116,6 +116,13 @@ const ownerListingFallback: OwnerHallListing = {
   status: "APPROVED"
 };
 
+const useOwnerDemoFallbacks = process.env.NEXT_PUBLIC_AUTH_MODE !== "api";
+const useOwnerListingDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_OWNER_LISTINGS_MODE === "mock";
+const useOwnerEnquiryDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_ENQUIRIES_MODE === "mock";
+const useOwnerBookingDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_BOOKINGS_MODE === "mock";
+const useOwnerAvailabilityDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_AVAILABILITY_MODE === "mock";
+const useOwnerReviewDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_OWNER_REVIEWS_MODE === "mock";
+
 const OWNER_ONBOARDING_DRAFT_KEY = "venue-owner-onboarding-draft";
 const LEGACY_OWNER_ONBOARDING_DRAFT_KEY = "venue-owner-onboarding";
 const OWNER_LISTINGS_KEY = "venue-aggregator-owner-listings";
@@ -157,6 +164,20 @@ function formatSlot(value: string) {
 
 function formatCompactMoney(value: number) {
   return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
+}
+
+function emptyOwnerAnalytics(): OwnerAnalytics {
+  return {
+    enquiries: 0,
+    confirmedBookings: 0,
+    completedBookings: 0,
+    estimatedRevenue: 0,
+    conversionRate: 0,
+    averageRating: 0,
+    occupancyRate: 0,
+    trends: [],
+    eventMix: []
+  };
 }
 
 function bookingFromEnquiry(enquiry: StoredEnquiry): AvailabilityBooking {
@@ -218,7 +239,7 @@ function validateListingForm(form: ListingForm) {
 }
 
 function preferredOwnerHallId() {
-  if (typeof window === "undefined") return ownerHall.id;
+  if (typeof window === "undefined") return useOwnerListingDemoFallback ? ownerHall.id : "new";
 
   const queryHallId = new URLSearchParams(window.location.search).get("hallId");
   if (queryHallId) return queryHallId;
@@ -229,33 +250,55 @@ function preferredOwnerHallId() {
 
   const listings = readLocalRecord(OWNER_LISTINGS_KEY);
   const firstListingId = listings ? Object.keys(listings).find(Boolean) : undefined;
-  return firstListingId ?? ownerHall.id;
+  return firstListingId ?? (useOwnerListingDemoFallback ? ownerHall.id : "new");
+}
+
+function blankListingForHall(hallId: string): OwnerHallListing {
+  return {
+    id: hallId,
+    name: "Your venue",
+    city: "",
+    area: "",
+    capacity: 0,
+    startingPrice: 0,
+    rating: 0,
+    reviewCount: 0,
+    imageUrl: "",
+    galleryUrls: [],
+    venueType: "Marriage Hall",
+    amenities: [],
+    isVerified: false,
+    availableThisMonth: false,
+    description: "",
+    status: "DRAFT"
+  };
 }
 
 function fallbackListingForHall(hallId: string): OwnerHallListing {
+  const baseListing = useOwnerListingDemoFallback ? { ...ownerListingFallback, id: hallId } : blankListingForHall(hallId);
   const draft = readLocalRecord(OWNER_ONBOARDING_DRAFT_KEY) ?? readLocalRecord(LEGACY_OWNER_ONBOARDING_DRAFT_KEY);
   if (!draft || stringValue(draft, ["id", "hallId", "hall_id", "slug"]) !== hallId) {
-    return { ...ownerListingFallback, id: hallId };
+    return baseListing;
   }
 
   const amenities = Array.isArray(draft.amenities)
     ? draft.amenities.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : ownerListingFallback.amenities;
-  const coverImageUrl = stringValue(draft, ["coverImageUrl", "cover_image_url", "imageUrl"]) ?? ownerListingFallback.imageUrl;
+    : baseListing.amenities;
+  const coverImageUrl = stringValue(draft, ["coverImageUrl", "cover_image_url", "imageUrl"]) ?? baseListing.imageUrl;
 
   return {
-    ...ownerListingFallback,
+    ...baseListing,
     id: hallId,
-    name: stringValue(draft, ["hallName", "name", "title"]) ?? ownerListingFallback.name,
-    city: stringValue(draft, ["city"]) ?? ownerListingFallback.city,
-    area: stringValue(draft, ["area", "locality", "location"]) ?? ownerListingFallback.area,
-    capacity: numberValue(draft, ["capacity", "capacityMax", "capacity_max"]) ?? ownerListingFallback.capacity,
-    startingPrice: numberValue(draft, ["fullDayPrice", "full_day_price", "startingPrice", "amount"]) ?? ownerListingFallback.startingPrice,
+    name: stringValue(draft, ["hallName", "name", "title"]) ?? baseListing.name,
+    city: stringValue(draft, ["city"]) ?? baseListing.city,
+    area: stringValue(draft, ["area", "locality", "location"]) ?? baseListing.area,
+    capacity: numberValue(draft, ["capacity", "capacityMax", "capacity_max"]) ?? baseListing.capacity,
+    startingPrice: numberValue(draft, ["fullDayPrice", "full_day_price", "startingPrice", "amount"]) ?? baseListing.startingPrice,
     imageUrl: coverImageUrl,
-    galleryUrls: coverImageUrl ? [coverImageUrl] : ownerListingFallback.galleryUrls,
-    venueType: venueTypeFromDraft(draft) ?? ownerListingFallback.venueType,
+    galleryUrls: coverImageUrl ? [coverImageUrl] : baseListing.galleryUrls,
+    venueType: venueTypeFromDraft(draft) ?? baseListing.venueType,
     amenities,
-    description: stringValue(draft, ["description", "summary"]) ?? ownerListingFallback.description,
+    description: stringValue(draft, ["description", "summary"]) ?? baseListing.description,
     status: statusFromDraft(draft) ?? "DRAFT",
     isVerified: false
   };
@@ -337,37 +380,37 @@ export function OwnerDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<OwnerTab>("overview");
   const [activeHallId, setActiveHallId] = useState(() => preferredOwnerHallId());
-  const [listing, setListing] = useState<OwnerHallListing>(ownerListingFallback);
-  const [listingForm, setListingForm] = useState<ListingForm>(() => formFromListing(ownerListingFallback));
+  const [listing, setListing] = useState<OwnerHallListing>(() => fallbackListingForHall(preferredOwnerHallId()));
+  const [listingForm, setListingForm] = useState<ListingForm>(() => formFromListing(fallbackListingForHall(preferredOwnerHallId())));
   const [isLoadingListing, setIsLoadingListing] = useState(true);
   const [listingError, setListingError] = useState("");
   const [isSavingListing, setIsSavingListing] = useState(false);
   const [isSubmittingListing, setIsSubmittingListing] = useState(false);
-  const [enquiries, setEnquiries] = useState<StoredEnquiry[]>(fallbackOwnerEnquiries);
+  const [enquiries, setEnquiries] = useState<StoredEnquiry[]>(() => useOwnerEnquiryDemoFallback ? fallbackOwnerEnquiries : []);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
   const [updatingEnquiryId, setUpdatingEnquiryId] = useState<string | null>(null);
-  const [bookings, setBookings] = useState<BookingItem[]>(() => fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
+  const [bookings, setBookings] = useState<BookingItem[]>(() => useOwnerBookingDemoFallback ? fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry) : []);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>(initialBlockedDates);
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>(() => useOwnerAvailabilityDemoFallback ? initialBlockedDates : []);
   const [availabilityBookings, setAvailabilityBookings] = useState<AvailabilityBooking[]>([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
   const [availabilityError, setAvailabilityError] = useState("");
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [notice, setNotice] = useState("");
-  const [media, setMedia] = useState<OwnerMediaItem[]>(() => mediaFromListing(ownerListingFallback));
+  const [media, setMedia] = useState<OwnerMediaItem[]>(() => mediaFromListing(fallbackListingForHall(preferredOwnerHallId())));
   const [mediaError, setMediaError] = useState("");
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [updatingMediaId, setUpdatingMediaId] = useState<string | null>(null);
-  const [reviews, setReviews] = useState<OwnerReview[]>(ownerReviews);
-  const [averageRating, setAverageRating] = useState(ownerHall.rating);
-  const [totalReviews, setTotalReviews] = useState(ownerHall.reviewCount);
+  const [reviews, setReviews] = useState<OwnerReview[]>(() => useOwnerReviewDemoFallback ? ownerReviews : []);
+  const [averageRating, setAverageRating] = useState(useOwnerReviewDemoFallback ? ownerHall.rating : 0);
+  const [totalReviews, setTotalReviews] = useState(useOwnerReviewDemoFallback ? ownerHall.reviewCount : 0);
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [reviewsError, setReviewsError] = useState("");
-  const [analytics, setAnalytics] = useState<OwnerAnalytics>(fallbackOwnerAnalytics);
+  const [analytics, setAnalytics] = useState<OwnerAnalytics>(() => useOwnerDemoFallbacks ? fallbackOwnerAnalytics : emptyOwnerAnalytics());
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
 
@@ -390,7 +433,7 @@ export function OwnerDashboard() {
         setAnalytics(response);
       } catch {
         if (!isCurrent) return;
-        setAnalytics(fallbackOwnerAnalytics);
+        setAnalytics(useOwnerDemoFallbacks ? fallbackOwnerAnalytics : emptyOwnerAnalytics());
         setAnalyticsError("Could not load latest reports.");
       } finally {
         if (isCurrent) setIsLoadingAnalytics(false);
@@ -446,7 +489,7 @@ export function OwnerDashboard() {
       setBookingsError("");
 
       try {
-        const fallbackBookings = fallbackOwnerEnquiries
+        const fallbackBookings = (useOwnerBookingDemoFallback ? fallbackOwnerEnquiries : [])
           .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
           .map(lifecycleBookingFromEnquiry);
         const response = await getOwnerBookings(activeHallId, accessToken, fallbackBookings);
@@ -454,7 +497,7 @@ export function OwnerDashboard() {
         setBookings(response.bookings);
       } catch {
         if (!isCurrent) return;
-        setBookings(fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
+        setBookings((useOwnerBookingDemoFallback ? fallbackOwnerEnquiries : []).filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
         setBookingsError("Could not load latest bookings.");
       } finally {
         if (isCurrent) setIsLoadingBookings(false);
@@ -480,13 +523,13 @@ export function OwnerDashboard() {
         if (!isCurrent) return;
 
         const loadedIds = new Set(response.enquiries.map((enquiry) => enquiry.id));
-        setEnquiries(response.source === "api" ? response.enquiries : [
+        setEnquiries(response.source === "api" || !useOwnerEnquiryDemoFallback ? response.enquiries : [
           ...response.enquiries,
           ...fallbackOwnerEnquiries.filter((enquiry) => !loadedIds.has(enquiry.id))
         ]);
       } catch {
         if (!isCurrent) return;
-        setEnquiries(fallbackOwnerEnquiries);
+        setEnquiries(useOwnerEnquiryDemoFallback ? fallbackOwnerEnquiries : []);
         setEnquiriesError("Could not load latest owner enquiries.");
       } finally {
         if (isCurrent) setIsLoadingEnquiries(false);
@@ -508,18 +551,18 @@ export function OwnerDashboard() {
       setAvailabilityError("");
 
       try {
-        const fallbackBookings = fallbackOwnerEnquiries
+        const fallbackBookings = (useOwnerAvailabilityDemoFallback ? fallbackOwnerEnquiries : [])
           .filter((enquiry) => enquiry.status === "CONFIRMED")
           .map(bookingFromEnquiry);
-        const response = await getOwnerAvailability(activeHallId, accessToken, initialBlockedDates, fallbackBookings);
+        const response = await getOwnerAvailability(activeHallId, accessToken, useOwnerAvailabilityDemoFallback ? initialBlockedDates : [], fallbackBookings);
         if (!isCurrent) return;
 
         setBlockedDates(response.blockedDates);
         setAvailabilityBookings(response.bookings);
       } catch {
         if (!isCurrent) return;
-        setBlockedDates(initialBlockedDates);
-        setAvailabilityBookings(fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED").map(bookingFromEnquiry));
+        setBlockedDates(useOwnerAvailabilityDemoFallback ? initialBlockedDates : []);
+        setAvailabilityBookings((useOwnerAvailabilityDemoFallback ? fallbackOwnerEnquiries : []).filter((enquiry) => enquiry.status === "CONFIRMED").map(bookingFromEnquiry));
         setAvailabilityError("Could not load latest availability.");
       } finally {
         if (isCurrent) setIsLoadingAvailability(false);
@@ -541,16 +584,16 @@ export function OwnerDashboard() {
       setReviewsError("");
 
       try {
-        const response = await getOwnerHallReviews(activeHallId, accessToken, ownerReviews);
+        const response = await getOwnerHallReviews(activeHallId, accessToken, useOwnerReviewDemoFallback ? ownerReviews : []);
         if (!isCurrent) return;
         setReviews(response.reviews);
-        setAverageRating(response.averageRating || ownerHall.rating);
+        setAverageRating(response.averageRating || (useOwnerReviewDemoFallback ? ownerHall.rating : 0));
         setTotalReviews(response.totalReviews || response.reviews.length);
       } catch {
         if (!isCurrent) return;
-        setReviews(ownerReviews);
-        setAverageRating(ownerHall.rating);
-        setTotalReviews(ownerHall.reviewCount);
+        setReviews(useOwnerReviewDemoFallback ? ownerReviews : []);
+        setAverageRating(useOwnerReviewDemoFallback ? ownerHall.rating : 0);
+        setTotalReviews(useOwnerReviewDemoFallback ? ownerHall.reviewCount : 0);
         setReviewsError("Could not load latest reviews.");
       } finally {
         if (isCurrent) setIsLoadingReviews(false);
@@ -567,6 +610,18 @@ export function OwnerDashboard() {
   const pendingCount = enquiries.filter((enquiry) => enquiry.status === "NEW" || enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const activeBookingCount = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED").length;
   const confirmedCount = bookings.filter((booking) => booking.status === "CONFIRMED").length;
+  const listingViews = useOwnerDemoFallbacks ? "1,284" : "0";
+  const listingHealthChecks = [
+    Boolean(listing.name.trim() && listing.city.trim() && listing.area.trim() && listing.description.trim()),
+    Boolean(listing.capacity > 0 && listing.startingPrice > 0 && listing.amenities.length > 0),
+    Boolean(media.length >= 3 || listing.galleryUrls.length >= 3)
+  ];
+  const listingHealthScore = Math.round((listingHealthChecks.filter(Boolean).length / listingHealthChecks.length) * 100);
+  const listingHealthItems = [
+    { label: "Profile information complete", complete: listingHealthChecks[0] },
+    { label: "Pricing and amenities added", complete: listingHealthChecks[1] },
+    { label: "Add 3 or more gallery photos", complete: listingHealthChecks[2] }
+  ];
   const confirmedBookings = useMemo(() => {
     const bookingMap = new Map<string, AvailabilityBooking>();
     availabilityBookings.forEach((booking) => bookingMap.set(booking.enquiryId ?? booking.id, booking));
@@ -804,7 +859,79 @@ export function OwnerDashboard() {
           {tabs.map((tab) => <button aria-selected={activeTab === tab.id} className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}{tab.id === "enquiries" && pendingCount > 0 && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{pendingCount}</span>}{tab.id === "bookings" && activeBookingCount > 0 && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{activeBookingCount}</span>}</button>)}
         </div>
 
-        {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
+        {activeTab === "overview" && (
+          <section className="py-7">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-border bg-white p-5">
+                <MessageSquareText className="text-blue-600" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{pendingCount}</p>
+                <p className="mt-1 text-sm text-muted-foreground">New enquiries</p>
+              </div>
+              <div className="rounded-lg border border-border bg-white p-5">
+                <CalendarDays className="text-primary" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{confirmedCount}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Confirmed events</p>
+              </div>
+              <div className="rounded-lg border border-border bg-white p-5">
+                <Eye className="text-violet-600" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{listingViews}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Listing views</p>
+              </div>
+              <div className="rounded-lg border border-border bg-white p-5">
+                <Star className="text-amber-500" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Average rating</p>
+              </div>
+            </div>
+
+            <div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]">
+              <section>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">Recent enquiries</h2>
+                  <button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {enquiries.slice(0, 3).length > 0 ? enquiries.slice(0, 3).map((enquiry) => (
+                    <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}>
+                      <span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span>
+                      <span className="min-w-0 flex-1">
+                        <strong className="block">{enquiry.eventType}</strong>
+                        <span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span>
+                      </span>
+                      <span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span>
+                      <ChevronRight size={18} />
+                    </button>
+                  )) : (
+                    <div className="rounded-lg border border-dashed border-border bg-white p-6 text-sm text-muted-foreground">No enquiries yet.</div>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-xl font-semibold">Listing health</h2>
+                <div className="mt-4 rounded-lg border border-border bg-white p-5">
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}>
+                      <BadgeCheck size={17} /> {formatListingStatus(listing.status)}
+                    </span>
+                    <span className="text-sm font-semibold">{listingHealthScore}%</span>
+                  </div>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full bg-primary" style={{ width: `${listingHealthScore}%` }} />
+                  </div>
+                  <div className="mt-5 grid gap-3 text-sm">
+                    {listingHealthItems.map((item) => (
+                      <p className={`flex items-center gap-2 ${item.complete ? "text-emerald-700" : "text-amber-700"}`} key={item.label}>
+                        {item.complete ? <Check size={16} /> : <ImagePlus size={16} />} {item.label}
+                      </p>
+                    ))}
+                  </div>
+                  <button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button>
+                </div>
+              </section>
+            </div>
+          </section>
+        )}
 
         {activeTab === "activity" && <NotificationActivity />}
 
@@ -1167,7 +1294,13 @@ export function OwnerDashboard() {
 
                 <aside className="h-fit overflow-hidden rounded-lg border border-border bg-white">
                   <div className="relative aspect-[4/3] bg-muted">
-                    <Image alt={listing.name} className="object-cover" fill sizes="420px" src={listing.imageUrl || ownerHall.imageUrl} />
+                    {listing.imageUrl ? (
+                      <Image alt={listing.name} className="object-cover" fill sizes="420px" src={listing.imageUrl} unoptimized={listing.imageUrl.startsWith("blob:")} />
+                    ) : (
+                      <div className="grid h-full place-items-center text-muted-foreground">
+                        <ImagePlus size={32} />
+                      </div>
+                    )}
                   </div>
                   <div className="p-5">
                     <p className="text-sm font-semibold text-primary">{listingForm.venueType}</p>

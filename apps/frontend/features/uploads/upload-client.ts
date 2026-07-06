@@ -25,8 +25,7 @@ type PresignResponse = {
 export async function uploadImageFile(file: File, purpose: UploadPurpose, accessToken?: string | null): Promise<UploadedMediaFile> {
   validateImageFile(file);
 
-  const localUrl = URL.createObjectURL(file);
-  if (!accessToken) return localUpload(file, localUrl);
+  if (!accessToken) return localUpload(file, URL.createObjectURL(file));
 
   try {
     const presign = await apiRequest<unknown>("/uploads/presign", {
@@ -41,7 +40,7 @@ export async function uploadImageFile(file: File, purpose: UploadPurpose, access
     });
 
     const upload = toPresignResponse(presign);
-    if (!upload) return localUpload(file, localUrl);
+    if (!upload) throw new Error("Upload service returned an invalid response.");
 
     const uploadResponse = await fetch(upload.uploadUrl, {
       method: upload.method ?? "PUT",
@@ -64,7 +63,10 @@ export async function uploadImageFile(file: File, purpose: UploadPurpose, access
     if (exception instanceof ApiError && [400, 401, 403, 413, 415, 422].includes(exception.status)) {
       throw exception;
     }
-    return localUpload(file, localUrl);
+    if (accessToken) {
+      throw exception instanceof Error ? exception : new Error("Could not upload image.");
+    }
+    return localUpload(file, URL.createObjectURL(file));
   }
 }
 

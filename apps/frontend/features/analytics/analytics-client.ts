@@ -92,6 +92,18 @@ export const fallbackOwnerAnalytics: OwnerAnalytics = {
   ]
 };
 
+export const emptyOwnerAnalytics: OwnerAnalytics = {
+  enquiries: 0,
+  confirmedBookings: 0,
+  completedBookings: 0,
+  estimatedRevenue: 0,
+  conversionRate: 0,
+  averageRating: 0,
+  occupancyRate: 0,
+  trends: [],
+  eventMix: []
+};
+
 export const fallbackVendorAnalytics: VendorAnalytics = {
   leads: 34,
   contacted: 24,
@@ -132,9 +144,9 @@ export async function getOwnerAnalytics(hallId: string, accessToken?: string | n
 
   try {
     const response = await apiRequest<unknown>(`/owner/halls/${encodeURIComponent(hallId)}/reports/summary`, { token: accessToken });
-    return toOwnerAnalytics(response) ?? fallbackOwnerAnalytics;
+    return toOwnerAnalytics(response) ?? emptyOwnerAnalytics;
   } catch {
-    return fallbackOwnerAnalytics;
+    return emptyOwnerAnalytics;
   }
 }
 

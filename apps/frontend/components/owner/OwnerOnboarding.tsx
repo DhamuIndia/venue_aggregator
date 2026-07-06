@@ -17,8 +17,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { ownerHall } from "@/features/owner/mock-data";
+import { createOwnerMedia } from "@/features/owner/media-client";
 import { emptyOwnerOnboardingDraft, getOwnerOnboardingDraft, saveOwnerOnboardingDraft, submitOwnerOnboardingDraft, type OwnerOnboardingDraft } from "@/features/owner/onboarding-client";
+import { uploadImageFile } from "@/features/uploads/upload-client";
 
 const steps = ["Venue details", "Facilities & pricing", "Photos", "Review"];
 const amenityOptions = ["Air conditioned", "Parking", "Dining hall", "Guest rooms", "Lift", "Generator", "Bridal room", "Catering kitchen"];
@@ -34,7 +35,8 @@ export function OwnerOnboarding() {
   const [isLoadingDraft, setIsLoadingDraft] = useState(true);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fileNames, setFileNames] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedPhotoPreviews, setSelectedPhotoPreviews] = useState<Array<{ name: string; url: string }>>([]);
   const [amenities, setAmenities] = useState<string[]>(emptyOwnerOnboardingDraft.amenities);
   const [form, setForm] = useState(formFromDraft(emptyOwnerOnboardingDraft));
 
@@ -67,8 +69,19 @@ export function OwnerOnboarding() {
     };
   }, [accessToken]);
 
+  useEffect(() => () => {
+    selectedPhotoPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, [selectedPhotoPreviews]);
+
   function updateField(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    setError("");
+  }
+
+  function selectVenuePhotos(files: FileList | null) {
+    const nextFiles = Array.from(files ?? []);
+    setSelectedFiles(nextFiles);
+    setSelectedPhotoPreviews(nextFiles.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })));
     setError("");
   }
 
@@ -86,8 +99,8 @@ export function OwnerOnboarding() {
       setError("Add at least one facility and a full-day starting price.");
       return;
     }
-    if (step === 2 && !form.coverImageUrl.trim()) {
-      setError("Add a cover image URL before review.");
+    if (step === 2 && !form.coverImageUrl.trim() && selectedFiles.length === 0) {
+      setError("Upload at least one venue photo before review.");
       return;
     }
     setError("");
@@ -118,7 +131,27 @@ export function OwnerOnboarding() {
       setError("");
       setNotice("");
       setIsSubmitting(true);
-      const submittedDraft = await submitOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), accessToken);
+      const uploadedFiles = selectedFiles.length > 0
+        ? await Promise.all(selectedFiles.map((file) => uploadImageFile(file, "OWNER_HALL_MEDIA", accessToken)))
+        : [];
+      const draftPayload = draftFromForm(form, amenities, draftId);
+      const draftWithCover = uploadedFiles[0]?.url ? { ...draftPayload, coverImageUrl: uploadedFiles[0].url } : draftPayload;
+      const savedDraft = await saveOwnerOnboardingDraft(draftWithCover, accessToken);
+      setDraftId(savedDraft.id);
+      setForm(formFromDraft(savedDraft));
+
+      if (savedDraft.id && uploadedFiles.length > 0) {
+        await Promise.all(uploadedFiles.map((file, index) => createOwnerMedia(savedDraft.id as string, {
+          url: file.url,
+          storageKey: file.storageKey,
+          fileName: file.fileName,
+          caption: file.fileName,
+          isCover: index === 0,
+          sortOrder: index
+        }, accessToken)));
+      }
+
+      const submittedDraft = await submitOwnerOnboardingDraft(savedDraft, accessToken);
       const submittedHallId = submittedDraft.id ? `&hallId=${encodeURIComponent(submittedDraft.id)}` : "";
       router.push(`/owner?submitted=true${submittedHallId}`);
     } catch (exception) {
@@ -159,11 +192,49 @@ export function OwnerOnboarding() {
           )}
 
           {step === 2 && (
-            <div><div className="flex items-center gap-3"><ImagePlus className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Venue photos</h2><p className="mt-1 text-sm text-muted-foreground">Add clear images of the hall, dining, entrance, and facilities.</p></div></div><label className="mt-7 block text-sm font-medium">Cover image URL<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("coverImageUrl", event.target.value)} placeholder="https://..." type="url" value={form.coverImageUrl} /></label>{form.coverImageUrl && <div className="relative mt-4 aspect-[4/3] overflow-hidden rounded-lg bg-muted sm:max-w-md"><Image alt="Venue cover preview" className="object-cover" fill sizes="420px" src={form.coverImageUrl} unoptimized /></div>}<label className="mt-7 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background px-5 text-center hover:border-primary"><UploadCloud className="text-primary" size={28} /><span className="mt-3 text-sm font-semibold">Choose venue photos</span><span className="mt-1 text-xs text-muted-foreground">JPG, PNG or WebP, up to 10 files</span><input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => setFileNames(Array.from(event.target.files ?? []).map((file) => file.name))} type="file" /></label>{fileNames.length > 0 && <p className="mt-3 text-sm text-emerald-700">{fileNames.length} photo{fileNames.length === 1 ? "" : "s"} selected</p>}<div className="mt-7"><div className="flex items-center justify-between"><h3 className="text-sm font-medium">Example gallery order</h3><span className="text-xs text-muted-foreground">First image is the cover</span></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{[ownerHall.imageUrl, ...ownerHall.galleryUrls].map((image, index) => <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={`${image}-${index}`}><Image alt={`Venue example ${index + 1}`} className="object-cover" fill sizes="240px" src={image} />{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}</div>)}</div></div></div>
+            <div>
+              <div className="flex items-center gap-3">
+                <ImagePlus className="text-primary" size={23} />
+                <div>
+                  <h2 className="text-xl font-semibold">Venue photos</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Add clear images of the hall, dining, entrance, and facilities.</p>
+                </div>
+              </div>
+
+              <label className="mt-7 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background px-5 text-center hover:border-primary">
+                <UploadCloud className="text-primary" size={28} />
+                <span className="mt-3 text-sm font-semibold">Choose venue photos</span>
+                <span className="mt-1 text-xs text-muted-foreground">JPG, PNG or WebP, up to 10 files. First image becomes the cover.</span>
+                <input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => selectVenuePhotos(event.target.files)} type="file" />
+              </label>
+
+              {selectedFiles.length > 0 && <p className="mt-3 text-sm text-emerald-700">{selectedFiles.length} photo{selectedFiles.length === 1 ? "" : "s"} selected</p>}
+
+              {selectedPhotoPreviews.length > 0 ? (
+                <div className="mt-7">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium">Selected gallery order</h3>
+                    <span className="text-xs text-muted-foreground">First image is the cover</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {selectedPhotoPreviews.map((photo, index) => (
+                      <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={photo.url}>
+                        <Image alt={photo.name} className="object-cover" fill sizes="240px" src={photo.url} unoptimized />
+                        {index === 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : form.coverImageUrl ? (
+                <div className="relative mt-7 aspect-[4/3] overflow-hidden rounded-lg bg-muted sm:max-w-md">
+                  <Image alt="Venue cover preview" className="object-cover" fill sizes="420px" src={form.coverImageUrl} unoptimized />
+                </div>
+              ) : null}
+            </div>
           )}
 
           {step === 3 && (
-            <div><div className="flex items-center gap-3"><BadgeCheck className="text-primary" size={24} /><div><h2 className="text-xl font-semibold">Review your listing</h2><p className="mt-1 text-sm text-muted-foreground">Admin approval is required before publication.</p></div></div><dl className="mt-7 divide-y divide-border rounded-lg border border-border">{[{ label: "Venue", value: form.hallName || "Not provided" }, { label: "Type", value: form.venueType }, { label: "Location", value: `${form.area || "Area"}, ${form.city}` }, { label: "Address", value: form.addressLine || "Not provided" }, { label: "Contact", value: form.contactNumber || "Not provided" }, { label: "Capacity", value: `${form.capacity || "0"} guests` }, { label: "Amenities", value: `${amenities.length} selected` }, { label: "Full-day price", value: form.fullDayPrice ? `INR ${new Intl.NumberFormat("en-IN").format(Number(form.fullDayPrice))}` : "Not provided" }, { label: "Cover image", value: form.coverImageUrl ? "Added" : "Not provided" }, { label: "Photos", value: fileNames.length > 0 ? `${fileNames.length} selected` : "Add after submission" }].map((item) => <div className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr]" key={item.label}><dt className="text-sm text-muted-foreground">{item.label}</dt><dd className="text-sm font-medium">{item.value}</dd></div>)}</dl><label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground"><input checked={confirmed} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(event) => { setConfirmed(event.target.checked); setError(""); }} required type="checkbox" /><span>I confirm that the venue information is accurate and I am authorized to manage this listing.</span></label></div>
+            <div><div className="flex items-center gap-3"><BadgeCheck className="text-primary" size={24} /><div><h2 className="text-xl font-semibold">Review your listing</h2><p className="mt-1 text-sm text-muted-foreground">Admin approval is required before publication.</p></div></div><dl className="mt-7 divide-y divide-border rounded-lg border border-border">{[{ label: "Venue", value: form.hallName || "Not provided" }, { label: "Type", value: form.venueType }, { label: "Location", value: `${form.area || "Area"}, ${form.city}` }, { label: "Address", value: form.addressLine || "Not provided" }, { label: "Contact", value: form.contactNumber || "Not provided" }, { label: "Capacity", value: `${form.capacity || "0"} guests` }, { label: "Amenities", value: `${amenities.length} selected` }, { label: "Full-day price", value: form.fullDayPrice ? `INR ${new Intl.NumberFormat("en-IN").format(Number(form.fullDayPrice))}` : "Not provided" }, { label: "Cover image", value: form.coverImageUrl || selectedFiles.length > 0 ? "Added" : "Not provided" }, { label: "Photos", value: selectedFiles.length > 0 ? `${selectedFiles.length} selected` : "Add from the media tab" }].map((item) => <div className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr]" key={item.label}><dt className="text-sm text-muted-foreground">{item.label}</dt><dd className="text-sm font-medium">{item.value}</dd></div>)}</dl><label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground"><input checked={confirmed} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(event) => { setConfirmed(event.target.checked); setError(""); }} required type="checkbox" /><span>I confirm that the venue information is accurate and I am authorized to manage this listing.</span></label></div>
           )}
 
           {error && <p className="mt-6 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
