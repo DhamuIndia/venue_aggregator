@@ -106,29 +106,29 @@ function toVendorSummary(value: unknown): VendorSummary | undefined {
   const businessName = stringValue(value, ["businessName", "business_name", "name"]);
   if (!id || !businessName) return undefined;
 
-  const fallback = getMockVendorById(id) ?? mockVendors[0];
-  const category = vendorCategory(value) ?? fallback.category;
-  const imageUrl = stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl"]) ?? fallback.imageUrl;
+  const fallback = getMockVendorById(id);
+  const category = vendorCategory(value) ?? fallback?.category ?? "CATERING";
+  const imageUrl = stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl"]) ?? fallback?.imageUrl ?? "";
 
   return {
     id,
     businessName,
-    ownerName: stringValue(value, ["ownerName", "owner_name", "contactName"]) ?? fallback.ownerName,
+    ownerName: stringValue(value, ["ownerName", "owner_name", "contactName"]) ?? fallback?.ownerName ?? "",
     category,
-    city: stringValue(value, ["city"]) ?? fallback.city,
-    area: stringValue(value, ["area", "locality", "location"]) ?? fallback.area,
-    rating: numberValue(value, ["rating", "ratings", "averageRating", "average_rating"]) ?? fallback.rating,
-    reviewCount: numberValue(value, ["reviewCount", "reviewsCount", "totalReviews", "review_count"]) ?? fallback.reviewCount,
-    startingPrice: numberValue(value, ["startingPrice", "starting_price", "price", "basePrice"], ["pricing", "startingPrice"]) ?? fallback.startingPrice,
+    city: stringValue(value, ["city"]) ?? fallback?.city ?? "",
+    area: stringValue(value, ["area", "locality", "location"]) ?? fallback?.area ?? "",
+    rating: numberValue(value, ["rating", "ratings", "averageRating", "average_rating"]) ?? fallback?.rating ?? 0,
+    reviewCount: numberValue(value, ["reviewCount", "reviewsCount", "totalReviews", "review_count"]) ?? fallback?.reviewCount ?? 0,
+    startingPrice: numberValue(value, ["startingPrice", "starting_price", "price", "basePrice"], ["pricing", "startingPrice"]) ?? fallback?.startingPrice ?? 0,
     imageUrl,
-    galleryUrls: galleryUrls(value, imageUrl, fallback.galleryUrls),
-    verified: booleanValue(value, ["verified", "isVerified", "identityVerified"]) ?? statusIsApproved(value) ?? fallback.verified,
-    responseTime: stringValue(value, ["responseTime", "response_time", "typicalResponseTime"]) ?? fallback.responseTime,
-    completedEvents: numberValue(value, ["completedEvents", "completed_events", "eventsCompleted"]) ?? fallback.completedEvents,
-    services: arrayOfStrings(value.services) ?? arrayOfStrings(value.serviceNames) ?? fallback.services,
-    description: stringValue(value, ["description", "summary", "about"]) ?? fallback.description,
-    packages: packages(value, fallback.packages),
-    reviews: reviews(value, fallback.reviews)
+    galleryUrls: galleryUrls(value, imageUrl, fallback?.galleryUrls ?? []),
+    verified: booleanValue(value, ["verified", "isVerified", "identityVerified"]) ?? statusIsApproved(value) ?? fallback?.verified ?? false,
+    responseTime: stringValue(value, ["responseTime", "response_time", "typicalResponseTime"]) ?? fallback?.responseTime ?? "",
+    completedEvents: numberValue(value, ["completedEvents", "completed_events", "eventsCompleted"]) ?? fallback?.completedEvents ?? 0,
+    services: arrayOfStrings(value.services) ?? arrayOfStrings(value.serviceNames) ?? fallback?.services ?? [],
+    description: stringValue(value, ["description", "summary", "about"]) ?? fallback?.description ?? "",
+    packages: packages(value, fallback?.packages ?? []),
+    reviews: reviews(value, fallback?.reviews ?? [])
   };
 }
 
@@ -143,7 +143,8 @@ function galleryUrls(record: ApiVendorRecord, coverImageUrl: string, fallback: s
     .filter(Boolean) as string[];
 
   if (urls.length) return urls;
-  return fallback.length ? fallback : [coverImageUrl];
+  if (fallback.length) return fallback;
+  return coverImageUrl ? [coverImageUrl] : [];
 }
 
 function packages(record: ApiVendorRecord, fallback: VendorPackage[]) {

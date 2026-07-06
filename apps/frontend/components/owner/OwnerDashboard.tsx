@@ -135,6 +135,9 @@ type ListingForm = {
   contactNumber: string;
   city: string;
   area: string;
+  pincode: string;
+  latitude: string;
+  longitude: string;
   capacity: string;
   startingPrice: string;
   amenities: string[];
@@ -214,6 +217,9 @@ function formFromListing(listing: OwnerHallListing): ListingForm {
     contactNumber: listing.contactNumber ?? "",
     city: listing.city,
     area: listing.area,
+    pincode: listing.pincode ?? "",
+    latitude: listing.latitude ? String(listing.latitude) : "",
+    longitude: listing.longitude ? String(listing.longitude) : "",
     capacity: String(listing.capacity || ""),
     startingPrice: String(listing.startingPrice || ""),
     amenities: listing.amenities,
@@ -235,6 +241,9 @@ function payloadFromForm(form: ListingForm, coverImageUrl: string): OwnerHallUpd
     coverImageUrl,
     city: form.city.trim(),
     area: form.area.trim(),
+    pincode: form.pincode.trim(),
+    latitude: parseCoordinate(form.latitude),
+    longitude: parseCoordinate(form.longitude),
     capacity: Number(form.capacity),
     startingPrice: Number(form.startingPrice),
     amenities: form.amenities,
@@ -243,13 +252,27 @@ function payloadFromForm(form: ListingForm, coverImageUrl: string): OwnerHallUpd
 }
 
 function validateListingForm(form: ListingForm, coverImageUrl: string) {
-  if (!form.name.trim() || !form.addressLine.trim() || !form.contactNumber.trim() || !form.area.trim() || !form.city.trim()) return "Enter venue name, address, contact number, city, and area.";
+  if (!form.name.trim() || !form.addressLine.trim() || !form.contactNumber.trim() || !form.area.trim() || !form.city.trim() || !form.pincode.trim() || !hasCapturedListingLocation(form)) return "Enter venue name, address, contact number, city, area, pincode, and location coordinates.";
   if (!form.capacity || Number(form.capacity) < 1) return "Enter a valid guest capacity.";
   if (!form.startingPrice || Number(form.startingPrice) < 1) return "Enter a valid starting price.";
   if (!coverImageUrl) return "Add a cover image from the Media tab.";
   if (form.amenities.length === 0) return "Select at least one amenity.";
   if (form.description.trim().length < 20) return "Add a short description with at least 20 characters.";
   return "";
+}
+
+function hasCapturedListingLocation(form: ListingForm) {
+  return parseCoordinate(form.latitude) !== undefined && parseCoordinate(form.longitude) !== undefined;
+}
+
+function googleMapsUrl(latitude: string, longitude: string) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}`;
+}
+
+function parseCoordinate(value: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function preferredOwnerHallId() {
@@ -273,6 +296,7 @@ function blankListingForHall(hallId: string): OwnerHallListing {
     name: "Your venue",
     city: "",
     area: "",
+    pincode: "",
     capacity: 0,
     startingPrice: 0,
     rating: 0,
@@ -306,6 +330,9 @@ function fallbackListingForHall(hallId: string): OwnerHallListing {
     name: stringValue(draft, ["hallName", "name", "title"]) ?? baseListing.name,
     city: stringValue(draft, ["city"]) ?? baseListing.city,
     area: stringValue(draft, ["area", "locality", "location"]) ?? baseListing.area,
+    pincode: stringValue(draft, ["pincode", "pinCode", "postalCode"]) ?? baseListing.pincode,
+    latitude: numberValue(draft, ["latitude", "lat"]) ?? baseListing.latitude,
+    longitude: numberValue(draft, ["longitude", "lng", "lon"]) ?? baseListing.longitude,
     capacity: numberValue(draft, ["capacity", "capacityMax", "capacity_max"]) ?? baseListing.capacity,
     startingPrice: numberValue(draft, ["fullDayPrice", "full_day_price", "startingPrice", "amount"]) ?? baseListing.startingPrice,
     imageUrl: coverImageUrl,
@@ -400,6 +427,7 @@ export function OwnerDashboard() {
   const [listingError, setListingError] = useState("");
   const [isSavingListing, setIsSavingListing] = useState(false);
   const [isSubmittingListing, setIsSubmittingListing] = useState(false);
+  const [isCapturingListingLocation, setIsCapturingListingLocation] = useState(false);
   const [enquiries, setEnquiries] = useState<StoredEnquiry[]>(() => useOwnerEnquiryDemoFallback ? fallbackOwnerEnquiries : []);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
@@ -742,6 +770,34 @@ export function OwnerDashboard() {
   function updateListingField(field: keyof Omit<ListingForm, "amenities">, value: string) {
     setListingForm((current) => ({ ...current, [field]: value }));
     setListingError("");
+  }
+
+  function captureListingLocation() {
+    if (!navigator.geolocation) {
+      setListingError("Location capture is not supported in this browser.");
+      return;
+    }
+
+    setListingError("");
+    setNotice("");
+    setIsCapturingListingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setListingForm((current) => ({
+          ...current,
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6)
+        }));
+        setNotice("Location captured. Please confirm the pin belongs to the venue.");
+        setIsCapturingListingLocation(false);
+      },
+      () => {
+        setListingError("Could not capture location. Allow browser location access or enter latitude and longitude manually.");
+        setIsCapturingListingLocation(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
   }
 
   function toggleListingAmenity(amenity: string) {
@@ -1289,7 +1345,24 @@ export function OwnerDashboard() {
                     <label className="text-sm font-medium">Maximum guests<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("capacity", event.target.value)} value={listingForm.capacity}><option value="">Select capacity</option>{listingCapacityOptions.map((option) => <option key={option} value={option}>{formatGuestCount(option)} guests</option>)}</select></label>
                     <label className="text-sm font-medium">City<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("city", event.target.value)} value={listingForm.city} /></label>
                     <label className="text-sm font-medium">Area<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("area", event.target.value)} value={listingForm.area} /></label>
+                    <label className="text-sm font-medium sm:col-span-2">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(event) => updateListingField("pincode", event.target.value)} placeholder="6-digit pincode" value={listingForm.pincode} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Address line<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("addressLine", event.target.value)} placeholder="Door number, street, landmark" value={listingForm.addressLine} /></label>
+                    <div className="rounded-lg border border-border bg-background p-4 sm:col-span-2">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold">Venue map location</h3>
+                          <p className="mt-1 text-xs text-muted-foreground">Capture this while standing at the hall entrance.</p>
+                        </div>
+                        <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isCapturingListingLocation} onClick={captureListingLocation} type="button">
+                          {isCapturingListingLocation ? <LoaderCircle className="animate-spin" size={16} /> : <MapPin size={16} />} Use current location
+                        </button>
+                      </div>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-medium">Latitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(event) => updateListingField("latitude", event.target.value)} placeholder="13.082680" value={listingForm.latitude} /></label>
+                        <label className="text-sm font-medium">Longitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(event) => updateListingField("longitude", event.target.value)} placeholder="80.270721" value={listingForm.longitude} /></label>
+                      </div>
+                      {hasCapturedListingLocation(listingForm) && <a className="mt-3 inline-flex text-sm font-semibold text-primary" href={googleMapsUrl(listingForm.latitude, listingForm.longitude)} rel="noreferrer" target="_blank">Check pin in Google Maps</a>}
+                    </div>
                     <label className="text-sm font-medium sm:col-span-2">Contact number<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(event) => updateListingField("contactNumber", event.target.value)} placeholder="Owner or venue phone" value={listingForm.contactNumber} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Starting price<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateListingField("startingPrice", event.target.value)} type="number" value={listingForm.startingPrice} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(event) => updateListingField("description", event.target.value)} value={listingForm.description} /></label>

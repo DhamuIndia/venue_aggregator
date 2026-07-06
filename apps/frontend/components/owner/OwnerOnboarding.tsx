@@ -36,6 +36,7 @@ export function OwnerOnboarding() {
   const [isLoadingDraft, setIsLoadingDraft] = useState(true);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCapturingLocation, setIsCapturingLocation] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedPhotoPreviews, setSelectedPhotoPreviews] = useState<Array<{ name: string; url: string }>>([]);
   const [amenities, setAmenities] = useState<string[]>(emptyOwnerOnboardingDraft.amenities);
@@ -98,9 +99,37 @@ export function OwnerOnboarding() {
     setAmenities((current) => current.includes(amenity) ? current.filter((item) => item !== amenity) : [...current, amenity]);
   }
 
+  function captureCurrentLocation() {
+    if (!navigator.geolocation) {
+      setError("Location capture is not supported in this browser.");
+      return;
+    }
+
+    setError("");
+    setNotice("");
+    setIsCapturingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((current) => ({
+          ...current,
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6)
+        }));
+        setNotice("Location captured. Please confirm the pin belongs to the venue.");
+        setIsCapturingLocation(false);
+      },
+      () => {
+        setError("Could not capture location. Allow browser location access or enter latitude and longitude manually.");
+        setIsCapturingLocation(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+  }
+
   function continueStep() {
-    if (step === 0 && (!form.hallName.trim() || !form.addressLine.trim() || !form.area.trim() || !form.contactNumber.trim() || Number(form.capacity) < 1)) {
-      setError("Enter the venue name, address, area, contact number, and guest capacity.");
+    if (step === 0 && (!form.hallName.trim() || !form.addressLine.trim() || !form.area.trim() || !form.pincode.trim() || !form.contactNumber.trim() || Number(form.capacity) < 1 || !hasCapturedLocation(form))) {
+      setError("Enter the venue name, address, area, pincode, contact number, guest capacity, and location coordinates.");
       return;
     }
     if (step === 1 && (!form.fullDayPrice || amenities.length === 0)) {
@@ -192,7 +221,7 @@ export function OwnerOnboarding() {
           {isLoadingDraft && <div className="mb-6 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-1/2 animate-pulse rounded-full bg-primary" /></div>}
           {notice && <p className="mb-6 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700" role="status">{notice}</p>}
           {step === 0 && (
-            <div><div className="flex items-center gap-3"><Building2 className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Venue details</h2><p className="mt-1 text-sm text-muted-foreground">Basic information customers will see.</p></div></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("hallName", e.target.value)} placeholder="e.g. Emerald Convention Centre" value={form.hallName} /></label><label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("venueType", e.target.value)} value={form.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label><label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><UsersRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><select className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("capacity", e.target.value)} value={form.capacity}><option value="">Select capacity</option>{capacityOptions.map((option) => <option key={option} value={option}>{formatGuestCount(option)} guests</option>)}</select></span></label><label className="text-sm font-medium">City<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("city", e.target.value)} value={form.city}><option>Chennai</option><option>Coimbatore</option><option>Madurai</option><option>Bengaluru</option></select></label><label className="text-sm font-medium">Area<span className="relative mt-2 block"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("area", e.target.value)} placeholder="Locality or area" value={form.area} /></span></label><label className="text-sm font-medium">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(e) => updateField("pincode", e.target.value)} placeholder="6-digit pincode" value={form.pincode} /></label><label className="text-sm font-medium sm:col-span-2">Address line<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("addressLine", e.target.value)} placeholder="Door number, street, landmark" value={form.addressLine} /></label><label className="text-sm font-medium">Contact number<span className="relative mt-2 block"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(e) => updateField("contactNumber", e.target.value)} placeholder="Owner or venue phone" value={form.contactNumber} /></span></label><label className="text-sm font-medium">WhatsApp number<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(e) => updateField("whatsappNumber", e.target.value)} placeholder="Optional" value={form.whatsappNumber} /></label><label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(e) => updateField("description", e.target.value)} placeholder="Describe the venue, event spaces, and what makes it suitable for celebrations." value={form.description} /></label></div></div>
+            <div><div className="flex items-center gap-3"><Building2 className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Venue details</h2><p className="mt-1 text-sm text-muted-foreground">Basic information customers will see.</p></div></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("hallName", e.target.value)} placeholder="e.g. Emerald Convention Centre" value={form.hallName} /></label><label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("venueType", e.target.value)} value={form.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label><label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><UsersRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><select className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("capacity", e.target.value)} value={form.capacity}><option value="">Select capacity</option>{capacityOptions.map((option) => <option key={option} value={option}>{formatGuestCount(option)} guests</option>)}</select></span></label><label className="text-sm font-medium">City<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("city", e.target.value)} value={form.city}><option>Chennai</option><option>Coimbatore</option><option>Madurai</option><option>Bengaluru</option></select></label><label className="text-sm font-medium">Area<span className="relative mt-2 block"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("area", e.target.value)} placeholder="Locality or area" value={form.area} /></span></label><label className="text-sm font-medium">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(e) => updateField("pincode", e.target.value)} placeholder="6-digit pincode" value={form.pincode} /></label><label className="text-sm font-medium sm:col-span-2">Address line<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("addressLine", e.target.value)} placeholder="Door number, street, landmark" value={form.addressLine} /></label><div className="rounded-lg border border-border bg-background p-4 sm:col-span-2"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Venue map location</h3><p className="mt-1 text-xs text-muted-foreground">Capture this while standing at the hall entrance.</p></div><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isCapturingLocation} onClick={captureCurrentLocation} type="button">{isCapturingLocation ? <LoaderCircle className="animate-spin" size={16} /> : <MapPin size={16} />} Use current location</button></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Latitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(e) => updateField("latitude", e.target.value)} placeholder="13.082680" value={form.latitude} /></label><label className="text-sm font-medium">Longitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(e) => updateField("longitude", e.target.value)} placeholder="80.270721" value={form.longitude} /></label></div>{hasCapturedLocation(form) && <a className="mt-3 inline-flex text-sm font-semibold text-primary" href={googleMapsUrl(form.latitude, form.longitude)} rel="noreferrer" target="_blank">Check pin in Google Maps</a>}</div><label className="text-sm font-medium">Contact number<span className="relative mt-2 block"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(e) => updateField("contactNumber", e.target.value)} placeholder="Owner or venue phone" value={form.contactNumber} /></span></label><label className="text-sm font-medium">WhatsApp number<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(e) => updateField("whatsappNumber", e.target.value)} placeholder="Optional" value={form.whatsappNumber} /></label><label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(e) => updateField("description", e.target.value)} placeholder="Describe the venue, event spaces, and what makes it suitable for celebrations." value={form.description} /></label></div></div>
           )}
 
           {step === 1 && (
@@ -242,7 +271,7 @@ export function OwnerOnboarding() {
           )}
 
           {step === 3 && (
-            <div><div className="flex items-center gap-3"><BadgeCheck className="text-primary" size={24} /><div><h2 className="text-xl font-semibold">Review your listing</h2><p className="mt-1 text-sm text-muted-foreground">Admin approval is required before publication.</p></div></div><dl className="mt-7 divide-y divide-border rounded-lg border border-border">{[{ label: "Venue", value: form.hallName ? toTitleCase(form.hallName) : "Not provided" }, { label: "Type", value: form.venueType }, { label: "Location", value: `${form.area ? toTitleCase(form.area) : "Area"}, ${toTitleCase(form.city)}` }, { label: "Address", value: form.addressLine ? toTitleCase(form.addressLine) : "Not provided" }, { label: "Contact", value: form.contactNumber || "Not provided" }, { label: "Capacity", value: `${formatGuestCount(form.capacity || 0)} guests` }, { label: "Amenities", value: `${amenities.length} selected` }, { label: "Full-day price", value: form.fullDayPrice ? `INR ${new Intl.NumberFormat("en-IN").format(Number(form.fullDayPrice))}` : "Not provided" }, { label: "Cover image", value: form.coverImageUrl || selectedFiles.length > 0 ? "Added" : "Not provided" }, { label: "Photos", value: selectedFiles.length > 0 ? `${selectedFiles.length} selected` : "Add from the media tab" }].map((item) => <div className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr]" key={item.label}><dt className="text-sm text-muted-foreground">{item.label}</dt><dd className="text-sm font-medium">{item.value}</dd></div>)}</dl><label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground"><input checked={confirmed} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(event) => { setConfirmed(event.target.checked); setError(""); }} required type="checkbox" /><span>I confirm that the venue information is accurate and I am authorized to manage this listing.</span></label></div>
+            <div><div className="flex items-center gap-3"><BadgeCheck className="text-primary" size={24} /><div><h2 className="text-xl font-semibold">Review your listing</h2><p className="mt-1 text-sm text-muted-foreground">Admin approval is required before publication.</p></div></div><dl className="mt-7 divide-y divide-border rounded-lg border border-border">{[{ label: "Venue", value: form.hallName ? toTitleCase(form.hallName) : "Not provided" }, { label: "Type", value: form.venueType }, { label: "Location", value: `${form.area ? toTitleCase(form.area) : "Area"}, ${toTitleCase(form.city)}${form.pincode ? ` - ${form.pincode}` : ""}` }, { label: "Address", value: form.addressLine ? toTitleCase(form.addressLine) : "Not provided" }, { label: "Map pin", value: hasCapturedLocation(form) ? `${form.latitude}, ${form.longitude}` : "Not captured" }, { label: "Contact", value: form.contactNumber || "Not provided" }, { label: "Capacity", value: `${formatGuestCount(form.capacity || 0)} guests` }, { label: "Amenities", value: `${amenities.length} selected` }, { label: "Full-day price", value: form.fullDayPrice ? `INR ${new Intl.NumberFormat("en-IN").format(Number(form.fullDayPrice))}` : "Not provided" }, { label: "Cover image", value: form.coverImageUrl || selectedFiles.length > 0 ? "Added" : "Not provided" }, { label: "Photos", value: selectedFiles.length > 0 ? `${selectedFiles.length} selected` : "Add from the media tab" }].map((item) => <div className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr]" key={item.label}><dt className="text-sm text-muted-foreground">{item.label}</dt><dd className="text-sm font-medium">{item.value}</dd></div>)}</dl><label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground"><input checked={confirmed} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(event) => { setConfirmed(event.target.checked); setError(""); }} required type="checkbox" /><span>I confirm that the venue information is accurate and I am authorized to manage this listing.</span></label></div>
           )}
 
           {error && <p className="mt-6 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
@@ -262,6 +291,8 @@ function formFromDraft(draft: OwnerOnboardingDraft) {
     city: draft.city,
     area: draft.area,
     pincode: draft.pincode,
+    latitude: draft.latitude ? String(draft.latitude) : "",
+    longitude: draft.longitude ? String(draft.longitude) : "",
     contactNumber: draft.contactNumber,
     whatsappNumber: draft.whatsappNumber,
     coverImageUrl: draft.coverImageUrl,
@@ -282,6 +313,8 @@ function draftFromForm(form: ReturnType<typeof formFromDraft>, amenities: string
     city: toTitleCase(form.city),
     area: toTitleCase(form.area),
     pincode: form.pincode.trim(),
+    latitude: parseCoordinate(form.latitude),
+    longitude: parseCoordinate(form.longitude),
     contactNumber: form.contactNumber.trim(),
     whatsappNumber: form.whatsappNumber.trim(),
     coverImageUrl: form.coverImageUrl.trim(),
@@ -292,4 +325,18 @@ function draftFromForm(form: ReturnType<typeof formFromDraft>, amenities: string
     amenities,
     status: "DRAFT"
   };
+}
+
+function hasCapturedLocation(form: ReturnType<typeof formFromDraft>) {
+  return parseCoordinate(form.latitude) !== undefined && parseCoordinate(form.longitude) !== undefined;
+}
+
+function googleMapsUrl(latitude: string, longitude: string) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}`;
+}
+
+function parseCoordinate(value: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }

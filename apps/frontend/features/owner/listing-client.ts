@@ -9,6 +9,9 @@ export type OwnerListingStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "RE
 
 export type OwnerHallListing = HallSummary & {
   addressLine?: string;
+  pincode?: string;
+  latitude?: number;
+  longitude?: number;
   contactNumber?: string;
   status: OwnerListingStatus;
   rejectionReason?: string;
@@ -23,6 +26,9 @@ export type OwnerHallUpdatePayload = {
   coverImageUrl: string;
   city: string;
   area: string;
+  pincode: string;
+  latitude?: number;
+  longitude?: number;
   capacity: number;
   startingPrice: number;
   venueType: VenueType;
@@ -144,6 +150,9 @@ function toOwnerHallRequest(payload: OwnerHallUpdatePayload) {
     coverImageUrl: payload.coverImageUrl,
     city: normalizedPayload.city,
     area: normalizedPayload.area,
+    pincode: payload.pincode,
+    latitude: payload.latitude,
+    longitude: payload.longitude,
     venueType: toBackendVenueType(payload.venueType),
     capacity: payload.capacity,
     capacityMax: payload.capacity,
@@ -185,6 +194,9 @@ function toOwnerHallListing(value: unknown, fallback?: OwnerHallListing): OwnerH
     id,
     name: toTitleCase(stringValue(record, ["name", "hallName", "title"]) ?? fallback?.name ?? "Untitled venue"),
     addressLine: toTitleCase(stringValue(record, ["addressLine", "address_line", "address"]) ?? fallback?.addressLine ?? ""),
+    pincode: stringValue(record, ["pincode", "pinCode", "postalCode"]) ?? fallback?.pincode ?? "",
+    latitude: numberValue(record, ["latitude", "lat"]) ?? fallback?.latitude,
+    longitude: numberValue(record, ["longitude", "lng", "lon"]) ?? fallback?.longitude,
     contactNumber: stringValue(record, ["contactNumber", "contact_number", "phone", "mobile"]) ?? fallback?.contactNumber ?? "",
     city: toTitleCase(stringValue(record, ["city"]) ?? fallback?.city ?? ""),
     area: toTitleCase(stringValue(record, ["area", "locality", "location"]) ?? fallback?.area ?? ""),

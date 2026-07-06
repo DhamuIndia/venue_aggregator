@@ -16,6 +16,8 @@ export type OwnerOnboardingDraft = {
   city: string;
   area: string;
   pincode: string;
+  latitude?: number;
+  longitude?: number;
   contactNumber: string;
   whatsappNumber: string;
   coverImageUrl: string;
@@ -36,6 +38,8 @@ export const emptyOwnerOnboardingDraft: OwnerOnboardingDraft = {
   city: "Chennai",
   area: "",
   pincode: "",
+  latitude: undefined,
+  longitude: undefined,
   contactNumber: "",
   whatsappNumber: "",
   coverImageUrl: "",
@@ -148,6 +152,8 @@ function toRequestPayload(draft: OwnerOnboardingDraft) {
     city,
     area,
     pincode: draft.pincode,
+    latitude: draft.latitude,
+    longitude: draft.longitude,
     contactNumber: draft.contactNumber,
     whatsappNumber: draft.whatsappNumber,
     coverImageUrl: draft.coverImageUrl,
@@ -184,6 +190,8 @@ function toOwnerDraft(value: unknown): OwnerOnboardingDraft | undefined {
     city: toTitleCase(stringValue(record, ["city"]) ?? "Chennai"),
     area: toTitleCase(stringValue(record, ["area", "locality", "location"]) ?? ""),
     pincode: stringValue(record, ["pincode", "pinCode", "postalCode"]) ?? "",
+    latitude: numberValue(record, ["latitude", "lat"]),
+    longitude: numberValue(record, ["longitude", "lng", "lon"]),
     contactNumber: stringValue(record, ["contactNumber", "contact_number", "phone"]) ?? "",
     whatsappNumber: stringValue(record, ["whatsappNumber", "whatsapp_number", "whatsAppNumber"]) ?? "",
     coverImageUrl: stringValue(record, ["coverImageUrl", "cover_image_url", "imageUrl", "primaryImageUrl"]) ?? "",
