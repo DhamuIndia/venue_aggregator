@@ -2,6 +2,8 @@ package com.staminal.venue.enquiries;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.SlotType;
@@ -10,6 +12,7 @@ import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Entity.Vendors;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -19,6 +22,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -65,6 +69,9 @@ public class Enquiry {
     @Enumerated(EnumType.STRING)
     @Column(name = "slot_type")
     private SlotType slotType;
+
+    @OneToMany(mappedBy = "enquiry", cascade = CascadeType.ALL, orphanRemoval = true)
+    private final List<EnquirySlotRequest> slotRequests = new ArrayList<>();
 
     private String message;
 
@@ -187,6 +194,25 @@ public class Enquiry {
 
     public void setSlotType(SlotType slotType) {
         this.slotType = slotType;
+    }
+
+    public List<EnquirySlotRequest> getSlotRequests() {
+        return slotRequests;
+    }
+
+    public void setSlotRequests(List<EnquirySlotRequest> slotRequests) {
+        this.slotRequests.clear();
+        if (slotRequests != null) {
+            slotRequests.forEach(this::addSlotRequest);
+        }
+    }
+
+    public void addSlotRequest(EnquirySlotRequest slotRequest) {
+        if (slotRequest == null) {
+            return;
+        }
+        slotRequest.setEnquiry(this);
+        this.slotRequests.add(slotRequest);
     }
 
     public String getMessage() {

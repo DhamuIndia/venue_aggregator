@@ -15,6 +15,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EnquiryPanel } from "@/components/enquiries/EnquiryPanel";
 import { SaveHallButton } from "@/components/customer/SaveHallButton";
+import { HallAvailabilityCalendar } from "@/components/halls/HallAvailabilityCalendar";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { getPublicHall } from "@/features/halls/hall-client";
 import { halls } from "@/features/halls/mock-data";
@@ -105,22 +106,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
               </div>
             </section>
 
-            <section className="border-b border-border py-7">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-semibold">Availability</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">July 2026</p>
-                </div>
-                <button className="text-sm font-medium text-primary">View full calendar</button>
-              </div>
-              <div className="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-7">
-                {[12, 13, 14, 15, 16, 17, 18].map((day) => (
-                  <button className={`min-h-16 rounded-md border text-sm ${day === 15 ? "border-primary bg-primary text-white" : "border-border bg-white hover:border-primary"}`} key={day}>
-                    <span className="block text-xs opacity-70">Jul</span>{day}
-                  </button>
-                ))}
-              </div>
-            </section>
+            <HallAvailabilityCalendar hallId={hall.id} />
 
             <section className="py-7">
               <div className="flex items-center justify-between gap-4">

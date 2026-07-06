@@ -2,8 +2,12 @@ package com.staminal.venue.enquiries;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -17,13 +21,16 @@ import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
 import com.staminal.venue.enquiries.dto.CreateEnquiryRequest;
 import com.staminal.venue.enquiries.dto.EnquiryResponse;
+import com.staminal.venue.enquiries.dto.EnquirySlotRequestDto;
 import com.staminal.venue.enquiries.dto.UpdateEnquiryStatusRequest;
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.halls.Entity.HallBlockedDate;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
@@ -39,18 +46,26 @@ public class EnquiryService {
 
     private static final Set<SlotType> SUPPORTED_SLOTS = EnumSet.of(
             SlotType.MORNING,
+            SlotType.AFTERNOON,
             SlotType.EVENING,
             SlotType.FULL_DAY);
+
+    private static final List<SlotType> DAY_SLOTS = List.of(
+            SlotType.MORNING,
+            SlotType.AFTERNOON,
+            SlotType.EVENING);
 
     private final EnquiryRepository enquiryRepository;
     private final HallRepository hallRepository;
     private final BookingRepository bookingRepository;
+    private final HallBlockedDateRepository hallBlockedDateRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
 
     public EnquiryResponse createHallEnquiry(CreateEnquiryRequest request, Authentication authentication) {
         User customer = currentUser(authentication, UserRole.CUSTOMER);
         assertSupportedSlot(request.slot());
+        List<EnquirySlotRequestDto> slotRequests = normalizeSlotRequests(request);
 
         Halls hall = findApprovedHallByIdentifier(request.hallId());
 
@@ -64,6 +79,9 @@ public class EnquiryService {
         enquiry.setEventType(request.eventType().trim());
         enquiry.setGuestCount(request.guestCount());
         enquiry.setSlotType(request.slot());
+        enquiry.setSlotRequests(slotRequests.stream()
+                .map(this::toSlotRequestEntity)
+                .toList());
         enquiry.setMessage(trimToNull(request.notes()));
         enquiry.setStatus(EnquiryStatus.PENDING_OWNER_RESPONSE);
 
@@ -156,21 +174,14 @@ public class EnquiryService {
     }
 
     private Booking createBooking(Enquiry enquiry) {
-        boolean alreadyBooked = bookingRepository.existsByHall_IdAndEventDateAndSlotTypeAndStatus(
-                enquiry.getHall().getId(),
-                enquiry.getEventDate(),
-                enquiry.getSlotType(),
-                Booking.STATUS_CONFIRMED);
-
-        if (alreadyBooked) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This hall slot is already booked");
-        }
+        List<EnquirySlotRequestDto> requestedSlots = slotRequestsFor(enquiry);
+        ensureRequestedSlotsAvailable(enquiry, requestedSlots);
 
         Booking booking = new Booking();
         booking.setEnquiry(enquiry);
         booking.setHall(enquiry.getHall());
         booking.setCustomer(enquiry.getCustomer());
-        booking.setEventDate(enquiry.getEventDate());
+        booking.setEventDate(requestedSlots.get(0).date());
         booking.setSlotType(enquiry.getSlotType());
         booking.setStatus(Booking.STATUS_CONFIRMED);
         booking.setAmount(startingPrice(enquiry.getHall()));
@@ -180,6 +191,52 @@ public class EnquiryService {
         booking.setCustomerPhone(enquiry.getCustomerPhone());
         booking.setCustomerEmail(enquiry.getCustomerEmail());
         return booking;
+    }
+
+    private void ensureRequestedSlotsAvailable(Enquiry enquiry, List<EnquirySlotRequestDto> requestedSlots) {
+        Long hallId = enquiry.getHall().getId();
+
+        List<Booking> confirmedBookings = bookingRepository.findByHall_IdAndStatus(
+                hallId,
+                Booking.STATUS_CONFIRMED);
+
+        for (Booking booking : confirmedBookings) {
+            if (booking.getEnquiry() != null && enquiry.getId() != null
+                    && enquiry.getId().equals(booking.getEnquiry().getId())) {
+                continue;
+            }
+
+            for (EnquirySlotRequestDto requestedSlot : requestedSlots) {
+                for (EnquirySlotRequestDto bookedSlot : slotRequestsFor(booking)) {
+                    if (sameDate(requestedSlot, bookedSlot)
+                            && slotsConflict(requestedSlot.slot(), bookedSlot.slot())) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT, "This hall slot is already booked");
+                    }
+                }
+            }
+        }
+
+        List<HallBlockedDate> blockedDates = hallBlockedDateRepository.findByHallId_Id(hallId);
+        for (HallBlockedDate blockedDate : blockedDates) {
+            for (EnquirySlotRequestDto requestedSlot : requestedSlots) {
+                if (blockedDate.getEventDate() != null
+                        && blockedDate.getSlotType() != null
+                        && blockedDate.getEventDate().equals(requestedSlot.date())
+                        && slotsConflict(blockedDate.getSlotType(), requestedSlot.slot())) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "This hall slot is blocked by the owner");
+                }
+            }
+        }
+    }
+
+    private boolean sameDate(EnquirySlotRequestDto first, EnquirySlotRequestDto second) {
+        return first.date().equals(second.date());
+    }
+
+    private boolean slotsConflict(SlotType first, SlotType second) {
+        return first == SlotType.FULL_DAY
+                || second == SlotType.FULL_DAY
+                || first == second;
     }
 
     private Halls findHallForOwner(String hallId, User owner) {
@@ -251,6 +308,82 @@ public class EnquiryService {
         if (!SUPPORTED_SLOTS.contains(slot)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported enquiry slot");
         }
+    }
+
+    private List<EnquirySlotRequestDto> normalizeSlotRequests(CreateEnquiryRequest request) {
+        List<EnquirySlotRequestDto> requestedSlots = request.slotRequests();
+        if (requestedSlots == null || requestedSlots.isEmpty()) {
+            return expandSlotRequest(request.eventDate(), request.slot());
+        }
+
+        Map<String, EnquirySlotRequestDto> uniqueRequests = new LinkedHashMap<>();
+        for (EnquirySlotRequestDto requestedSlot : requestedSlots) {
+            if (requestedSlot == null || requestedSlot.date() == null || requestedSlot.slot() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Requested slots are incomplete");
+            }
+            if (requestedSlot.date().isBefore(request.eventDate())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Requested slot date cannot be before the event date");
+            }
+
+            for (EnquirySlotRequestDto expandedSlot : expandSlotRequest(requestedSlot.date(), requestedSlot.slot())) {
+                uniqueRequests.put(expandedSlot.date() + "|" + expandedSlot.slot(), expandedSlot);
+            }
+        }
+
+        return new ArrayList<>(uniqueRequests.values());
+    }
+
+    private List<EnquirySlotRequestDto> expandSlotRequest(LocalDate date, SlotType slot) {
+        assertSupportedSlot(slot);
+        if (slot == SlotType.FULL_DAY) {
+            return DAY_SLOTS.stream()
+                    .map(daySlot -> new EnquirySlotRequestDto(date, daySlot))
+                    .toList();
+        }
+        return List.of(new EnquirySlotRequestDto(date, slot));
+    }
+
+    private EnquirySlotRequest toSlotRequestEntity(EnquirySlotRequestDto request) {
+        EnquirySlotRequest slotRequest = new EnquirySlotRequest();
+        slotRequest.setEventDate(request.date());
+        slotRequest.setSlotType(request.slot());
+        return slotRequest;
+    }
+
+    private List<EnquirySlotRequestDto> slotRequestsFor(Enquiry enquiry) {
+        if (enquiry != null && enquiry.getSlotRequests() != null && !enquiry.getSlotRequests().isEmpty()) {
+            return enquiry.getSlotRequests()
+                    .stream()
+                    .map(slotRequest -> new EnquirySlotRequestDto(
+                            slotRequest.getEventDate(),
+                            slotRequest.getSlotType()))
+                    .toList();
+        }
+
+        if (enquiry == null || enquiry.getEventDate() == null || enquiry.getSlotType() == null) {
+            return List.of();
+        }
+
+        return expandSlotRequest(enquiry.getEventDate(), enquiry.getSlotType());
+    }
+
+    private List<EnquirySlotRequestDto> slotRequestsFor(Booking booking) {
+        if (booking == null) {
+            return List.of();
+        }
+
+        List<EnquirySlotRequestDto> enquirySlots = slotRequestsFor(booking.getEnquiry());
+        if (!enquirySlots.isEmpty()) {
+            return enquirySlots;
+        }
+
+        if (booking.getEventDate() == null || booking.getSlotType() == null) {
+            return List.of();
+        }
+
+        return expandSlotRequest(booking.getEventDate(), booking.getSlotType());
     }
 
     private User currentUser(Authentication authentication, UserRole requiredRole) {
@@ -410,6 +543,7 @@ public class EnquiryService {
                 enquiry.getEventType(),
                 enquiry.getGuestCount(),
                 enquiry.getSlotType(),
+                slotRequestsFor(enquiry),
                 enquiry.getMessage(),
                 enquiry.getStatus(),
                 enquiry.getCreatedAt(),

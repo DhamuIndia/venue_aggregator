@@ -38,6 +38,7 @@ import {
 } from "@/features/bookings/booking-client";
 import { getOwnerHallEnquiries, updateOwnerEnquiryStatus } from "@/features/enquiries/enquiry-client";
 import type { EnquiryStatus, StoredEnquiry } from "@/features/enquiries/types";
+import { formatSlot } from "@/features/halls/slot-model";
 import {
   createOwnerBlockedDate,
   deleteOwnerBlockedDate,
@@ -162,10 +163,6 @@ function formatListingStatus(status: OwnerListingStatus) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`));
-}
-
-function formatSlot(value: string) {
-  return value.toLowerCase().replace("_", " ");
 }
 
 function formatCompactMoney(value: number) {
@@ -1113,7 +1110,7 @@ export function OwnerDashboard() {
                             <h3 className="font-semibold">{enquiry.eventType}</h3>
                             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span>
                           </div>
-                          <p className="mt-2 text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.slot.toLowerCase().replace("_", " ")} | {enquiry.guestCount} guests</p>
+                          <p className="mt-2 text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {formatSlot(enquiry.slot)} | {enquiry.guestCount} guests</p>
                           {enquiry.notes && <p className="mt-2 text-sm leading-6 text-muted-foreground">“{enquiry.notes}”</p>}
                           <p className="mt-2 text-xs text-muted-foreground">{enquiry.id}</p>
                         </div>

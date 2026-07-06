@@ -244,7 +244,7 @@ function dateValue(record: Record<string, unknown>, keys: string[]) {
 function slotValue(record: Record<string, unknown>, keys: string[]): EnquirySlot | undefined {
   const value = stringValue(record, keys);
   const normalized = value?.trim().toUpperCase().replace(/[\s-]+/g, "_");
-  return normalized === "MORNING" || normalized === "EVENING" || normalized === "FULL_DAY" ? normalized : undefined;
+  return normalized === "MORNING" || normalized === "AFTERNOON" || normalized === "EVENING" || normalized === "FULL_DAY" ? normalized : undefined;
 }
 
 function stringValue(record: Record<string, unknown>, keys: string[]) {

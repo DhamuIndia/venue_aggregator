@@ -1,3 +1,5 @@
+import type { HallSlot, HallSlotRequest } from "@/features/halls/slot-model";
+
 export type EnquiryStatus =
   | "NEW"
   | "PENDING_OWNER_RESPONSE"
@@ -5,7 +7,7 @@ export type EnquiryStatus =
   | "DECLINED"
   | "COMPLETED";
 
-export type EnquirySlot = "MORNING" | "EVENING" | "FULL_DAY";
+export type EnquirySlot = HallSlot;
 
 export type CreateEnquiryPayload = {
   hallId: string;
@@ -15,6 +17,7 @@ export type CreateEnquiryPayload = {
   eventType: string;
   guestCount: number;
   slot: EnquirySlot;
+  slotRequests?: HallSlotRequest[];
   notes?: string;
 };
 

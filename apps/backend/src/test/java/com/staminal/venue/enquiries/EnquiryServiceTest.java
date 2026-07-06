@@ -25,12 +25,14 @@ import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
 import com.staminal.venue.enquiries.dto.CreateEnquiryRequest;
 import com.staminal.venue.enquiries.dto.EnquiryResponse;
+import com.staminal.venue.enquiries.dto.EnquirySlotRequestDto;
 import com.staminal.venue.enquiries.dto.UpdateEnquiryStatusRequest;
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
@@ -50,6 +52,9 @@ class EnquiryServiceTest {
     private BookingRepository bookingRepository;
 
     @Mock
+    private HallBlockedDateRepository hallBlockedDateRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -63,6 +68,7 @@ class EnquiryServiceTest {
                 enquiryRepository,
                 hallRepository,
                 bookingRepository,
+                hallBlockedDateRepository,
                 userRepository,
                 notificationService);
     }
@@ -77,6 +83,7 @@ class EnquiryServiceTest {
                 "Wedding",
                 450,
                 SlotType.EVENING,
+                null,
                 "Please share catering options.");
 
         when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
@@ -99,9 +106,12 @@ class EnquiryServiceTest {
         assertThat(saved.getCustomer()).isEqualTo(customer);
         assertThat(saved.getHall()).isEqualTo(hall);
         assertThat(saved.getStatus()).isEqualTo(EnquiryStatus.PENDING_OWNER_RESPONSE);
+        assertThat(saved.getSlotRequests()).hasSize(1);
+        assertThat(saved.getSlotRequests().get(0).getSlotType()).isEqualTo(SlotType.EVENING);
         assertThat(response.id()).isEqualTo("ENQ-000055");
         assertThat(response.hallName()).isEqualTo("Emerald Convention Centre");
         assertThat(response.customerId()).isEqualTo("101");
+        assertThat(response.slotRequests()).hasSize(1);
         verify(notificationService).notifyUser(
                 customer,
                 NotificationType.ENQUIRY,
@@ -114,6 +124,47 @@ class EnquiryServiceTest {
                 "New enquiry received",
                 "Priya Raman enquired for Emerald Convention Centre.",
                 "/owner?tab=enquiries");
+    }
+
+    @Test
+    void customerCanCreateMultiSlotHallEnquiry() {
+        User customer = customer();
+        Halls hall = hall();
+        LocalDate eventDate = LocalDate.now().plusDays(10);
+        CreateEnquiryRequest request = new CreateEnquiryRequest(
+                "emerald-convention-centre",
+                eventDate,
+                "Wedding",
+                450,
+                SlotType.EVENING,
+                List.of(
+                        new EnquirySlotRequestDto(eventDate, SlotType.EVENING),
+                        new EnquirySlotRequestDto(eventDate.plusDays(1), SlotType.MORNING)),
+                "Need evening and next morning.");
+
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
+        when(hallRepository.findAll()).thenReturn(List.of(hall));
+        when(enquiryRepository.save(any(Enquiry.class))).thenAnswer(invocation -> {
+            Enquiry enquiry = invocation.getArgument(0);
+            enquiry.setId(56L);
+            enquiry.setCreatedAt(Instant.parse("2026-06-25T10:30:00Z"));
+            enquiry.setUpdatedAt(Instant.parse("2026-06-25T10:30:00Z"));
+            enquiry.setVersion(0L);
+            return enquiry;
+        });
+
+        EnquiryResponse response = enquiryService.createHallEnquiry(request, auth(101L, UserRole.CUSTOMER));
+
+        ArgumentCaptor<Enquiry> enquiryCaptor = ArgumentCaptor.forClass(Enquiry.class);
+        verify(enquiryRepository).save(enquiryCaptor.capture());
+        Enquiry saved = enquiryCaptor.getValue();
+
+        assertThat(saved.getSlotRequests()).hasSize(2);
+        assertThat(saved.getSlotRequests())
+                .extracting(EnquirySlotRequest::getSlotType)
+                .containsExactly(SlotType.EVENING, SlotType.MORNING);
+        assertThat(response.slotRequests()).hasSize(2);
+        assertThat(response.slotRequests().get(1).date()).isEqualTo(eventDate.plusDays(1));
     }
 
     @Test
@@ -138,11 +189,8 @@ class EnquiryServiceTest {
         when(userRepository.findById(301L)).thenReturn(Optional.of(owner));
         when(enquiryRepository.findById(55L)).thenReturn(Optional.of(enquiry));
         when(bookingRepository.findByEnquiry_Id(55L)).thenReturn(Optional.empty());
-        when(bookingRepository.existsByHall_IdAndEventDateAndSlotTypeAndStatus(
-                201L,
-                enquiry.getEventDate(),
-                enquiry.getSlotType(),
-                Booking.STATUS_CONFIRMED)).thenReturn(false);
+        when(bookingRepository.findByHall_IdAndStatus(201L, Booking.STATUS_CONFIRMED)).thenReturn(List.of());
+        when(hallBlockedDateRepository.findByHallId_Id(201L)).thenReturn(List.of());
         when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(enquiryRepository.save(any(Enquiry.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

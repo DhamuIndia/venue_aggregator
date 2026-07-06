@@ -1,5 +1,6 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
 import { toTitleCase } from "@/lib/display-format";
+import type { HallSlotRequest } from "@/features/halls/slot-model";
 import type { CreateEnquiryPayload, EnquiryStatus, StoredEnquiry } from "./types";
 
 const STORAGE_KEY = "venue-aggregator-enquiries";
@@ -37,6 +38,8 @@ export async function createEnquiry(payload: CreateEnquiryPayload, accessToken?:
         eventType: payload.eventType,
         guestCount: payload.guestCount,
         slot: payload.slot,
+        slotRequests: payload.slotRequests,
+        eventSlots: payload.slotRequests,
         notes: payload.notes
       })
     });
@@ -165,6 +168,7 @@ function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnqu
   const eventDate = stringValue(value, ["eventDate", "event_date"]) ?? fallback?.eventDate;
   const eventType = stringValue(value, ["eventType", "event_type"]) ?? fallback?.eventType;
   const slot = stringValue(value, ["slot", "slotType", "slot_type"]) ?? fallback?.slot;
+  const slotRequests = slotRequestsValue(value) ?? fallback?.slotRequests;
   const id = stringValue(value, ["id", "enquiryId", "enquiry_id"]);
 
   if (!id || !hallId || !hallName || !eventDate || !eventType || !isSlot(slot)) {
@@ -180,6 +184,7 @@ function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnqu
     eventType,
     guestCount: numberValue(value, ["guestCount", "guest_count"]) ?? fallback?.guestCount ?? 0,
     slot,
+    slotRequests,
     notes: stringValue(value, ["notes", "message"]) ?? fallback?.notes,
     status: statusValue(value) ?? "PENDING_OWNER_RESPONSE",
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at"]) ?? new Date().toISOString()
@@ -221,8 +226,33 @@ function statusValue(record: Record<string, unknown>): EnquiryStatus | undefined
   return undefined;
 }
 
+function slotRequestsValue(record: Record<string, unknown>): HallSlotRequest[] | undefined {
+  const list = arrayValue(record, ["slotRequests", "slot_requests", "eventSlots", "event_slots", "slots"]);
+  const requests = list.map((item): HallSlotRequest | undefined => {
+    if (!isRecord(item)) return undefined;
+    const date = stringValue(item, ["date", "eventDate", "event_date"]);
+    const slot = stringValue(item, ["slot", "slotType", "slot_type"]);
+    if (!date || !isBaseSlot(slot)) return undefined;
+    return { date: date.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? date, slot };
+  }).filter((item): item is HallSlotRequest => Boolean(item));
+
+  return requests.length ? requests : undefined;
+}
+
+function arrayValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
 function isSlot(value: unknown): value is StoredEnquiry["slot"] {
-  return value === "MORNING" || value === "EVENING" || value === "FULL_DAY";
+  return value === "MORNING" || value === "AFTERNOON" || value === "EVENING" || value === "FULL_DAY";
+}
+
+function isBaseSlot(value: unknown): value is HallSlotRequest["slot"] {
+  return value === "MORNING" || value === "AFTERNOON" || value === "EVENING";
 }
 
 function stringValue(record: Record<string, unknown>, keys: string[]) {

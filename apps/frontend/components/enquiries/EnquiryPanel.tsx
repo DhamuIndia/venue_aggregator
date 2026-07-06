@@ -9,10 +9,11 @@ import {
   Send
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { createEnquiry } from "@/features/enquiries/enquiry-client";
-import type { EnquirySlot } from "@/features/enquiries/types";
+import { getPublicHallAvailability, type PublicHallUnavailableSlot } from "@/features/halls/availability-client";
+import { HALL_SLOT_COMBINATIONS, buildSlotRequests, formatDisplayDate, formatSlotRequests, representativeSlot, slotConflicts, toDateInputValue, type HallSlotCombinationId } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
 import { formatGuestCount } from "@/lib/display-format";
 
@@ -22,23 +23,41 @@ type EnquiryPanelProps = {
 
 type AvailabilityState = "idle" | "available" | "unavailable";
 
-const slots: Array<{ value: EnquirySlot; label: string }> = [
-  { value: "MORNING", label: "Morning" },
-  { value: "EVENING", label: "Evening" },
-  { value: "FULL_DAY", label: "Full day" }
-];
-
 export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   const { accessToken, user } = useAuth();
   const router = useRouter();
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
   const [guestCount, setGuestCount] = useState("");
-  const [slot, setSlot] = useState<EnquirySlot>("FULL_DAY");
+  const [slotCombination, setSlotCombination] = useState<HallSlotCombinationId>("FULL_DAY");
   const [notes, setNotes] = useState("");
   const [availability, setAvailability] = useState<AvailabilityState>("idle");
+  const [unavailableSlots, setUnavailableSlots] = useState<PublicHallUnavailableSlot[]>([]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const todayValue = toDateInputValue(new Date());
+  const suggestedDates = useMemo(() => [0, 1, 2].map((offset) => {
+    const date = new Date(`${todayValue}T00:00:00`);
+    date.setDate(date.getDate() + offset);
+    return toDateInputValue(date);
+  }), [todayValue]);
+  const selectedSlotRequests = eventDate ? buildSlotRequests(eventDate, slotCombination) : [];
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadAvailability() {
+      const slots = await getPublicHallAvailability(hall.id);
+      if (!isCurrent) return;
+      setUnavailableSlots(slots);
+    }
+
+    loadAvailability();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [hall.id]);
 
   function validateCoreFields() {
     if (!eventDate) return "Choose an event date.";
@@ -56,7 +75,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     }
 
     setError("");
-    setAvailability(eventDate.endsWith("-15") && slot === "FULL_DAY" ? "unavailable" : "available");
+    setAvailability(hasUnavailableRequest(selectedSlotRequests, unavailableSlots) ? "unavailable" : "available");
   }
 
   function updateDate(value: string) {
@@ -65,8 +84,8 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     setError("");
   }
 
-  function updateSlot(value: EnquirySlot) {
-    setSlot(value);
+  function updateSlotCombination(value: HallSlotCombinationId) {
+    setSlotCombination(value);
     setAvailability("idle");
   }
 
@@ -97,7 +116,8 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         eventDate,
         eventType,
         guestCount: Number(guestCount),
-        slot,
+        slot: representativeSlot(selectedSlotRequests),
+        slotRequests: selectedSlotRequests,
         notes: notes.trim() || undefined
       }, accessToken);
       router.push(`/enquiries/confirmation/${enquiry.id}`);
@@ -116,21 +136,25 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
 
       <form className="mt-5 grid gap-4" onSubmit={submitEnquiry}>
         <div>
-          <label className="text-sm font-medium">Event date<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="2026-06-22" onChange={(event) => updateDate(event.target.value)} required type="date" value={eventDate} /></label>
+          <label className="text-sm font-medium">Event date<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min={todayValue} onChange={(event) => updateDate(event.target.value)} required type="date" value={eventDate} /></label>
           <div className="mt-2 flex gap-2 overflow-x-auto" aria-label="Suggested available dates">
-            {[{ value: "2026-07-18", label: "Jul 18" }, { value: "2026-07-19", label: "Jul 19" }, { value: "2026-07-20", label: "Jul 20" }].map((date) => (
-              <button aria-pressed={eventDate === date.value} className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium ${eventDate === date.value ? "border-primary bg-emerald-50 text-primary" : "border-border text-muted-foreground hover:border-primary"}`} key={date.value} onClick={() => updateDate(date.value)} type="button">{date.label}</button>
+            {suggestedDates.map((date) => (
+              <button aria-pressed={eventDate === date} className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium ${eventDate === date ? "border-primary bg-emerald-50 text-primary" : "border-border text-muted-foreground hover:border-primary"}`} key={date} onClick={() => updateDate(date)} type="button">{formatDisplayDate(date)}</button>
             ))}
           </div>
         </div>
 
         <fieldset>
           <legend className="text-sm font-medium">Preferred slot</legend>
-          <div className="mt-2 grid grid-cols-3 gap-1 rounded-md bg-muted p-1">
-            {slots.map((option) => (
-              <button aria-pressed={slot === option.value} className={`min-h-10 rounded-md px-2 text-xs font-medium ${slot === option.value ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`} key={option.value} onClick={() => updateSlot(option.value)} type="button">{option.label}</button>
+          <div className="mt-2 grid gap-2">
+            {HALL_SLOT_COMBINATIONS.map((option) => (
+              <button aria-pressed={slotCombination === option.id} className={`min-h-14 rounded-md border px-3 py-2 text-left text-xs ${slotCombination === option.id ? "border-primary bg-emerald-50 text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-foreground"}`} key={option.id} onClick={() => updateSlotCombination(option.id)} type="button">
+                <span className="block font-semibold">{option.label}</span>
+                <span className="mt-0.5 block">{option.description}</span>
+              </button>
             ))}
           </div>
+          {selectedSlotRequests.length > 0 && <p className="mt-2 text-xs text-muted-foreground">Selected: {formatSlotRequests(selectedSlotRequests)}</p>}
         </fieldset>
 
         <label className="text-sm font-medium">Event type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => setEventType(event.target.value)} required value={eventType}><option value="">Select event</option><option>Wedding</option><option>Reception</option><option>Engagement</option><option>Birthday celebration</option><option>Corporate event</option><option>Other</option></select></label>
@@ -138,8 +162,8 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         <label className="text-sm font-medium">Message <span className="font-normal text-muted-foreground">(optional)</span><textarea className="mt-2 min-h-20 w-full resize-y rounded-md border border-border p-3 font-normal outline-none focus:border-primary" maxLength={300} onChange={(event) => setNotes(event.target.value)} placeholder="Package, catering, or timing requirements" value={notes} /></label>
 
         {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
-        {availability === "available" && <p className="flex items-start gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700"><CalendarCheck2 className="mt-0.5 shrink-0" size={17} /><span>This slot is available for enquiry.</span></p>}
-        {availability === "unavailable" && <p className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700"><CalendarX2 className="mt-0.5 shrink-0" size={17} /><span>This slot is blocked. Try another date or slot.</span></p>}
+        {availability === "available" && <p className="flex items-start gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700"><CalendarCheck2 className="mt-0.5 shrink-0" size={17} /><span>Selected slot combination is available for enquiry.</span></p>}
+        {availability === "unavailable" && <p className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700"><CalendarX2 className="mt-0.5 shrink-0" size={17} /><span>One or more selected slots are blocked or booked. Try another date or combination.</span></p>}
 
         <button className="h-11 rounded-md border border-primary text-sm font-semibold text-primary hover:bg-emerald-50" onClick={checkAvailability} type="button">Check availability</button>
         <button className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:opacity-60" disabled={isSubmitting} formNoValidate={!user} type="submit">
@@ -152,4 +176,8 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
       <p className="mt-2 text-center text-xs text-muted-foreground">No payment required to send an enquiry.</p>
     </aside>
   );
+}
+
+function hasUnavailableRequest(requests: ReturnType<typeof buildSlotRequests>, unavailableSlots: PublicHallUnavailableSlot[]) {
+  return requests.some((request) => unavailableSlots.some((unavailable) => unavailable.date === request.date && slotConflicts(unavailable.slot, request.slot)));
 }

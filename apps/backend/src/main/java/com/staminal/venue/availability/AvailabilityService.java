@@ -14,7 +14,9 @@ import com.staminal.venue.availability.Dto.AvailabilitySummary;
 import com.staminal.venue.availability.Dto.BookingAvailabilityResponse;
 import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
+import com.staminal.venue.enquiries.EnquirySlotRequest;
 import com.staminal.venue.enums.BookingStatus;
+import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Dto.BlockedDateResponse;
 import com.staminal.venue.halls.Entity.HallBlockedDate;
 import com.staminal.venue.halls.Entity.Halls;
@@ -57,7 +59,32 @@ public class AvailabilityService {
 
                 response.setBookings(
                                 bookings.stream()
-                                                .map(this::mapBooking)
+                                                .flatMap(booking -> mapBookingSlots(booking, false).stream())
+                                                .collect(Collectors.toList()));
+
+                return response;
+        }
+
+        public AvailabilityResponse getPublicAvailability(String hallId) {
+
+                Halls hall = getApprovedHall(hallId);
+
+                List<HallBlockedDate> blockedDates = hallBlockedDateRepository.findByHallId_Id(hall.getId());
+
+                List<Booking> bookings = bookingRepository.findByHall_IdAndStatus(
+                                hall.getId(),
+                                BookingStatus.CONFIRMED);
+
+                AvailabilityResponse response = new AvailabilityResponse();
+
+                response.setBlockedDates(
+                                blockedDates.stream()
+                                                .map(this::mapPublicBlockedDate)
+                                                .collect(Collectors.toList()));
+
+                response.setBookings(
+                                bookings.stream()
+                                                .flatMap(booking -> mapBookingSlots(booking, true).stream())
                                                 .collect(Collectors.toList()));
 
                 return response;
@@ -71,6 +98,15 @@ public class AvailabilityService {
                 response.setDate(blockedDate.getEventDate());
                 response.setSlot(blockedDate.getSlotType().name());
                 response.setReason(blockedDate.getReason());
+
+                return response;
+        }
+
+        private BlockedDateResponse mapPublicBlockedDate(HallBlockedDate blockedDate) {
+
+                BlockedDateResponse response = mapBlockedDate(blockedDate);
+                response.setHallId(null);
+                response.setReason("Unavailable");
 
                 return response;
         }
@@ -100,6 +136,52 @@ public class AvailabilityService {
                 }
 
                 response.setCustomerName(booking.getCustomerName());
+
+                return response;
+        }
+
+        private BookingAvailabilityResponse mapPublicBooking(Booking booking) {
+
+                BookingAvailabilityResponse response = new BookingAvailabilityResponse();
+
+                response.setEventDate(booking.getEventDate());
+                response.setSlot(booking.getSlotType() != null ? booking.getSlotType().name() : null);
+                response.setEventType("Booked event");
+                response.setGuestCount(null);
+                response.setCustomerName(null);
+                response.setEnquiryId(null);
+                response.setId(null);
+
+                return response;
+        }
+
+        private List<BookingAvailabilityResponse> mapBookingSlots(
+                        Booking booking,
+                        boolean publicView) {
+
+                if (booking.getEnquiry() == null
+                                || booking.getEnquiry().getSlotRequests() == null
+                                || booking.getEnquiry().getSlotRequests().isEmpty()) {
+                        return List.of(publicView ? mapPublicBooking(booking) : mapBooking(booking));
+                }
+
+                return booking.getEnquiry().getSlotRequests()
+                                .stream()
+                                .map(slotRequest -> mapBookingSlot(booking, slotRequest, publicView))
+                                .collect(Collectors.toList());
+        }
+
+        private BookingAvailabilityResponse mapBookingSlot(
+                        Booking booking,
+                        EnquirySlotRequest slotRequest,
+                        boolean publicView) {
+
+                BookingAvailabilityResponse response = publicView
+                                ? mapPublicBooking(booking)
+                                : mapBooking(booking);
+
+                response.setEventDate(slotRequest.getEventDate());
+                response.setSlot(slotRequest.getSlotType() != null ? slotRequest.getSlotType().name() : null);
 
                 return response;
         }
@@ -136,6 +218,30 @@ public class AvailabilityService {
                                                 "Hall does not belong to this owner"));
         }
 
+        private Halls getApprovedHall(String hallId) {
+
+                Long numericId = tryParseLong(hallId);
+
+                Halls hall = numericId != null
+                                ? hallRepository.findById(numericId)
+                                                .orElseThrow(() -> new ResponseStatusException(
+                                                                HttpStatus.NOT_FOUND,
+                                                                "Hall not found"))
+                                : hallRepository.findByStatus(HallStatus.APPROVED)
+                                                .stream()
+                                                .filter(candidate -> slugify(candidate.getName()).equals(slugify(hallId)))
+                                                .findFirst()
+                                                .orElseThrow(() -> new ResponseStatusException(
+                                                                HttpStatus.NOT_FOUND,
+                                                                "Hall not found"));
+
+                if (hall.getStatus() != HallStatus.APPROVED) {
+                        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found");
+                }
+
+                return hall;
+        }
+
         public AvailabilitySummary getAvailabilitySummary(Long hallId) {
 
                 AvailabilitySummary summary = new AvailabilitySummary();
@@ -145,5 +251,23 @@ public class AvailabilityService {
                 summary.setTotalDays(30);
 
                 return summary;
+        }
+
+        private Long tryParseLong(String value) {
+                try {
+                        return Long.valueOf(value.trim());
+                } catch (RuntimeException exception) {
+                        return null;
+                }
+        }
+
+        private String slugify(String value) {
+                return normalize(value).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+        }
+
+        private String normalize(String value) {
+                return value == null
+                                ? ""
+                                : value.trim().toLowerCase(java.util.Locale.ROOT);
         }
 }

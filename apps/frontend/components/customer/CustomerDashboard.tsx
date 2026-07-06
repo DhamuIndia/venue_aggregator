@@ -29,6 +29,7 @@ import { getCustomerSavedHalls, subscribeToSavedHallChanges } from "@/features/c
 import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
+import { formatSlot } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
 import { getCustomerVendorLeads } from "@/features/vendors/lead-client";
 import type { VendorLead } from "@/features/vendors/types";
@@ -71,10 +72,6 @@ function bookingStatusLabel(status: BookingStatus) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`));
-}
-
-function formatSlot(value: string) {
-  return value.toLowerCase().replace("_", " ");
 }
 
 function formatMoney(value: number) {
