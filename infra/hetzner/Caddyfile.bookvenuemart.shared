@@ -44,20 +44,7 @@ media.bookvenuemart.in {
     max_size 25MB
   }
 
-  @preflight method OPTIONS
-  handle @preflight {
-    header Access-Control-Allow-Origin "*"
-    header Access-Control-Allow-Methods "GET, HEAD, PUT, POST, OPTIONS"
-    header Access-Control-Allow-Headers "*"
-    header Access-Control-Max-Age "3600"
-    respond "" 204
-  }
-
   header {
-    Access-Control-Allow-Origin "*"
-    Access-Control-Allow-Methods "GET, HEAD, PUT, POST, OPTIONS"
-    Access-Control-Allow-Headers "*"
-    Access-Control-Expose-Headers "ETag"
     Referrer-Policy same-origin
     X-Content-Type-Options nosniff
   }

@@ -210,9 +210,10 @@ function toVenueApplication(value: unknown): VenueApplication | undefined {
     capacity: numberValue(value, ["capacity", "capacityMax", "capacity_max"]) ?? 0,
     startingPrice: numberValue(value, ["startingPrice", "starting_price", "price"]) ?? 0,
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at", "updatedAt"]) ?? new Date().toISOString(),
-    imageUrl: stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url"]) ?? initialVenueApplications[0].imageUrl,
+    imageUrl: usableImageUrl(stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl", "url"])) ?? "",
     status: moderationStatus(value) ?? "PENDING_APPROVAL",
-    documents: documentStatus(value)
+    documents: documentStatus(value).documents,
+    documentReviewRequired: documentStatus(value).required
   };
 }
 
@@ -301,13 +302,35 @@ function toAuditEvent(value: unknown): (typeof auditEvents)[number] | undefined 
   };
 }
 
-function documentStatus(record: Record<string, unknown>): VenueApplication["documents"] {
+function documentStatus(record: Record<string, unknown>): { documents: VenueApplication["documents"]; required: boolean } {
   const documents = isRecord(record.documents) ? record.documents : record;
+  const ownership = booleanValue(documents, ["ownership", "ownershipDocument", "ownership_document"]);
+  const identity = booleanValue(documents, ["identity", "identityDocument", "identity_document"]);
+  const address = booleanValue(documents, ["address", "addressDocument", "address_document"]);
+  const required = ownership !== undefined || identity !== undefined || address !== undefined;
+
+  if (!required) {
+    return {
+      documents: { ownership: true, identity: true, address: true },
+      required: false
+    };
+  }
+
   return {
-    ownership: booleanValue(documents, ["ownership", "ownershipDocument", "ownership_document"]) ?? false,
-    identity: booleanValue(documents, ["identity", "identityDocument", "identity_document"]) ?? false,
-    address: booleanValue(documents, ["address", "addressDocument", "address_document"]) ?? false
+    documents: {
+      ownership: ownership ?? false,
+      identity: identity ?? false,
+      address: address ?? false
+    },
+    required: true
   };
+}
+
+function usableImageUrl(value: string | undefined) {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^(https?:|blob:|data:image\/)/i.test(trimmed) || trimmed.startsWith("/")) return trimmed;
+  return undefined;
 }
 
 function moderationStatus(record: Record<string, unknown>): ModerationStatus | undefined {

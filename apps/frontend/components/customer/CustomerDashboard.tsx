@@ -93,16 +93,32 @@ const fallbackReviewEligibility: ReviewEligibility = {
   reason: null
 };
 
+const useCustomerDemoFallbacks = process.env.NEXT_PUBLIC_AUTH_MODE !== "api";
+const useCustomerEnquiryDemoFallback = useCustomerDemoFallbacks || process.env.NEXT_PUBLIC_ENQUIRIES_MODE === "mock";
+const useCustomerBookingDemoFallback = useCustomerDemoFallbacks || process.env.NEXT_PUBLIC_BOOKINGS_MODE === "mock";
+const useCustomerReviewDemoFallback = useCustomerDemoFallbacks || process.env.NEXT_PUBLIC_CUSTOMER_REVIEWS_MODE === "mock";
+
+function emptyReviewEligibility(reason = "Completed eligible services will appear here."): ReviewEligibility {
+  return {
+    eligible: false,
+    enquiryId: "",
+    hallId: "",
+    hallName: "",
+    eventDate: "",
+    reason
+  };
+}
+
 export function CustomerDashboard() {
   const { accessToken, logout, user } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const [reviewEligibility, setReviewEligibility] = useState<ReviewEligibility>(fallbackReviewEligibility);
+  const [reviewEligibility, setReviewEligibility] = useState<ReviewEligibility>(() => useCustomerReviewDemoFallback ? fallbackReviewEligibility : emptyReviewEligibility());
   const [isLoadingReviewEligibility, setIsLoadingReviewEligibility] = useState(true);
   const [reviewError, setReviewError] = useState("");
-  const [enquiries, setEnquiries] = useState<CustomerEnquiry[]>(customerEnquiries);
+  const [enquiries, setEnquiries] = useState<CustomerEnquiry[]>(() => useCustomerEnquiryDemoFallback ? customerEnquiries : []);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
   const [bookings, setBookings] = useState<BookingItem[]>([]);
@@ -131,10 +147,10 @@ export function CustomerDashboard() {
         if (!isCurrent) return;
 
         const apiEnquiries = response.enquiries.map(toCustomerEnquiry);
-        setEnquiries(response.source === "api" ? apiEnquiries : [...apiEnquiries, ...customerEnquiries]);
+        setEnquiries(response.source === "api" || !useCustomerEnquiryDemoFallback ? apiEnquiries : [...apiEnquiries, ...customerEnquiries]);
       } catch {
         if (!isCurrent) return;
-        setEnquiries(customerEnquiries);
+        setEnquiries(useCustomerEnquiryDemoFallback ? customerEnquiries : []);
         setEnquiriesError("Could not load latest enquiries.");
       } finally {
         if (isCurrent) setIsLoadingEnquiries(false);
@@ -156,13 +172,13 @@ export function CustomerDashboard() {
       setBookingsError("");
 
       try {
-        const fallbackBookings = customerEnquiries
+        const fallbackBookings = (useCustomerBookingDemoFallback ? customerEnquiries : [])
           .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
           .map(toStoredCustomerEnquiry)
           .map(bookingFromEnquiry);
         const response = await getCustomerBookings(accessToken, fallbackBookings);
         if (!isCurrent) return;
-        setBookings(response.bookings);
+        setBookings(response.source === "api" || useCustomerBookingDemoFallback ? response.bookings : []);
       } catch {
         if (!isCurrent) return;
         setBookings([]);
@@ -183,17 +199,32 @@ export function CustomerDashboard() {
     let isCurrent = true;
 
     async function loadReviewEligibility() {
+      if (isLoadingBookings) return;
+
       setIsLoadingReviewEligibility(true);
       setReviewError("");
 
+      const completedReviewBooking = bookings.find((booking): booking is BookingItem & { enquiryId: string } => (
+        booking.status === "COMPLETED" && Boolean(booking.enquiryId) && Boolean(booking.hallId)
+      ));
+      const fallback = completedReviewBooking ? reviewEligibilityFromBooking(completedReviewBooking) : fallbackReviewEligibility;
+
+      if (!useCustomerReviewDemoFallback && !completedReviewBooking) {
+        if (!isCurrent) return;
+        setReviewEligibility(emptyReviewEligibility());
+        setReviewSubmitted(false);
+        setIsLoadingReviewEligibility(false);
+        return;
+      }
+
       try {
-        const eligibility = await getCustomerReviewEligibility(reviewEligibleBooking.enquiryId, accessToken, fallbackReviewEligibility);
+        const eligibility = await getCustomerReviewEligibility(fallback.enquiryId, accessToken, fallback);
         if (!isCurrent) return;
         setReviewEligibility(eligibility);
         setReviewSubmitted(Boolean(eligibility.submittedReviewId));
       } catch {
         if (!isCurrent) return;
-        setReviewEligibility(fallbackReviewEligibility);
+        setReviewEligibility(useCustomerReviewDemoFallback ? fallback : emptyReviewEligibility());
         setReviewError("Could not load review eligibility.");
       } finally {
         if (isCurrent) setIsLoadingReviewEligibility(false);
@@ -205,7 +236,7 @@ export function CustomerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, bookings, isLoadingBookings]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -244,6 +275,9 @@ export function CustomerDashboard() {
   async function submitReview(payload: { rating: number; comment: string }) {
     if (!reviewEligibility.eligible) {
       throw new Error(reviewEligibility.reason ?? "This completed service is not eligible for review.");
+    }
+    if (!reviewEligibility.enquiryId || !reviewEligibility.hallId) {
+      throw new Error("No completed eligible service is available for review.");
     }
 
     const review = await submitCustomerReview({
@@ -302,6 +336,13 @@ export function CustomerDashboard() {
 
   const activeBookings = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED");
   const upcomingBooking = activeBookings.find((booking) => booking.status === "CONFIRMED") ?? activeBookings[0];
+  const reviewVenueName = reviewEligibility.hallName || (useCustomerReviewDemoFallback ? reviewEligibleBooking.venue : "completed service");
+  const recentReviewTitle = reviewSubmitted ? "Review submitted" : reviewEligibility.eligible ? `Review ${reviewVenueName}` : "No review pending";
+  const recentReviewMessage = reviewSubmitted
+    ? "Your verified review is pending moderation."
+    : reviewEligibility.eligible
+      ? "Your completed event is eligible for a verified review."
+      : "Completed bookings will appear here for review.";
 
   return (
     <>
@@ -350,7 +391,7 @@ export function CustomerDashboard() {
               <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">Recent activity</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("reviews")}>View reviews</button></div>
               <button className="mt-4 flex w-full items-center gap-4 rounded-lg border border-border bg-white p-5 text-left hover:border-primary" onClick={() => setActiveTab("reviews")}>
                 <span className="grid size-11 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-600"><Star size={21} /></span>
-                <span className="min-w-0 flex-1"><strong className="block">{reviewSubmitted ? "Review submitted" : `Review ${reviewEligibility.hallName ?? reviewEligibleBooking.venue}`}</strong><span className="mt-1 block text-sm text-muted-foreground">{reviewSubmitted ? "Your verified review is pending moderation." : "Your completed event is eligible for a verified review."}</span></span>
+                <span className="min-w-0 flex-1"><strong className="block">{recentReviewTitle}</strong><span className="mt-1 block text-sm text-muted-foreground">{recentReviewMessage}</span></span>
                 <ChevronRight className="text-muted-foreground" size={19} />
               </button>
             </section>
@@ -428,10 +469,10 @@ export function CustomerDashboard() {
             {isLoadingReviewEligibility ? (
               <div className="mt-5 h-28 animate-pulse rounded-lg border border-border bg-white" />
             ) : reviewSubmitted ? (
-              <div className="mt-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-5"><CheckCircle2 className="mt-0.5 shrink-0 text-emerald-700" size={21} /><div><h3 className="font-semibold">Review submitted</h3><p className="mt-1 text-sm text-muted-foreground">Your verified review for {reviewEligibility.hallName ?? reviewEligibleBooking.venue} is pending moderation.</p></div></div>
+              <div className="mt-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-5"><CheckCircle2 className="mt-0.5 shrink-0 text-emerald-700" size={21} /><div><h3 className="font-semibold">Review submitted</h3><p className="mt-1 text-sm text-muted-foreground">Your verified review for {reviewVenueName} is pending moderation.</p></div></div>
             ) : reviewEligibility.eligible ? (
               <article className="mt-5 rounded-lg border border-border bg-white p-5">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><span className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><BadgeCheck size={23} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold">{reviewEligibility.hallName ?? reviewEligibleBooking.venue}</h3><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Verified service</span></div><p className="mt-2 text-sm text-muted-foreground">{reviewEligibility.eventType ?? reviewEligibleBooking.serviceType} | {reviewEligibility.eventDate}</p></div><button className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => setReviewOpen(true)}>Write review</button></div>
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><span className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><BadgeCheck size={23} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold">{reviewVenueName}</h3><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Verified service</span></div><p className="mt-2 text-sm text-muted-foreground">{reviewEligibility.eventType ?? reviewEligibleBooking.serviceType} | {reviewEligibility.eventDate}</p></div><button className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => setReviewOpen(true)}>Write review</button></div>
               </article>
             ) : (
               <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-6"><h3 className="font-semibold">No review available</h3><p className="mt-2 text-sm text-muted-foreground">{reviewEligibility.reason ?? "Completed eligible services will appear here."}</p></div>
@@ -443,9 +484,21 @@ export function CustomerDashboard() {
         {activeTab === "activity" && <NotificationActivity />}
       </main>
 
-      <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={submitReview} open={reviewOpen} venueName={reviewEligibility.hallName ?? reviewEligibleBooking.venue} />
+      <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={submitReview} open={reviewOpen} venueName={reviewVenueName} />
     </>
   );
+}
+
+function reviewEligibilityFromBooking(booking: BookingItem & { enquiryId: string }): ReviewEligibility {
+  return {
+    eligible: true,
+    enquiryId: booking.enquiryId,
+    hallId: booking.hallId,
+    hallName: booking.hallName,
+    eventDate: booking.eventDate,
+    eventType: booking.eventType,
+    reason: null
+  };
 }
 
 function toCustomerEnquiry(enquiry: StoredEnquiry): CustomerEnquiry {

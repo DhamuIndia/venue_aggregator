@@ -17,6 +17,7 @@ export type VenueApplication = {
   imageUrl: string;
   status: ModerationStatus;
   documents: { ownership: boolean; identity: boolean; address: boolean };
+  documentReviewRequired?: boolean;
 };
 
 export type VendorApplication = {
