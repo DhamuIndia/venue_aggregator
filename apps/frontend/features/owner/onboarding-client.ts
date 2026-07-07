@@ -1,7 +1,8 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
 import { toTitleCase } from "@/lib/display-format";
 
-const STORAGE_KEY = "venue-owner-onboarding-draft";
+const STORAGE_KEY_PREFIX = "venue-owner-onboarding-draft";
+const SHARED_STORAGE_KEY = "venue-owner-onboarding-draft";
 const LEGACY_STORAGE_KEY = "venue-owner-onboarding";
 const useMockOwnerOnboarding = process.env.NEXT_PUBLIC_OWNER_ONBOARDING_MODE === "mock";
 
@@ -52,7 +53,8 @@ export const emptyOwnerOnboardingDraft: OwnerOnboardingDraft = {
 };
 
 export async function getOwnerOnboardingDraft(accessToken?: string | null) {
-  const localDraft = getLocalDraft();
+  const localDraft = getLocalDraft(accessToken);
+  if (!isEditableDraft(localDraft)) return clearLocalDraft(accessToken);
   if (useMockOwnerOnboarding || !accessToken || !localDraft.id) return localDraft;
 
   try {
@@ -60,18 +62,19 @@ export async function getOwnerOnboardingDraft(accessToken?: string | null) {
       token: accessToken
     });
     const draft = toOwnerDraft(response) ?? localDraft;
-    saveLocalDraft(draft);
+    if (!isEditableDraft(draft)) return clearLocalDraft(accessToken);
+    saveLocalDraft(draft, accessToken);
     return draft;
   } catch (exception) {
-    if (exception instanceof ApiError && exception.status === 404) {
-      return clearLocalDraft();
+    if (exception instanceof ApiError && [403, 404].includes(exception.status)) {
+      return clearLocalDraft(accessToken);
     }
     return localDraft;
   }
 }
 
 export async function saveOwnerOnboardingDraft(payload: OwnerOnboardingDraft, accessToken?: string | null) {
-  if (useMockOwnerOnboarding || !accessToken) return saveLocalDraft({ ...payload, status: "DRAFT" });
+  if (useMockOwnerOnboarding || !accessToken) return saveLocalDraft({ ...payload, status: "DRAFT" }, accessToken);
 
   try {
     const response = await apiRequest<unknown>(payload.id ? `/owner/halls/${encodeURIComponent(payload.id)}` : "/owner/halls", {
@@ -80,20 +83,24 @@ export async function saveOwnerOnboardingDraft(payload: OwnerOnboardingDraft, ac
       body: JSON.stringify(toRequestPayload(payload))
     });
     const draft = toOwnerDraft(response) ?? { ...payload, id: payload.id ?? `HALL-${Date.now().toString().slice(-6)}`, status: "DRAFT" as const };
-    saveLocalDraft(draft);
+    saveLocalDraft(draft, accessToken);
     return draft;
   } catch (exception) {
+    if (payload.id && exception instanceof ApiError && [403, 404].includes(exception.status)) {
+      clearLocalDraft(accessToken);
+      return saveOwnerOnboardingDraft({ ...payload, id: undefined }, accessToken);
+    }
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return saveLocalDraft({ ...payload, status: "DRAFT" });
+    return saveLocalDraft({ ...payload, status: "DRAFT" }, accessToken);
   }
 }
 
 export async function submitOwnerOnboardingDraft(payload: OwnerOnboardingDraft, accessToken?: string | null) {
   const savedDraft = await saveOwnerOnboardingDraft(payload, accessToken);
   if (useMockOwnerOnboarding || !accessToken || !savedDraft.id) {
-    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" });
+    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" }, accessToken);
   }
 
   try {
@@ -102,20 +109,22 @@ export async function submitOwnerOnboardingDraft(payload: OwnerOnboardingDraft, 
       token: accessToken
     });
     const draft = toOwnerDraft(response) ?? { ...savedDraft, status: "PENDING_APPROVAL" as const };
-    saveLocalDraft(draft);
+    clearLocalDraft(accessToken);
     return draft;
   } catch (exception) {
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" });
+    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" }, accessToken);
   }
 }
 
-function getLocalDraft() {
+function getLocalDraft(accessToken?: string | null) {
   if (typeof window === "undefined") return emptyOwnerOnboardingDraft;
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY) ?? "null";
+    if (accessToken) clearSharedDraftKeys();
+    const key = storageKey(accessToken);
+    const stored = window.localStorage.getItem(key) ?? (!accessToken ? window.localStorage.getItem(SHARED_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY) : null) ?? "null";
     const parsed = JSON.parse(stored) as unknown;
     return toOwnerDraft(parsed) ?? emptyOwnerOnboardingDraft;
   } catch {
@@ -123,18 +132,51 @@ function getLocalDraft() {
   }
 }
 
-function saveLocalDraft(draft: OwnerOnboardingDraft) {
+function saveLocalDraft(draft: OwnerOnboardingDraft, accessToken?: string | null) {
   const nextDraft = { ...draft, id: draft.id ?? `HALL-${Date.now().toString().slice(-6)}`, updatedAt: new Date().toISOString() };
-  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextDraft));
+  if (typeof window !== "undefined") {
+    if (accessToken) clearSharedDraftKeys();
+    window.localStorage.setItem(storageKey(accessToken), JSON.stringify(nextDraft));
+  }
   return nextDraft;
 }
 
-function clearLocalDraft() {
+function clearLocalDraft(accessToken?: string | null) {
   if (typeof window !== "undefined") {
-    window.localStorage.removeItem(STORAGE_KEY);
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    window.localStorage.removeItem(storageKey(accessToken));
+    clearSharedDraftKeys();
   }
   return emptyOwnerOnboardingDraft;
+}
+
+function clearSharedDraftKeys() {
+  window.localStorage.removeItem(SHARED_STORAGE_KEY);
+  window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+}
+
+function storageKey(accessToken?: string | null) {
+  return `${STORAGE_KEY_PREFIX}:${tokenSubject(accessToken) ?? "demo"}`;
+}
+
+function tokenSubject(accessToken?: string | null) {
+  if (!accessToken) return undefined;
+
+  try {
+    const [, payload] = accessToken.split(".");
+    if (!payload || !globalThis.atob) return undefined;
+
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const decoded = JSON.parse(globalThis.atob(padded)) as Record<string, unknown>;
+    const subject = decoded.sub;
+    return typeof subject === "string" || typeof subject === "number" ? `user-${subject}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isEditableDraft(draft: OwnerOnboardingDraft) {
+  return draft.status === "DRAFT" || draft.status === "REJECTED";
 }
 
 function toRequestPayload(draft: OwnerOnboardingDraft) {
