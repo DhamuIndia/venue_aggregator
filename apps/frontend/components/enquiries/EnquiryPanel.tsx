@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { createEnquiry } from "@/features/enquiries/enquiry-client";
 import { getPublicHallAvailability, type PublicHallUnavailableSlot } from "@/features/halls/availability-client";
+import { HALL_SLOT_SELECTION_EVENT, type HallSlotSelectionDetail } from "@/features/halls/slot-selection-events";
 import { HALL_SLOT_COMBINATIONS, buildSlotRequests, formatDisplayDate, formatSlotRequests, representativeSlot, slotConflicts, toDateInputValue, type HallSlotCombinationId } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
 import { formatGuestCount } from "@/lib/display-format";
@@ -33,6 +34,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   const [notes, setNotes] = useState("");
   const [availability, setAvailability] = useState<AvailabilityState>("idle");
   const [unavailableSlots, setUnavailableSlots] = useState<PublicHallUnavailableSlot[]>([]);
+  const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const todayValue = toDateInputValue(new Date());
@@ -47,9 +49,11 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     let isCurrent = true;
 
     async function loadAvailability() {
+      setIsAvailabilityLoading(true);
       const slots = await getPublicHallAvailability(hall.id);
       if (!isCurrent) return;
       setUnavailableSlots(slots);
+      setIsAvailabilityLoading(false);
     }
 
     loadAvailability();
@@ -57,6 +61,21 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     return () => {
       isCurrent = false;
     };
+  }, [hall.id]);
+
+  useEffect(() => {
+    function handleSlotSelection(event: Event) {
+      const detail = (event as CustomEvent<HallSlotSelectionDetail>).detail;
+      if (!detail || detail.hallId !== hall.id) return;
+
+      setEventDate(detail.date);
+      setSlotCombination(detail.slot);
+      setAvailability("available");
+      setError("");
+    }
+
+    window.addEventListener(HALL_SLOT_SELECTION_EVENT, handleSlotSelection);
+    return () => window.removeEventListener(HALL_SLOT_SELECTION_EVENT, handleSlotSelection);
   }, [hall.id]);
 
   function validateCoreFields() {
@@ -70,6 +89,11 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     const message = validateCoreFields();
     if (message) {
       setError(message);
+      setAvailability("idle");
+      return;
+    }
+    if (isAvailabilityLoading) {
+      setError("Checking slot availability. Please wait a moment.");
       setAvailability("idle");
       return;
     }
@@ -102,13 +126,19 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
       setError(message || "Select the type of event.");
       return;
     }
-    if (availability !== "available") {
-      setError("Check availability before sending your enquiry.");
+    if (isAvailabilityLoading) {
+      setError("Checking slot availability. Please wait a moment.");
+      return;
+    }
+    if (hasUnavailableRequest(selectedSlotRequests, unavailableSlots)) {
+      setAvailability("unavailable");
+      setError("One or more selected slots are blocked or booked. Try another date or combination.");
       return;
     }
 
     try {
       setIsSubmitting(true);
+      setAvailability("available");
       const enquiry = await createEnquiry({
         hallId: hall.id,
         hallName: hall.name,
@@ -158,14 +188,14 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         </fieldset>
 
         <label className="text-sm font-medium">Event type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => setEventType(event.target.value)} required value={eventType}><option value="">Select event</option><option>Wedding</option><option>Reception</option><option>Engagement</option><option>Birthday celebration</option><option>Corporate event</option><option>Other</option></select></label>
-        <label className="text-sm font-medium">Guest count<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" max={hall.capacity} min="1" onChange={(event) => { setGuestCount(event.target.value); setAvailability("idle"); }} placeholder={`Up to ${formatGuestCount(hall.capacity)}`} required type="number" value={guestCount} /></label>
+        <label className="text-sm font-medium">Guest count<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" max={hall.capacity} min="1" onChange={(event) => setGuestCount(event.target.value)} placeholder={`Up to ${formatGuestCount(hall.capacity)}`} required type="number" value={guestCount} /></label>
         <label className="text-sm font-medium">Message <span className="font-normal text-muted-foreground">(optional)</span><textarea className="mt-2 min-h-20 w-full resize-y rounded-md border border-border p-3 font-normal outline-none focus:border-primary" maxLength={300} onChange={(event) => setNotes(event.target.value)} placeholder="Package, catering, or timing requirements" value={notes} /></label>
 
         {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
         {availability === "available" && <p className="flex items-start gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700"><CalendarCheck2 className="mt-0.5 shrink-0" size={17} /><span>Selected slot combination is available for enquiry.</span></p>}
         {availability === "unavailable" && <p className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700"><CalendarX2 className="mt-0.5 shrink-0" size={17} /><span>One or more selected slots are blocked or booked. Try another date or combination.</span></p>}
 
-        <button className="h-11 rounded-md border border-primary text-sm font-semibold text-primary hover:bg-emerald-50" onClick={checkAvailability} type="button">Check availability</button>
+        <button className="h-11 rounded-md border border-primary text-sm font-semibold text-primary hover:bg-emerald-50 disabled:opacity-60" disabled={isAvailabilityLoading} onClick={checkAvailability} type="button">Check availability</button>
         <button className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:opacity-60" disabled={isSubmitting} formNoValidate={!user} type="submit">
           {isSubmitting ? <LoaderCircle className="animate-spin" size={18} /> : user ? <Send size={17} /> : <LogIn size={17} />}
           {user ? "Send enquiry" : "Log in to enquire"}

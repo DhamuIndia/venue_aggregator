@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  BadgeCheck,
   CalendarDays,
   LoaderCircle,
   Map,
   MapPin,
   RotateCcw,
   Search,
+  Send,
   SlidersHorizontal,
   UsersRound
 } from "lucide-react";
@@ -258,6 +260,32 @@ export function HallDiscovery() {
           </div>
         )}
       </main>
+
+      <section className="border-t border-border bg-white" id="how-it-works">
+        <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.5fr] lg:items-start">
+          <div>
+            <p className="text-sm font-semibold text-primary">How it works</p>
+            <h2 className="mt-2 text-2xl font-semibold text-foreground">Shortlist, enquire, and confirm with confidence</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="border-l-2 border-primary pl-4">
+              <Search aria-hidden="true" className="text-primary" size={20} />
+              <h3 className="mt-3 font-semibold">Compare</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Filter by location, capacity, pricing, photos, and live slot availability.</p>
+            </div>
+            <div className="border-l-2 border-primary pl-4">
+              <Send aria-hidden="true" className="text-primary" size={20} />
+              <h3 className="mt-3 font-semibold">Enquire</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Select the date and slots you need, including evening plus next morning.</p>
+            </div>
+            <div className="border-l-2 border-primary pl-4">
+              <BadgeCheck aria-hidden="true" className="text-primary" size={20} />
+              <h3 className="mt-3 font-semibold">Verify</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Work with approved owners and vendors, then leave verified reviews after service.</p>
+            </div>
+          </div>
+        </div>
+      </section>
     </>
   );
 }

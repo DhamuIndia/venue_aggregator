@@ -3,6 +3,7 @@
 import { CalendarDays, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { getPublicHallAvailability, slotStatusForDate, type PublicHallUnavailableSlot } from "@/features/halls/availability-client";
+import { emitHallSlotSelection } from "@/features/halls/slot-selection-events";
 import { HALL_SLOT_DETAILS, formatDisplayDate, toDateInputValue, type HallBaseSlot } from "@/features/halls/slot-model";
 
 type HallAvailabilityCalendarProps = {
@@ -108,7 +109,7 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
             )}
             <div className={`mt-3 grid gap-2 ${isFullCalendarOpen ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-7" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"}`}>
               {isFullCalendarOpen && Array.from({ length: firstDayOffset(visibleMonth) }, (_, index) => <span className="hidden xl:block" key={`blank-${index}`} />)}
-              {visibleDates.map((date) => <AvailabilityDayCard date={date} key={date} unavailableSlots={unavailableSlots} />)}
+              {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} unavailableSlots={unavailableSlots} />)}
             </div>
           </>
         )}
@@ -117,9 +118,14 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
   );
 }
 
-function AvailabilityDayCard({ date, unavailableSlots }: { date: string; unavailableSlots: PublicHallUnavailableSlot[] }) {
+function AvailabilityDayCard({ date, hallId, unavailableSlots }: { date: string; hallId: string; unavailableSlots: PublicHallUnavailableSlot[] }) {
   const statuses = slotStatusForDate(date, unavailableSlots);
   const isToday = date === toDateInputValue(new Date());
+
+  function selectSlot(slot: HallBaseSlot) {
+    emitHallSlotSelection({ hallId, date, slot });
+    document.getElementById("enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
     <article className={`rounded-md border p-3 ${isToday ? "border-primary" : "border-border"}`}>
@@ -131,20 +137,27 @@ function AvailabilityDayCard({ date, unavailableSlots }: { date: string; unavail
         {isToday && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-primary">Today</span>}
       </div>
       <div className="mt-3 grid gap-1">
-        {statuses.map((item) => <SlotStatusChip key={item.slot} slot={item.slot} status={item.status} />)}
+        {statuses.map((item) => <SlotStatusChip key={item.slot} onSelect={() => selectSlot(item.slot)} slot={item.slot} status={item.status} />)}
       </div>
     </article>
   );
 }
 
-function SlotStatusChip({ slot, status }: { slot: HallBaseSlot; status: "AVAILABLE" | "BOOKED" | "BLOCKED" }) {
+function SlotStatusChip({ onSelect, slot, status }: { onSelect: () => void; slot: HallBaseSlot; status: "AVAILABLE" | "BOOKED" | "BLOCKED" }) {
   const detail = HALL_SLOT_DETAILS[slot];
+  const isAvailable = status === "AVAILABLE";
 
   return (
-    <span className={`grid min-h-[52px] content-center gap-1 rounded-md border px-2 py-1.5 text-left ${statusStyle[status]}`}>
+    <button
+      aria-label={`${detail.label} ${detail.shortTime} ${isAvailable ? "available" : status.toLowerCase()}`}
+      className={`grid min-h-[52px] content-center gap-1 rounded-md border px-2 py-1.5 text-left outline-none transition ${statusStyle[status]} ${isAvailable ? "cursor-pointer hover:border-primary focus-visible:ring-2 focus-visible:ring-primary/25" : "cursor-not-allowed opacity-80"}`}
+      disabled={!isAvailable}
+      onClick={onSelect}
+      type="button"
+    >
       <span className="truncate text-xs font-semibold leading-tight">{detail.label}</span>
       <span className="whitespace-nowrap text-[11px] font-medium leading-none opacity-80">{detail.shortTime}</span>
-    </span>
+    </button>
   );
 }
 

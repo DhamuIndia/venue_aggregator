@@ -28,7 +28,7 @@ export function SiteHeader() {
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
           <Link className="hover:text-foreground" href="/">Halls</Link>
           <Link className="hover:text-foreground" href="/vendors">Vendors</Link>
-          <Link className="hover:text-foreground" href="/">How it works</Link>
+          <Link className="hover:text-foreground" href="/#how-it-works">How it works</Link>
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           {(!user || user.role === "CUSTOMER") && <Link aria-label="Saved venues" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" href={user ? "/customer" : "/auth/login"} title="Saved venues"><Heart aria-hidden="true" size={19} /></Link>}

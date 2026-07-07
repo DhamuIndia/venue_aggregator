@@ -5,7 +5,6 @@ import {
   Car,
   Check,
   MapPin,
-  Share2,
   Snowflake,
   Star,
   UsersRound
@@ -13,6 +12,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ShareButton } from "@/components/common/ShareButton";
 import { EnquiryPanel } from "@/components/enquiries/EnquiryPanel";
 import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import { HallAvailabilityCalendar } from "@/components/halls/HallAvailabilityCalendar";
@@ -45,9 +45,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
           </Link>
           <div className="flex items-center gap-2">
             <SaveHallButton hall={hall} variant="compact" />
-            <button className="inline-flex size-10 items-center justify-center rounded-md border border-border bg-white" title="Share venue">
-              <Share2 aria-label="Share venue" size={17} />
-            </button>
+            <ShareButton label="Share venue" text={`View ${hall.name} on VenueMart`} title={hall.name} />
           </div>
         </div>
 

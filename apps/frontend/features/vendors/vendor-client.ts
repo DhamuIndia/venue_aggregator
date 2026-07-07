@@ -20,6 +20,7 @@ export type VendorSearchResult = {
 type ApiVendorRecord = Record<string, unknown>;
 
 const useMockVendors = process.env.NEXT_PUBLIC_VENDORS_MODE === "mock";
+const DEFAULT_VENDOR_IMAGE_URL = "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=82";
 
 export async function searchPublicVendors(filters: VendorSearchFilters = {}): Promise<VendorSearchResult> {
   if (useMockVendors) return searchMockVendors(filters);
@@ -108,7 +109,20 @@ function toVendorSummary(value: unknown): VendorSummary | undefined {
 
   const fallback = getMockVendorById(id);
   const category = vendorCategory(value) ?? fallback?.category ?? "CATERING";
-  const imageUrl = stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl"]) ?? fallback?.imageUrl ?? "";
+  const imageUrl = stringValue(value, [
+    "imageUrl",
+    "image_url",
+    "coverImageUrl",
+    "cover_image_url",
+    "primaryImageUrl",
+    "primary_image_url",
+    "mediaUrl",
+    "media_url",
+    "portfolioImageUrl",
+    "portfolio_image_url",
+    "logoUrl",
+    "logo_url"
+  ]) ?? fallback?.imageUrl ?? DEFAULT_VENDOR_IMAGE_URL;
 
   return {
     id,
@@ -125,32 +139,39 @@ function toVendorSummary(value: unknown): VendorSummary | undefined {
     verified: booleanValue(value, ["verified", "isVerified", "identityVerified"]) ?? statusIsApproved(value) ?? fallback?.verified ?? false,
     responseTime: stringValue(value, ["responseTime", "response_time", "typicalResponseTime"]) ?? fallback?.responseTime ?? "",
     completedEvents: numberValue(value, ["completedEvents", "completed_events", "eventsCompleted"]) ?? fallback?.completedEvents ?? 0,
-    services: arrayOfStrings(value.services) ?? arrayOfStrings(value.serviceNames) ?? fallback?.services ?? [],
-    description: stringValue(value, ["description", "summary", "about"]) ?? fallback?.description ?? "",
-    packages: packages(value, fallback?.packages ?? []),
-    reviews: reviews(value, fallback?.reviews ?? [])
+    services: arrayOfStrings(value.services) ?? arrayOfStrings(value.serviceNames) ?? [],
+    description: stringValue(value, ["description", "summary", "about"]) ?? "",
+    packages: packages(value),
+    reviews: reviews(value)
   };
 }
 
 function galleryUrls(record: ApiVendorRecord, coverImageUrl: string, fallback: string[]) {
-  const direct = arrayOfStrings(record.galleryUrls) ?? arrayOfStrings(record.gallery);
-  if (direct?.length) return direct;
+  const direct = arrayOfStrings(record.galleryUrls)
+    ?? arrayOfStrings(record.gallery_urls)
+    ?? arrayOfStrings(record.gallery)
+    ?? arrayOfStrings(record.mediaUrls)
+    ?? arrayOfStrings(record.media_urls)
+    ?? arrayOfStrings(record.portfolioUrls)
+    ?? arrayOfStrings(record.portfolio_urls)
+    ?? arrayOfStrings(record.images);
+  if (direct?.length) return cleanImageUrls(direct);
 
   const media = Array.isArray(record.media) ? record.media : [];
   const urls = media
     .filter(isRecord)
-    .map((item) => stringValue(item, ["url", "mediaUrl", "imageUrl"]))
+    .map((item) => stringValue(item, ["url", "mediaUrl", "media_url", "imageUrl", "image_url", "fileUrl", "file_url", "publicUrl", "public_url"]))
     .filter(Boolean) as string[];
 
-  if (urls.length) return urls;
+  if (urls.length) return cleanImageUrls(urls);
   if (fallback.length) return fallback;
   return coverImageUrl ? [coverImageUrl] : [];
 }
 
-function packages(record: ApiVendorRecord, fallback: VendorPackage[]) {
+function packages(record: ApiVendorRecord) {
   const list = Array.isArray(record.packages) ? record.packages : Array.isArray(record.servicePackages) ? record.servicePackages : [];
   const mapped = list.map(toVendorPackage).filter(Boolean) as VendorPackage[];
-  return mapped.length ? mapped : fallback;
+  return mapped;
 }
 
 function toVendorPackage(value: unknown): VendorPackage | undefined {
@@ -168,10 +189,10 @@ function toVendorPackage(value: unknown): VendorPackage | undefined {
   };
 }
 
-function reviews(record: ApiVendorRecord, fallback: VendorReview[]) {
+function reviews(record: ApiVendorRecord) {
   const list = Array.isArray(record.reviews) ? record.reviews : [];
   const mapped = list.map(toVendorReview).filter(Boolean) as VendorReview[];
-  return mapped.length ? mapped : fallback;
+  return mapped;
 }
 
 function toVendorReview(value: unknown): VendorReview | undefined {
@@ -253,6 +274,10 @@ function arrayOfStrings(value: unknown) {
   if (!Array.isArray(value)) return undefined;
   const strings = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
   return strings.length ? strings : undefined;
+}
+
+function cleanImageUrls(urls: string[]) {
+  return Array.from(new Set(urls.map((url) => url.trim()).filter(Boolean)));
 }
 
 function isRecord(value: unknown): value is ApiVendorRecord {

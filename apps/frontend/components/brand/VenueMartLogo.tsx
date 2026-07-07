@@ -15,7 +15,7 @@ export function VenueMartLogo({
   showWordmark = true,
   inverted = false
 }: VenueMartLogoProps) {
-  const sizeClass = showWordmark ? "h-10 w-auto max-w-[185px] sm:max-w-[220px]" : "h-10 w-auto max-w-[80px]";
+  const sizeClass = showWordmark ? "h-11 w-auto max-w-[205px] sm:h-12 sm:max-w-[240px]" : "h-11 w-auto max-w-[88px]";
 
   return (
     <span aria-label={APP_NAME} className={`inline-flex items-center ${className}`}>
