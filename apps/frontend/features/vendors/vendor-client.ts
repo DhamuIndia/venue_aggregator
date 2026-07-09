@@ -109,7 +109,7 @@ function toVendorSummary(value: unknown): VendorSummary | undefined {
 
   const fallback = getMockVendorById(id);
   const category = vendorCategory(value) ?? fallback?.category ?? "CATERING";
-  const imageUrl = stringValue(value, [
+  const imageUrl = usableImageUrl(stringValue(value, [
     "imageUrl",
     "image_url",
     "coverImageUrl",
@@ -122,7 +122,7 @@ function toVendorSummary(value: unknown): VendorSummary | undefined {
     "portfolio_image_url",
     "logoUrl",
     "logo_url"
-  ]) ?? fallback?.imageUrl ?? DEFAULT_VENDOR_IMAGE_URL;
+  ])) ?? fallback?.imageUrl ?? DEFAULT_VENDOR_IMAGE_URL;
 
   return {
     id,
@@ -277,7 +277,14 @@ function arrayOfStrings(value: unknown) {
 }
 
 function cleanImageUrls(urls: string[]) {
-  return Array.from(new Set(urls.map((url) => url.trim()).filter(Boolean)));
+  return Array.from(new Set(urls.map(usableImageUrl).filter(Boolean) as string[]));
+}
+
+function usableImageUrl(url?: string) {
+  const trimmed = url?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("/images/")) return undefined;
+  return trimmed;
 }
 
 function isRecord(value: unknown): value is ApiVendorRecord {
