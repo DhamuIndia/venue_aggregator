@@ -32,7 +32,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PublicVendorService {
 
-    private static final String DEFAULT_IMAGE_URL = "/images/venues/emerald-convention-centre.jpg";
+    private static final String DEFAULT_IMAGE_URL =
+            "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=82";
 
     private final VendorRepository vendorRepository;
     private final VendorPackageRepository vendorPackageRepository;
@@ -91,16 +92,16 @@ public class PublicVendorService {
         String imageUrl = media.stream()
                 .filter(VendorMedia::getIsPrimary)
                 .map(VendorMedia::getMediaUrl)
-                .filter(this::hasText)
+                .filter(this::isUsableImageUrl)
                 .findFirst()
                 .orElseGet(() -> media.stream()
                         .map(VendorMedia::getMediaUrl)
-                        .filter(this::hasText)
+                        .filter(this::isUsableImageUrl)
                         .findFirst()
-                        .orElseGet(() -> firstText(vendor.getCoverImageUrl(), DEFAULT_IMAGE_URL)));
+                        .orElseGet(() -> firstUsableImageUrl(vendor.getCoverImageUrl(), DEFAULT_IMAGE_URL)));
         List<String> galleryUrls = media.stream()
                 .map(VendorMedia::getMediaUrl)
-                .filter(this::hasText)
+                .filter(this::isUsableImageUrl)
                 .distinct()
                 .toList();
         List<Review> publishedReviews = reviewRepository.findPublishedReviewsByVendorId(vendor.getId());
@@ -305,6 +306,19 @@ public class PublicVendorService {
 
     private boolean matchesEquals(String value, String expected) {
         return !hasText(expected) || normalize(value).contains(normalize(expected));
+    }
+
+    private String firstUsableImageUrl(String... values) {
+        for (String value : values) {
+            if (isUsableImageUrl(value)) {
+                return value.trim();
+            }
+        }
+        return DEFAULT_IMAGE_URL;
+    }
+
+    private boolean isUsableImageUrl(String value) {
+        return hasText(value) && !value.trim().startsWith("/images/");
     }
 
     private Long tryParseLong(String value) {
