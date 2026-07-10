@@ -30,11 +30,21 @@ public class HallMediaService {
 
         HallMedia media = new HallMedia();
 
+        System.out.println("Saving HallMedia");
+        System.out.println(request.getMediaType());
+        System.out.println(request.getUrl());
+        System.out.println(request.getPublicId());
+        System.out.println(request.getIsPrimary());
+        System.out.println(request.getSortOrder());
+
         media.setHallId(hall);
         media.setMediaType(request.getMediaType());
         media.setUrl(request.getUrl());
         media.setPublicId(request.getPublicId());
-        media.setIsPrimary(request.getIsPrimary());
+        media.setIsPrimary(
+                request.getIsPrimary() != null
+                        ? request.getIsPrimary()
+                        : false);
         media.setSortOrder(request.getSortOrder());
         media.setCreatedAt(LocalDateTime.now());
 
