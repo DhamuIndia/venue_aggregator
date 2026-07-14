@@ -5,5 +5,6 @@ public enum HallStatus {
     PENDING_APPROVAL,
     APPROVED,
     REJECTED,
-    BLOCKED
+    BLOCKED,
+    SUSPENDED
 }

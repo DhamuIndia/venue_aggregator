@@ -5,5 +5,6 @@ public enum VendorStatus {
     PENDING,
     APPROVED,
     REJECTED,
-    BLOCKED
+    BLOCKED,
+    SUSPENDED
 }

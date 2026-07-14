@@ -3,7 +3,6 @@
 import { Eye, EyeOff, LoaderCircle, Phone } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
@@ -15,7 +14,6 @@ function routeForRole(role: AuthRole): Route {
 
 export function LoginForm() {
   const { login, loginDemo } = useAuth();
-  const router = useRouter();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -37,7 +35,7 @@ export function LoginForm() {
       const destination: Route = nextPath?.startsWith("/") && !nextPath.startsWith("//")
         ? nextPath as Route
         : routeForRole(user.role);
-      router.push(destination);
+      window.location.assign(destination);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "We could not sign you in. Please check your details.");
     } finally {
@@ -49,7 +47,7 @@ export function LoginForm() {
     setError("");
     setIsSubmitting(true);
     const user = await loginDemo(role);
-    router.push(routeForRole(user.role));
+    window.location.assign(routeForRole(user.role));
   }
 
   return (
