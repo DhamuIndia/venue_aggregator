@@ -22,6 +22,8 @@ import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
+import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
@@ -38,6 +40,7 @@ public class VendorLeadService {
     private final VendorRepository vendorRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     private Vendors currentVendor(Authentication authentication) {
 
@@ -151,6 +154,82 @@ public class VendorLeadService {
         return response;
     }
 
+    private void notifyLeadCreated(VendorLead lead) {
+
+        Vendors vendor = lead.getVendor();
+
+        String vendorName = vendor.getBusinessName() != null
+                ? vendor.getBusinessName()
+                : vendor.getVendorName();
+
+        // Customer Notification
+        notificationService.notifyUser(
+                lead.getCustomer(),
+                NotificationType.ENQUIRY,
+                "Lead submitted",
+                "Your enquiry was sent to " + vendorName + ".",
+                "/customer?tab=vendor-leads");
+
+        // Vendor Notification
+        notificationService.notifyUser(
+                vendor.getUser(),
+                NotificationType.ENQUIRY,
+                "New lead received",
+                lead.getCustomerName() + " sent you a new enquiry.",
+                "/vendor?tab=leads");
+    }
+
+    private void notifyCustomer(VendorLead lead) {
+
+        Vendors vendor = lead.getVendor();
+
+        String vendorName = vendor.getBusinessName() != null
+                ? vendor.getBusinessName()
+                : vendor.getVendorName();
+
+        switch (lead.getStatus()) {
+
+            case CONTACTED ->
+
+                notificationService.notifyUser(
+                        lead.getCustomer(),
+                        NotificationType.ENQUIRY,
+                        "Vendor contacted you",
+                        vendorName + " contacted you regarding your enquiry.",
+                        "/customer?tab=vendor-leads");
+
+            case QUOTE_SENT ->
+
+                notificationService.notifyUser(
+                        lead.getCustomer(),
+                        NotificationType.ENQUIRY,
+                        "Quote received",
+                        vendorName + " sent you a quotation.",
+                        "/customer?tab=vendor-leads");
+
+            case BOOKED ->
+
+                notificationService.notifyUser(
+                        lead.getCustomer(),
+                        NotificationType.BOOKING,
+                        "Booking confirmed",
+                        "Your booking with " + vendorName + " has been confirmed.",
+                        "/customer?tab=vendor-bookings");
+
+            case DECLINED ->
+
+                notificationService.notifyUser(
+                        lead.getCustomer(),
+                        NotificationType.ENQUIRY,
+                        "Lead declined",
+                        vendorName + " declined your enquiry.",
+                        "/customer?tab=vendor-leads");
+
+            default -> {
+            }
+        }
+    }
+
     public VendorLeadResponse createLead(
             CreateVendorLeadRequest request,
             Authentication authentication) {
@@ -210,7 +289,7 @@ public class VendorLeadService {
         lead.setStatus(VendorLeadStatus.NEW);
 
         VendorLead saved = vendorLeadRepository.save(lead);
-
+        notifyLeadCreated(saved);
         return mapToResponse(saved);
     }
 
@@ -282,6 +361,8 @@ public class VendorLeadService {
         lead.setStatus(request.getStatus());
 
         VendorLead savedLead = vendorLeadRepository.save(lead);
+
+        notifyCustomer(savedLead);
 
         auditService.record(
                 new AuditCommand(

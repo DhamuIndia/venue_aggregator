@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -143,6 +144,7 @@ public class VendorService {
                 } else {
                         response.setStatus(status.name());
                 }
+                response.setRejectionReason(vendor.getRejectionReason());
 
                 Set<VendorCategory> categories = vendor.getCategories() == null ? Set.of() : vendor.getCategories();
                 response.setCategories(categories.stream()
@@ -239,7 +241,22 @@ public class VendorService {
                 vendor.setDescription(trimToNull(request.getDescription()));
                 vendor.setYearsInBusiness(request.getYearsInBusiness());
                 vendor.setServiceRadius(request.getServiceRadius());
-                vendor.setServices(request.getServices() == null ? new ArrayList<>() : new ArrayList<>(request.getServices()));
+                List<String> selectedServices = request.getServices() == null
+                                ? List.of()
+                                : request.getServices().stream()
+                                                .filter(Objects::nonNull)
+                                                .map(String::trim)
+                                                .filter(service -> !service.isEmpty())
+                                                .distinct()
+                                                .toList();
+                if (vendor.getServices() == null) {
+                        vendor.setServices(new ArrayList<>(selectedServices));
+                } else {
+                        // Replace the persisted collection contents so old service rows
+                        // cannot remain visible to the admin after a profile update.
+                        vendor.getServices().clear();
+                        vendor.getServices().addAll(selectedServices);
+                }
                 vendor.setPackageName(trimToNull(request.getPackageName()));
                 vendor.setStartingPrice(request.getStartingPrice());
                 vendor.setPackageDescription(trimToNull(request.getPackageDescription()));
@@ -322,6 +339,7 @@ public class VendorService {
                 response.setContactNumber(user.getPhone());
                 response.setWhatsAppNumber(user.getPhone());
                 response.setStatus(VendorStatus.DRAFT.name());
+                response.setRejectionReason("");
                 response.setServices(List.of());
                 response.setCategories(Set.of());
                 response.setUpdatedAt(Instant.now());

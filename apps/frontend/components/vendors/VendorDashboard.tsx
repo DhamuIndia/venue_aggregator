@@ -524,6 +524,18 @@ export function VendorDashboard() {
                     <span className={`inline-flex items-center gap-2 font-semibold ${profileStatusClass}`}><BadgeCheck size={18} /> {readableStatus(vendorProfile.status)}</span>
                     <span className="text-sm font-semibold">{profileStrength}%</span>
                   </div>
+                  {vendorProfile.status === "REJECTED" &&
+                    vendorProfile.rejectionReason && (
+                      <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
+                        <p className="text-sm font-semibold text-red-700">
+                          Rejection Reason
+                        </p>
+
+                        <p className="mt-1 text-sm text-red-600">
+                          {vendorProfile.rejectionReason}
+                        </p>
+                      </div>
+                    )}
                   <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
                     <div className="h-full bg-primary" style={{ width: `${profileStrength}%` }} />
                   </div>

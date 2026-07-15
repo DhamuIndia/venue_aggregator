@@ -28,6 +28,22 @@ export type VendorApplication = {
   city: string;
   submittedAt: string;
   status: ModerationStatus;
+  description?: string;
+  coverImageUrl?: string;
+  // addressLine?: string;
+  area?: string;
+  pincode?: string;
+  phone?: string;
+  email?: string;
+  whatsAppNumber?: string;
+  categories?: string[];
+  yearsInBusiness?: number;
+  serviceRadius?: number;
+  services?: string[];
+  packageName?: string;
+  startingPrice?: number;
+  packageDescription?: string;
+  rejectionReason?: string;
 };
 
 export type ReportedReview = {

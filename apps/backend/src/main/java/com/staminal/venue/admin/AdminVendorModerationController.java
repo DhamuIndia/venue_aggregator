@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.staminal.venue.vendors.Dto.VendorResponse;
+
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -26,6 +28,11 @@ public class AdminVendorModerationController {
         return adminVendorModerationService.getVendors(status, page, size);
     }
 
+    @GetMapping("/{vendorId}")
+    public VendorResponse getVendorDetails(@PathVariable String vendorId){
+        return adminVendorModerationService.getVendorDetails(vendorId);
+    }
+
     @PatchMapping("/{vendorId}/review")
     public AdminVendorResponse reviewVendor(
             @PathVariable String vendorId,
@@ -33,4 +40,5 @@ public class AdminVendorModerationController {
             Authentication authentication) {
         return adminVendorModerationService.reviewVendor(vendorId, request, authentication);
     }
+
 }

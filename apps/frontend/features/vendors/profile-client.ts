@@ -21,6 +21,7 @@ export type VendorProfileDraft = {
   startingPrice: number;
   packageDescription: string;
   status: VendorProfileStatus;
+  rejectionReason?: string;
   updatedAt?: string;
 };
 
@@ -33,7 +34,7 @@ export const fallbackVendorProfile: VendorProfileDraft = {
   serviceRadius: 25,
   yearsInBusiness: 5,
   description: workspaceVendor.description,
-  services: workspaceVendor.services.slice(0, 4),
+  services: [],
   packageName: workspaceVendor.packages[0]?.name ?? "",
   startingPrice: workspaceVendor.packages[0]?.price ?? workspaceVendor.startingPrice,
   packageDescription: workspaceVendor.packages[0]?.description ?? "",
@@ -147,11 +148,12 @@ function toVendorProfile(value: unknown): VendorProfileDraft | undefined {
     serviceRadius: numberValue(record, ["serviceRadius", "service_radius"]) ?? fallbackVendorProfile.serviceRadius,
     yearsInBusiness: numberValue(record, ["yearsInBusiness", "years_in_business", "experienceYears"]) ?? fallbackVendorProfile.yearsInBusiness,
     description: stringValue(record, ["description", "summary", "about"]) ?? "",
-    services: arrayOfStrings(record.services) ?? fallbackVendorProfile.services,
+    services: arrayOfStrings(record.services) ?? [],
     packageName: stringValue(record, ["packageName", "package_name"]) ?? firstPackageValue(record, "name") ?? "",
     startingPrice: numberValue(record, ["startingPrice", "starting_price"]) ?? firstPackageNumber(record, "price") ?? fallbackVendorProfile.startingPrice,
     packageDescription: stringValue(record, ["packageDescription", "package_description"]) ?? firstPackageValue(record, "description") ?? "",
     status: statusValue(record) ?? "DRAFT",
+    rejectionReason: stringValue(record, ["rejectionReason", "rejection_reason"]) ?? "",
     updatedAt: stringValue(record, ["updatedAt", "updated_at"])
   };
 }
@@ -230,7 +232,7 @@ function numberValue(record: Record<string, unknown>, keys: string[]) {
 function arrayOfStrings(value: unknown) {
   if (!Array.isArray(value)) return undefined;
   const strings = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-  return strings.length ? strings : undefined;
+  return strings;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
