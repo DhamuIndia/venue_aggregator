@@ -29,7 +29,7 @@ import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.halls.Service.HallsService;
-import com.staminal.venue.reviews.ReviewRepository;
+import com.staminal.venue.reviews.HallReview.ReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 

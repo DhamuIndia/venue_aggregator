@@ -1,4 +1,4 @@
-package com.staminal.venue.reviews.Dto;
+package com.staminal.venue.reviews.HallReview.Dto;
 
 public record ReviewEligibilityResponse(
 

@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.staminal.venue.availability.Dto.AvailabilitySummary;
-import com.staminal.venue.reviews.Dto.PublicReviewResponse;
+import com.staminal.venue.reviews.HallReview.Dto.PublicReviewResponse;
 
 public class HallResponse {
 

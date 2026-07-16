@@ -5,5 +5,6 @@ public enum VendorLeadStatus {
     CONTACTED,
     QUOTE_SENT,
     BOOKED,
-    DECLINED
+    DECLINED,
+    COMPLETED
 }

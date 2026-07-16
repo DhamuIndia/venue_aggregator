@@ -20,9 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.enquiries.Enquiry;
-import com.staminal.venue.reviews.Review;
-import com.staminal.venue.reviews.ReviewModerationStatus;
-import com.staminal.venue.reviews.ReviewRepository;
+import com.staminal.venue.reviews.HallReview.Review;
+import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
+import com.staminal.venue.reviews.HallReview.ReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Dto.PublicVendorListResponse;
 import com.staminal.venue.vendors.Dto.PublicVendorResponse;

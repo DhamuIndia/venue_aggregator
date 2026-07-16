@@ -1,6 +1,6 @@
 package com.staminal.venue.admin;
 
-import com.staminal.venue.reviews.ReviewModerationStatus;
+import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
 
 public record AdminReviewModerationRequest(
         ReviewModerationStatus status,

@@ -198,3 +198,44 @@ function booleanValue(record: Record<string, unknown>, keys: string[]) {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
+
+type VendorReviewEligibilityResponse = {
+  eligible: boolean;
+  leadId: string;
+  vendorName: string;
+  eventDate: string;
+  eventType?: string;
+  reason?: string | null;
+  submittedReviewId?: string;
+};
+
+export async function getVendorReviewEligibility(
+  leadId: string,
+  accessToken: string | null
+): Promise<VendorReviewEligibilityResponse> {
+  return apiRequest<VendorReviewEligibilityResponse>(
+    `/customer/vendor-review-eligibility?leadId=${encodeURIComponent(leadId)}`,
+    {
+      token: accessToken ?? undefined
+    }
+  );
+}
+
+export async function submitVendorReview(
+  payload: {
+    leadId: string;
+    rating: number;
+    comment: string;
+  },
+  accessToken: string | null
+) {
+  return apiRequest<CustomerReview>("/customer/vendor-reviews", {
+    method: "POST",
+    token: accessToken ?? undefined,
+    body: JSON.stringify({
+      leadId: payload.leadId,
+      rating: payload.rating,
+      comment: payload.comment
+    })
+  });
+}

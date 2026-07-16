@@ -29,6 +29,7 @@ import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
+import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
@@ -49,7 +50,11 @@ class VendorLeadServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
     private VendorLeadService vendorLeadService;
+
+    @Mock
+    private NotificationService notificationService;
 
     @BeforeEach
     void setUp() {
@@ -57,7 +62,8 @@ class VendorLeadServiceTest {
                 vendorLeadRepository,
                 vendorRepository,
                 userRepository,
-                auditService);
+                auditService,
+                notificationService);
     }
 
     @Test
@@ -97,8 +103,9 @@ class VendorLeadServiceTest {
         when(vendorRepository.findById(501L)).thenReturn(Optional.of(vendor(VendorStatus.PENDING)));
 
         assertThatThrownBy(() -> vendorLeadService.createLead(createRequest("501"), customerAuth()))
-                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> assertThat(exception.getStatusCode())
-                        .isEqualTo(HttpStatus.NOT_FOUND));
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode())
+                                .isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test

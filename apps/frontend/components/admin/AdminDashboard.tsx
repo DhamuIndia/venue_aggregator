@@ -515,7 +515,6 @@ export function AdminDashboard() {
       </div>
 
       {rejectTarget && <RejectionDialog onClose={() => setRejectTarget(null)} onReject={rejectWithReason} subject={rejectTarget.name} />}
-      console.log("Selected Vendor:", selectedVendor);
       {selectedVendor && (
         <VendorDetailsDrawer
           vendor={selectedVendor}

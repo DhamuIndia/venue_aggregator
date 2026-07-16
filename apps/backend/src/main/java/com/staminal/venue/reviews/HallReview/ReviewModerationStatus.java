@@ -1,4 +1,4 @@
-package com.staminal.venue.reviews;
+package com.staminal.venue.reviews.HallReview;
 
 public enum ReviewModerationStatus {
     PENDING,

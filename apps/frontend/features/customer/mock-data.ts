@@ -6,6 +6,12 @@ export type CustomerEnquiry = {
   eventDate: string;
   submittedAt: string;
   status: EnquiryStatus | "AWAITING_RESPONSE";
+  eventType?: string;
+  guestCount?: number;
+  slot?: string;
+  location?: string;
+  budget?: number;
+  notes?: string;
 };
 
 export const customerEnquiries: CustomerEnquiry[] = [

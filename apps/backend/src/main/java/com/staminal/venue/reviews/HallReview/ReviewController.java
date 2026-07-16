@@ -1,4 +1,4 @@
-package com.staminal.venue.reviews;
+package com.staminal.venue.reviews.HallReview;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.staminal.venue.reviews.Dto.CreateReviewRequest;
-import com.staminal.venue.reviews.Dto.ReviewEligibilityResponse;
-import com.staminal.venue.reviews.Dto.ReviewResponse;
-import com.staminal.venue.reviews.Dto.UpdateReviewRequest;
+import com.staminal.venue.reviews.HallReview.Dto.CreateReviewRequest;
+import com.staminal.venue.reviews.HallReview.Dto.ReviewEligibilityResponse;
+import com.staminal.venue.reviews.HallReview.Dto.ReviewResponse;
+import com.staminal.venue.reviews.HallReview.Dto.UpdateReviewRequest;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -13,4 +13,5 @@ public interface VendorLeadRepository
     List<VendorLead> findByCustomer_IdOrderByCreatedAtDesc(Long customerId);
 
     Optional<VendorLead> findByIdAndVendor_Id(Long leadId, Long vendorId);
+    
 }

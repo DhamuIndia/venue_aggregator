@@ -72,6 +72,13 @@ public class Vendors {
 
     private BigDecimal startingPrice;
 
+    /** Aggregate of published, verified customer reviews. */
+    @Column(name = "average_rating", nullable = false)
+    private double averageRating;
+
+    @Column(name = "review_count", nullable = false)
+    private int reviewCount;
+
     private String packageDescription;
 
     @ElementCollection(fetch = FetchType.EAGER)
@@ -137,6 +144,22 @@ public class Vendors {
 
     public void setStartingPrice(BigDecimal startingPrice) {
         this.startingPrice = startingPrice;
+    }
+
+    public double getAverageRating() {
+        return averageRating;
+    }
+
+    public void setAverageRating(double averageRating) {
+        this.averageRating = averageRating;
+    }
+
+    public int getReviewCount() {
+        return reviewCount;
+    }
+
+    public void setReviewCount(int reviewCount) {
+        this.reviewCount = reviewCount;
     }
 
     public String getPackageDescription() {
