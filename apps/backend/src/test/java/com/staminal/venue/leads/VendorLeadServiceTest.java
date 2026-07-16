@@ -29,6 +29,7 @@ import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
+import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
@@ -49,6 +50,9 @@ class VendorLeadServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private NotificationService notificationService;
+
     private VendorLeadService vendorLeadService;
 
     @BeforeEach
@@ -57,7 +61,8 @@ class VendorLeadServiceTest {
                 vendorLeadRepository,
                 vendorRepository,
                 userRepository,
-                auditService);
+                auditService,
+                notificationService);
     }
 
     @Test
