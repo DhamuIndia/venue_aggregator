@@ -114,18 +114,22 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
           <div className="mt-5 grid min-h-48 place-items-center rounded-md bg-muted/40 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-2"><LoaderCircle className="animate-spin" size={17} /> Loading availability</span>
           </div>
-        ) : (
-          <>
-            {isFullCalendarOpen && (
-              <div className="mt-5 grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
+        ) : isFullCalendarOpen ? (
+          <div className="mt-5 overflow-x-auto pb-2">
+            <div className="min-w-[760px]">
+              <div className="grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span className="py-2" key={day}>{day}</span>)}
               </div>
-            )}
-            <div className={`mt-3 grid gap-2 ${isFullCalendarOpen ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-7" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"}`}>
-              {isFullCalendarOpen && Array.from({ length: firstDayOffset(visibleMonth) }, (_, index) => <span className="hidden xl:block" key={`blank-${index}`} />)}
-              {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlot={selectedSlot} unavailableSlots={unavailableSlots} />)}
+              <div className="mt-3 grid grid-cols-7 gap-2">
+                {Array.from({ length: firstDayOffset(visibleMonth) }, (_, index) => <span aria-hidden="true" className="block" key={`blank-${index}`} />)}
+                {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlot={selectedSlot} unavailableSlots={unavailableSlots} />)}
+              </div>
             </div>
-          </>
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlot={selectedSlot} unavailableSlots={unavailableSlots} />)}
+          </div>
         )}
       </div>
     </section>
