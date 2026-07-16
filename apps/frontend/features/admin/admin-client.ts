@@ -28,15 +28,16 @@ type AdminQueueResult = {
 };
 
 export async function getAdminQueues(accessToken?: string | null): Promise<AdminQueueResult> {
-  if (useMockAdmin || !accessToken) return mockResult();
+  if (useMockAdmin) return mockResult();
+  if (!accessToken) return emptyResult();
 
   const [venues, vendors, reviews, enquiries, users, events] = await Promise.all([
-    getAdminVenues(accessToken).catch(() => initialVenueApplications),
-    getAdminVendors(accessToken).catch(() => initialVendorApplications),
-    getAdminReviews(accessToken).catch(() => initialReportedReviews),
-    getAdminEnquiries(accessToken).catch(() => adminEnquiries),
-    getAdminUsers(accessToken).catch(() => adminUsers),
-    getAdminAuditEvents(accessToken).catch(() => auditEvents)
+    getAdminVenues(accessToken).catch(() => []),
+    getAdminVendors(accessToken).catch(() => []),
+    getAdminReviews(accessToken).catch(() => []),
+    getAdminEnquiries(accessToken).catch(() => []),
+    getAdminUsers(accessToken).catch(() => []),
+    getAdminAuditEvents(accessToken).catch(() => [])
   ]);
 
   return { venues, vendors, reviews, enquiries, users, auditEvents: events, source: "api" };
@@ -162,6 +163,18 @@ function mockResult(): AdminQueueResult {
   };
 }
 
+function emptyResult(): AdminQueueResult {
+  return {
+    venues: [],
+    vendors: [],
+    reviews: [],
+    enquiries: [],
+    users: [],
+    auditEvents: [],
+    source: "api"
+  };
+}
+
 function updateMockVenue(id: string, status: Exclude<ModerationStatus, "PENDING_APPROVAL">) {
   return initialVenueApplications.find((venue) => venue.id === id)
     ? { ...initialVenueApplications.find((venue) => venue.id === id)!, status }
@@ -257,15 +270,17 @@ function toVendorApplication(value: unknown): VendorApplication | undefined {
 
     description: stringValue(value, ["description"]),
 
-    coverImageUrl: stringValue(value, ["coverImageUrl"]),
+    coverImageUrl: usableImageUrl(stringValue(value, ["coverImageUrl", "cover_image_url", "imageUrl", "image_url"])),
 
-    area: stringValue(value, ["area"]),
+    addressLine: stringValue(value, ["addressLine", "address_line", "address"]),
+
+    area: stringValue(value, ["area", "locality"]),
 
     pincode: stringValue(value, ["pincode"]),
 
-    phone: stringValue(value, ["contactNumber"]),
+    phone: stringValue(value, ["contactNumber", "contact_number", "phone", "mobile"]),
 
-    whatsAppNumber: stringValue(value, ["whatsAppNumber"]),
+    whatsAppNumber: stringValue(value, ["whatsAppNumber", "whatsappNumber", "whats_app_number", "whatsapp_number"]),
 
     email: stringValue(value, ["email"]),
 

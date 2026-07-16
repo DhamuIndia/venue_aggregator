@@ -30,7 +30,7 @@ export type VendorApplication = {
   status: ModerationStatus;
   description?: string;
   coverImageUrl?: string;
-  // addressLine?: string;
+  addressLine?: string;
   area?: string;
   pincode?: string;
   phone?: string;
