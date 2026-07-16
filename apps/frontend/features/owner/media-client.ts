@@ -45,6 +45,27 @@ export function getLocalOwnerMedia(hallId: string, fallback: OwnerMediaItem[]) {
   return Object.prototype.hasOwnProperty.call(store, hallId) ? store[hallId] : fallback;
 }
 
+export async function getOwnerMedia(hallId: string, accessToken: string | null | undefined, fallback: OwnerMediaItem[]) {
+  if (useMockOwnerMedia || !accessToken) return getLocalOwnerMedia(hallId, fallback);
+
+  try {
+    const response = await apiRequest<unknown>(`/owner/halls/${encodeURIComponent(hallId)}/media`, {
+      token: accessToken
+    });
+    const media = toMediaList(response);
+    if (media.length > 0) {
+      saveLocalMedia(hallId, media);
+      return media;
+    }
+    return getLocalOwnerMedia(hallId, fallback);
+  } catch (exception) {
+    if (exception instanceof ApiError && [400, 401, 403, 404].includes(exception.status)) {
+      throw exception;
+    }
+    return getLocalOwnerMedia(hallId, fallback);
+  }
+}
+
 export async function createOwnerMedia(hallId: string, payload: OwnerMediaPayload, accessToken?: string | null) {
   if (useMockOwnerMedia || !accessToken) return createLocalMedia(hallId, payload);
 
@@ -169,6 +190,19 @@ function readMediaStore(): Record<string, OwnerMediaItem[]> {
   } catch {
     return {};
   }
+}
+
+function toMediaList(value: unknown) {
+  const list = extractList(value);
+  return normalizeCover(list.map((item) => toMediaItem(item)).filter(Boolean) as OwnerMediaItem[]);
+}
+
+function extractList(value: unknown) {
+  if (Array.isArray(value)) return value;
+  if (!isRecord(value)) return [];
+  const candidates = [value.items, value.content, value.data, value.results, value.media, value.photos, value.gallery];
+  const list = candidates.find(Array.isArray);
+  return Array.isArray(list) ? list : [];
 }
 
 function normalizeCover(media: OwnerMediaItem[]) {

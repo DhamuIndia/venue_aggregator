@@ -57,6 +57,7 @@ import {
 } from "@/features/owner/listing-client";
 import {
   deleteOwnerMedia,
+  getOwnerMedia,
   getLocalOwnerMedia,
   mediaFromListing,
   updateOwnerMedia,
@@ -496,11 +497,12 @@ export function OwnerDashboard() {
       try {
         const fallbackListing = fallbackListingForHall(activeHallId);
         const response = await getOwnerHallListing(activeHallId, accessToken, fallbackListing);
+        const loadedMedia = await getOwnerMedia(response.id, accessToken, mediaFromListing(response));
         if (!isCurrent) return;
         setListing(response);
         setActiveHallId(response.id);
         setListingForm(formFromListing(response));
-        setMedia(getLocalOwnerMedia(response.id, mediaFromListing(response)));
+        setMedia(loadedMedia);
       } catch {
         if (!isCurrent) return;
         const fallbackListing = fallbackListingForHall(activeHallId);
