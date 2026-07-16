@@ -15,7 +15,7 @@ export function VendorCard({ vendor }: { vendor: VendorSummary }) {
     <article className="group overflow-hidden rounded-lg border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <Link className="block" href={`/vendors/${vendor.id}`}>
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-          <Image alt={`${vendor.businessName} ${categoryLabels[vendor.category].toLowerCase()} service`} className="object-cover transition duration-500 group-hover:scale-[1.03]" fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" src={vendor.imageUrl} />
+          <Image alt={`${vendor.businessName} ${categoryLabels[vendor.category].toLowerCase()} service`} className="object-cover transition duration-500 group-hover:scale-[1.03]" fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" src={vendor.imageUrl} unoptimized />
           <span className="absolute left-3 top-3 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-foreground shadow-sm">{categoryLabels[vendor.category]}</span>
         </div>
       </Link>

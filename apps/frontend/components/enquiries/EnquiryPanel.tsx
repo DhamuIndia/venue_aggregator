@@ -25,7 +25,7 @@ type EnquiryPanelProps = {
 type AvailabilityState = "idle" | "available" | "unavailable";
 
 export function EnquiryPanel({ hall }: EnquiryPanelProps) {
-  const { accessToken, user } = useAuth();
+  const { getValidAccessToken, user } = useAuth();
   const router = useRouter();
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
@@ -139,6 +139,12 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     try {
       setIsSubmitting(true);
       setAvailability("available");
+      const token = await getValidAccessToken();
+      if (!token) {
+        setError("Your session expired. Sign in again to send this enquiry.");
+        router.push(`/auth/login?next=/halls/${hall.id}`);
+        return;
+      }
       const enquiry = await createEnquiry({
         hallId: hall.id,
         hallName: hall.name,
@@ -149,7 +155,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         slot: representativeSlot(selectedSlotRequests),
         slotRequests: selectedSlotRequests,
         notes: notes.trim() || undefined
-      }, accessToken);
+      }, token);
       router.push(`/enquiries/confirmation/${enquiry.id}`);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Could not send enquiry. Please try again.");
