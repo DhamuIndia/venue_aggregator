@@ -6,15 +6,12 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.staminal.venue.auth.service.JwtService;
-// import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Catering.VendorCateringDetails;
 import com.staminal.venue.vendors.Catering.VendorCateringRepository;
 import com.staminal.venue.vendors.Dj.VendorDjDetails;
 import com.staminal.venue.vendors.Dj.VendorDjRepository;
 import com.staminal.venue.vendors.Dto.VendorResponse;
-// import com.staminal.venue.halls.Entity.Halls;
-// import com.staminal.venue.halls.Repository.HallsRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Hall.VendorHallDetails;
 import com.staminal.venue.vendors.Hall.VendorHallRepository;
@@ -75,6 +72,7 @@ public class AdminService {
         response.setContactNumber(savedVendor.getContactNumber());
         response.setWhatsAppNumber(savedVendor.getWhatsAppNumber());
         response.setStatus(savedVendor.getStatus().name());
+        response.setRejectionReason(savedVendor.getRejectionReason());
 
         return response;
     }
@@ -101,6 +99,7 @@ public class AdminService {
         response.setContactNumber(savedVendor.getContactNumber());
         response.setWhatsAppNumber(savedVendor.getWhatsAppNumber());
         response.setStatus(savedVendor.getStatus().name());
+        response.setRejectionReason(savedVendor.getRejectionReason());
 
         return response;
     }
@@ -124,6 +123,7 @@ public class AdminService {
                     response.setContactNumber(vendor.getContactNumber());
                     response.setWhatsAppNumber(vendor.getWhatsAppNumber());
                     response.setStatus(vendor.getStatus().name());
+                    response.setRejectionReason(vendor.getRejectionReason());
 
                     return response;
                 })

@@ -226,11 +226,68 @@ function toVendorApplication(value: unknown): VendorApplication | undefined {
   return {
     id,
     businessName,
-    contactName: stringValue(value, ["contactName", "contact_name", "ownerName", "owner_name"]) ?? "Vendor",
-    category: stringValue(value, ["category", "vendorCategory", "vendor_category"]) ?? "Service",
+
+    contactName:
+      stringValue(value, [
+        "contactName",
+        "contact_name",
+        "ownerName",
+        "owner_name",
+        "vendorName",
+      ]) ?? "Vendor",
+
+    category:
+      stringValue(value, [
+        "category",
+        "vendorCategory",
+        "vendor_category",
+      ]) ?? "Service",
+
     city: stringValue(value, ["city", "serviceCity"]) ?? "",
-    submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at", "updatedAt"]) ?? "",
-    status: moderationStatus(value) ?? "PENDING_APPROVAL"
+
+    submittedAt:
+      stringValue(value, [
+        "submittedAt",
+        "createdAt",
+        "created_at",
+        "updatedAt",
+      ]) ?? "",
+
+    status: moderationStatus(value) ?? "PENDING_APPROVAL",
+
+    description: stringValue(value, ["description"]),
+
+    coverImageUrl: stringValue(value, ["coverImageUrl"]),
+
+    area: stringValue(value, ["area"]),
+
+    pincode: stringValue(value, ["pincode"]),
+
+    phone: stringValue(value, ["contactNumber"]),
+
+    whatsAppNumber: stringValue(value, ["whatsAppNumber"]),
+
+    email: stringValue(value, ["email"]),
+
+    yearsInBusiness: numberValue(value, ["yearsInBusiness"]),
+
+    serviceRadius: numberValue(value, ["serviceRadius"]),
+
+    packageName: stringValue(value, ["packageName"]),
+
+    startingPrice: numberValue(value, ["startingPrice"]),
+
+    packageDescription: stringValue(value, ["packageDescription"]),
+
+    rejectionReason: stringValue(value, ["rejectionReason"]),
+
+    services: Array.isArray(value.services)
+      ? value.services.map(String)
+      : [],
+
+    categories: Array.isArray(value.categories)
+      ? value.categories.map(String)
+      : [],
   };
 }
 
@@ -398,4 +455,25 @@ function booleanValue(record: Record<string, unknown>, keys: string[]) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export async function getAdminVendor(
+  id: string,
+  accessToken?: string | null
+): Promise<VendorApplication> {
+
+  const response = await apiRequest<unknown>(
+    `/admin/vendors/${encodeURIComponent(id)}`,
+    {
+      token: accessToken ?? undefined,
+    }
+  );
+
+  const vendor = toVendorApplication(response);
+
+  if (!vendor) {
+    throw new Error("Failed to load vendor details");
+  }
+
+  return vendor;
 }

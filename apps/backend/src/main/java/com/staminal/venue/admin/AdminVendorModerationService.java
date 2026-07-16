@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -20,6 +21,7 @@ import com.staminal.venue.audit.AuditAction;
 import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.vendors.Dto.VendorResponse;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
@@ -235,5 +237,49 @@ public class AdminVendorModerationService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    @Transactional(readOnly = true)
+    public VendorResponse getVendorDetails(String vendorId) {
+
+        Vendors vendor = findVendor(vendorId);
+
+        VendorResponse response = new VendorResponse();
+
+        response.setId(vendor.getId());
+        response.setVendorName(vendor.getVendorName());
+        response.setBusinessName(vendor.getBusinessName());
+
+        response.setCategory(
+                vendor.getCategories()
+                        .stream()
+                        .findFirst()
+                        .map(VendorCategory::getCategoryName)
+                        .orElse(""));
+        response.setCategories(
+                vendor.getCategories()
+                        .stream()
+                        .map(VendorCategory::getCategoryName)
+                        .collect(Collectors.toSet()));
+
+        response.setEmail(vendor.getEmail());
+        response.setDescription(vendor.getDescription());
+        response.setCoverImageUrl(vendor.getCoverImageUrl());
+        response.setAddressLine(vendor.getAddressLine());
+        response.setCity(vendor.getCity());
+        response.setArea(vendor.getArea());
+        response.setPincode(vendor.getPincode());
+        response.setContactNumber(vendor.getContactNumber());
+        response.setWhatsAppNumber(vendor.getWhatsAppNumber());
+        response.setYearsInBusiness(vendor.getYearsInBusiness());
+        response.setServiceRadius(vendor.getServiceRadius());
+        response.setPackageName(vendor.getPackageName());
+        response.setStartingPrice(vendor.getStartingPrice());
+        response.setPackageDescription(vendor.getPackageDescription());
+        response.setServices(vendor.getServices());
+        response.setStatus(toModerationStatus(vendor.getStatus()));
+        response.setRejectionReason(vendor.getRejectionReason());
+
+        return response;
     }
 }

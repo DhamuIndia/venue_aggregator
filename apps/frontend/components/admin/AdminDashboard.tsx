@@ -24,9 +24,10 @@ import {
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
+import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { fallbackAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
-import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus } from "@/features/admin/admin-client";
+import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus, getAdminVendor } from "@/features/admin/admin-client";
 import {
   adminEnquiries,
   auditEvents as initialAuditEvents,
@@ -131,6 +132,8 @@ export function AdminDashboard() {
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<RejectTarget | null>(null);
   const [notice, setNotice] = useState("");
+  const [selectedVendor, setSelectedVendor] =
+    useState<VendorApplication | null>(null);
 
   const pendingVenueCount = venues.filter((venue) => venue.status === "PENDING_APPROVAL").length;
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
@@ -354,10 +357,21 @@ export function AdminDashboard() {
             <div><h2 className="text-xl font-semibold">Vendor applications</h2><p className="mt-1 text-sm text-muted-foreground">Review service category and business identity.</p></div>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[1.4fr_1fr_1fr_120px_220px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
-              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px_220px] md:items-center" key={vendor.id}><div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div><p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p><p className="text-sm text-muted-foreground">{vendor.submittedAt}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>{vendor.status === "PENDING_APPROVAL" ? <div className="flex gap-2 md:justify-end"><button aria-label={`Reject ${vendor.businessName}`} className="grid size-9 place-items-center rounded-md border border-rose-200 text-rose-700" onClick={() => setRejectTarget({ kind: "vendor", id: vendor.id, name: vendor.contactName })} title="Reject"><X size={17} /></button><button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" onClick={() => updateVendor(vendor.id, "APPROVED")}><Check size={16} /> Approve</button></div> : <span />}</article>)}
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px_220px] md:items-center" key={vendor.id}><div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div><p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p><p className="text-sm text-muted-foreground">{vendor.submittedAt}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>{vendor.status === "PENDING_APPROVAL" ? <div className="flex justify-end">
+                <button
+                  className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-semibold"
+                  onClick={async () => {
+                    const fullVendor = await getAdminVendor(vendor.id, accessToken);
+                    setSelectedVendor(fullVendor);
+                  }}
+                >
+                  View Details
+                </button>
+              </div> : <span />}</article>)}
             </div>
           </section>
         )}
+
 
         {activeTab === "users" && (
           <section className="py-7">
@@ -501,6 +515,25 @@ export function AdminDashboard() {
       </div>
 
       {rejectTarget && <RejectionDialog onClose={() => setRejectTarget(null)} onReject={rejectWithReason} subject={rejectTarget.name} />}
+      console.log("Selected Vendor:", selectedVendor);
+      {selectedVendor && (
+        <VendorDetailsDrawer
+          vendor={selectedVendor}
+          onClose={() => setSelectedVendor(null)}
+          onApprove={async () => {
+            await updateVendor(selectedVendor.id, "APPROVED");
+            setSelectedVendor(null);
+          }}
+          onReject={() => {
+            setRejectTarget({
+              kind: "vendor",
+              id: selectedVendor.id,
+              name: selectedVendor.contactName,
+            });
+            setSelectedVendor(null);
+          }}
+        />
+      )}
     </main>
   );
 }

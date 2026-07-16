@@ -18,10 +18,14 @@ import com.staminal.venue.admin.AdminUserController.UpdateUserStatusRequest;
 import com.staminal.venue.audit.AuditAction;
 import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
+import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.Role;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
+import com.staminal.venue.vendors.Repository.VendorRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -34,6 +38,8 @@ public class AdminUserService {
     private static final String SUSPENDED = "SUSPENDED";
 
     private final UserRepository userRepository;
+    private final VendorRepository vendorRepository;
+    private final HallRepository hallRepository;
     private final AuditService auditService;
 
     @Transactional(readOnly = true)
@@ -89,6 +95,24 @@ public class AdminUserService {
 
         target.setStatus(nextStatus);
         User savedTarget = userRepository.save(target);
+        vendorRepository.findByUserId(savedTarget.getId())
+                .ifPresent(vendor -> {
+                    if (ACTIVE.equals(nextStatus)) {
+                        vendor.setStatus(VendorStatus.APPROVED);
+                    } else if (SUSPENDED.equals(nextStatus)) {
+                        vendor.setStatus(VendorStatus.SUSPENDED);
+                    }
+                    vendorRepository.save(vendor);
+                });
+
+        hallRepository.findByOwnerUserId_Id(savedTarget.getId())
+                .forEach(hall -> {
+                    if (ACTIVE.equals(nextStatus)) {
+                        hall.setStatus(HallStatus.APPROVED);
+                    } else if (SUSPENDED.equals(nextStatus)) {
+                        hall.setStatus(HallStatus.SUSPENDED);
+                    }
+                });
         auditUserStatusChange(actor, savedTarget, previousStatus, nextStatus);
 
         return toResponse(savedTarget);
@@ -190,11 +214,12 @@ public class AdminUserService {
     }
 
     private UserRole primaryRole(User user) {
-        return user.getRoles() == null ? UserRole.CUSTOMER : user.getRoles()
-                .stream()
-                .map(Role::getName)
-                .max(Comparator.comparingInt(UserRole::ordinal))
-                .orElse(UserRole.CUSTOMER);
+        return user.getRoles() == null ? UserRole.CUSTOMER
+                : user.getRoles()
+                        .stream()
+                        .map(Role::getName)
+                        .max(Comparator.comparingInt(UserRole::ordinal))
+                        .orElse(UserRole.CUSTOMER);
     }
 
     private void auditUserStatusChange(User actor, User target, String previousStatus, String nextStatus) {

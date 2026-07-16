@@ -64,6 +64,7 @@ public class NotificationService {
             String title,
             String message,
             String actionHref) {
+
         if (recipient == null || recipient.getId() == null) {
             return null;
         }

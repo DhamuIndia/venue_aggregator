@@ -33,7 +33,11 @@ public class VendorResponse {
 
     private Set<String> categories;
 
+    private String email;
+
     private String status;
+
+    private String rejectionReason;
 
     private Integer yearsInBusiness;
 
@@ -48,6 +52,22 @@ public class VendorResponse {
     private String packageDescription;
 
     private Instant updatedAt;
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getRejectionReason() {
+        return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
+    }
 
     public String getCategory() {
         return category;
