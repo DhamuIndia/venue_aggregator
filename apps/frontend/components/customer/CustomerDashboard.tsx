@@ -219,21 +219,78 @@ export function CustomerDashboard() {
   useEffect(() => {
     let isCurrent = true;
 
+    // async function loadReviewEligibility() {
+    //   if (isLoadingBookings) return;
+
+    //   setIsLoadingReviewEligibility(true);
+    //   setReviewError("");
+
+    //   const completedReviewBooking = bookings.find((booking): booking is BookingItem & { enquiryId: string } => (
+    //     booking.status === "COMPLETED" && Boolean(booking.enquiryId)
+    //   ));
+    //   const isVendorReview =
+    //     completedReviewBooking?.enquiryId.startsWith("VLEAD-") ?? false;
+    //   const fallback = completedReviewBooking ? reviewEligibilityFromBooking(completedReviewBooking) : fallbackReviewEligibility;
+
+    //   if (!useCustomerReviewDemoFallback && !completedReviewBooking) {
+    //     if (!isCurrent) return;
+    //     setReviewEligibility(emptyReviewEligibility());
+    //     setReviewSubmitted(false);
+    //     setIsLoadingReviewEligibility(false);
+    //     return;
+    //   }
+
+    //   try {
+    //     let eligibility: ReviewEligibility;
+
+    //     if (isVendorReview) {
+    //       const response = await getVendorReviewEligibility(
+    //         completedReviewBooking!.enquiryId,
+    //         accessToken
+    //       );
+
+    //       eligibility = {
+    //         eligible: response.eligible,
+    //         enquiryId: response.leadId,
+    //         hallName: response.vendorName,
+    //         eventDate: response.eventDate,
+    //         eventType: response.eventType,
+    //         reason: response.reason,
+    //         submittedReviewId: response.submittedReviewId
+    //       };
+    //     } else {
+    //       eligibility = await getCustomerReviewEligibility(
+    //         completedReviewBooking!.enquiryId,
+    //         accessToken,
+    //         fallback
+    //       );
+    //     }
+    //     if (!isCurrent) return;
+    //     setReviewEligibility(eligibility);
+    //     setReviewSubmitted(Boolean(eligibility.submittedReviewId));
+    //   } catch {
+    //     if (!isCurrent) return;
+    //     setReviewEligibility(useCustomerReviewDemoFallback ? fallback : emptyReviewEligibility());
+    //     setReviewError("Could not load review eligibility.");
+    //   } finally {
+    //     if (isCurrent) setIsLoadingReviewEligibility(false);
+    //   }
+    // }
     async function loadReviewEligibility() {
       if (isLoadingBookings) return;
 
       setIsLoadingReviewEligibility(true);
       setReviewError("");
 
-      const completedReviewBooking = bookings.find((booking): booking is BookingItem & { enquiryId: string } => (
-        booking.status === "COMPLETED" && Boolean(booking.enquiryId)
-      ));
-      const isVendorReview =
-        completedReviewBooking?.enquiryId.startsWith("VLEAD-") ?? false;
-      const fallback = completedReviewBooking ? reviewEligibilityFromBooking(completedReviewBooking) : fallbackReviewEligibility;
+      const completedReviewBookings = bookings.filter(
+        (booking): booking is BookingItem & { enquiryId: string } =>
+          booking.status === "COMPLETED" &&
+          Boolean(booking.enquiryId)
+      );
 
-      if (!useCustomerReviewDemoFallback && !completedReviewBooking) {
+      if (!useCustomerReviewDemoFallback && completedReviewBookings.length === 0) {
         if (!isCurrent) return;
+
         setReviewEligibility(emptyReviewEligibility());
         setReviewSubmitted(false);
         setIsLoadingReviewEligibility(false);
@@ -241,39 +298,73 @@ export function CustomerDashboard() {
       }
 
       try {
-        let eligibility: ReviewEligibility;
+        let foundEligibility: ReviewEligibility | null = null;
 
-        if (isVendorReview) {
-          const response = await getVendorReviewEligibility(
-            completedReviewBooking!.enquiryId,
-            accessToken
-          );
+        for (const booking of completedReviewBookings) {
+          const isVendorReview = booking.enquiryId.startsWith("VLEAD-");
+          const fallback = reviewEligibilityFromBooking(booking);
 
-          eligibility = {
-            eligible: response.eligible,
-            enquiryId: response.leadId,
-            hallName: response.vendorName,
-            eventDate: response.eventDate,
-            eventType: response.eventType,
-            reason: response.reason,
-            submittedReviewId: response.submittedReviewId
-          };
-        } else {
-          eligibility = await getCustomerReviewEligibility(
-            completedReviewBooking!.enquiryId,
-            accessToken,
-            fallback
-          );
+          let eligibility: ReviewEligibility;
+
+          if (isVendorReview) {
+            const response = await getVendorReviewEligibility(
+              booking.enquiryId,
+              accessToken
+            );
+
+            eligibility = {
+              eligible: response.eligible,
+              enquiryId: response.leadId,
+              hallName: response.vendorName,
+              eventDate: response.eventDate,
+              eventType: response.eventType,
+              reason: response.reason,
+              submittedReviewId: response.submittedReviewId
+            };
+          } else {
+            eligibility = await getCustomerReviewEligibility(
+              booking.enquiryId,
+              accessToken,
+              fallback
+            );
+          }
+
+          // First booking that is eligible
+          if (eligibility.eligible) {
+            foundEligibility = eligibility;
+            break;
+          }
+
+          // Keep the last response (usually "Review already exists")
+          foundEligibility = eligibility;
         }
+
         if (!isCurrent) return;
-        setReviewEligibility(eligibility);
-        setReviewSubmitted(Boolean(eligibility.submittedReviewId));
+
+        if (foundEligibility) {
+          setReviewEligibility(foundEligibility);
+          setReviewSubmitted(Boolean(foundEligibility.submittedReviewId));
+        } else {
+          setReviewEligibility(
+            useCustomerReviewDemoFallback
+              ? fallbackReviewEligibility
+              : emptyReviewEligibility()
+          );
+          setReviewSubmitted(false);
+        }
       } catch {
         if (!isCurrent) return;
-        setReviewEligibility(useCustomerReviewDemoFallback ? fallback : emptyReviewEligibility());
+
+        setReviewEligibility(
+          useCustomerReviewDemoFallback
+            ? fallbackReviewEligibility
+            : emptyReviewEligibility()
+        );
         setReviewError("Could not load review eligibility.");
       } finally {
-        if (isCurrent) setIsLoadingReviewEligibility(false);
+        if (isCurrent) {
+          setIsLoadingReviewEligibility(false);
+        }
       }
     }
 

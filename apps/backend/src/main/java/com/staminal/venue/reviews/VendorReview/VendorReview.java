@@ -6,6 +6,7 @@ import com.staminal.venue.leads.VendorLead;
 import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Entity.Vendors;
+import com.staminal.venue.admin.Admin;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -58,6 +59,16 @@ public class VendorReview {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @Column(name = "moderation_reason", length = 500)
+    private String moderationReason;
+
+    @ManyToOne
+    @JoinColumn(name = "moderated_by_admin_id")
+    private Admin moderatedByAdmin;
+
+    @Column(name = "moderated_at")
+    private Instant moderatedAt;
 
     @PrePersist
     void onCreate() {

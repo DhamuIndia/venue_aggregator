@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX uq_vendor_review_customer_vendor
+ON vendor_reviews(customer_user_id, vendor_id);

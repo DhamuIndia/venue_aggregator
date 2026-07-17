@@ -134,7 +134,9 @@ public class VendorReviewService {
                                         "Lead is not completed");
                 }
 
-                if (vendorReviewRepository.existsByVendorLead_Id(lead.getId())) {
+                if (vendorReviewRepository.existsByCustomer_IdAndVendor_Id(
+                                customer.getId(),
+                                lead.getVendor().getId())) {
                         throw new ResponseStatusException(
                                         HttpStatus.BAD_REQUEST,
                                         "Review already exists");
@@ -154,7 +156,7 @@ public class VendorReviewService {
                 review = vendorReviewRepository.save(review);
 
                 // vendorRatingAggregateService.refreshForVendorId(
-                //                 lead.getVendor().getId());
+                // lead.getVendor().getId());
 
                 return new VendorReviewResponse(
                                 review.getId(),
@@ -205,7 +207,9 @@ public class VendorReviewService {
                                         "Lead is not completed");
                 }
 
-                if (vendorReviewRepository.existsByVendorLead_Id(id)) {
+                if (vendorReviewRepository.existsByCustomer_IdAndVendor_Id(
+                                customer.getId(),
+                                lead.getVendor().getId())) {
                         return new VendorReviewEligibilityResponse(
                                         false,
                                         leadId,

@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.reviews.HallReview.Review;
-import com.staminal.venue.reviews.HallReview.ReviewRepository;
 import com.staminal.venue.reviews.VendorReview.VendorReview;
 import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
 import com.staminal.venue.vendors.Dto.PublicVendorListResponse;
@@ -27,6 +26,7 @@ import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorMediaRepository;
 import com.staminal.venue.vendors.Repository.VendorPackageRepository;
 import com.staminal.venue.vendors.Repository.VendorRepository;
+import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,7 +39,6 @@ public class PublicVendorService {
     private final VendorRepository vendorRepository;
     private final VendorPackageRepository vendorPackageRepository;
     private final VendorMediaRepository vendorMediaRepository;
-    private final ReviewRepository reviewRepository;
     private final VendorReviewRepository vendorReviewRepository;
 
     @Transactional(readOnly = true)
@@ -279,7 +278,7 @@ public class PublicVendorService {
                 eventType(review),
                 firstText(review.getComment(), ""),
                 eventDate(review),
-                Boolean.TRUE.equals(review.getVerifiedService()));
+                true);
     }
 
     private double averageRating(List<VendorReview> reviews) {
@@ -299,13 +298,16 @@ public class PublicVendorService {
     }
 
     private String eventDate(VendorReview review) {
-        if (review.getVendorLead() != null && review.getVendorLead().getEventDate() != null) {
+
+        if (review.getVendorLead() != null &&
+                review.getVendorLead().getEventDate() != null) {
+
             return review.getVendorLead().getEventDate().toString();
         }
-        if (review.getBooking() != null && review.getBooking().getEventDate() != null) {
-            return review.getBooking().getEventDate().toString();
-        }
-        return review.getCreatedAt() == null ? "" : review.getCreatedAt().toString();
+
+        return review.getCreatedAt() == null
+                ? ""
+                : review.getCreatedAt().toString();
     }
 
     private BigDecimal startingPrice(Vendors vendor) {
