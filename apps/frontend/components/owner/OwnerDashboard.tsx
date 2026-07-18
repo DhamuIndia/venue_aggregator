@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   CreditCard,
   Eye,
@@ -24,7 +25,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { NotificationActivity } from "@/components/notifications/NotificationCenter";
-import { formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
+import { formatGuestCapacityOption, formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
 import { fallbackOwnerAnalytics, getOwnerAnalytics, type OwnerAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -1341,7 +1342,7 @@ export function OwnerDashboard() {
                   <div className="grid gap-5 sm:grid-cols-2">
                     <label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("name", event.target.value)} value={listingForm.name} /></label>
                     <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label>
-                    <label className="text-sm font-medium">Maximum guests<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("capacity", event.target.value)} value={listingForm.capacity}><option value="">Select capacity</option>{listingCapacityOptions.map((option) => <option key={option} value={option}>{formatGuestCount(option)} guests</option>)}</select></label>
+                    <label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><select className="h-11 w-full appearance-none rounded-md border border-border bg-white px-3 pr-10 font-normal outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15" onChange={(event) => updateListingField("capacity", event.target.value)} value={listingForm.capacity}><option value="">Choose guest capacity</option>{listingCapacityOptions.map((option) => <option key={option} value={option}>{formatGuestCapacityOption(option)}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /></span></label>
                     <label className="text-sm font-medium">City<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("city", event.target.value)} value={listingForm.city} /></label>
                     <label className="text-sm font-medium">Area<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("area", event.target.value)} value={listingForm.area} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(event) => updateListingField("pincode", event.target.value)} placeholder="6-digit pincode" value={listingForm.pincode} /></label>

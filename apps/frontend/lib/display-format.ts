@@ -1,6 +1,6 @@
 const uppercaseWords = new Set(["AC", "BP", "DJ", "LED", "TV", "VIP"]);
 
-export const guestCapacityOptions = [50, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000];
+export const guestCapacityOptions = [100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 3000, 5000];
 
 export function toTitleCase(value: string) {
   return value
@@ -20,4 +20,8 @@ export function formatGuestCount(value: number | string) {
   const numericValue = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(numericValue)) return "0";
   return new Intl.NumberFormat("en-IN").format(numericValue);
+}
+
+export function formatGuestCapacityOption(value: number | string) {
+  return `Up to ${formatGuestCount(value)} guests`;
 }
