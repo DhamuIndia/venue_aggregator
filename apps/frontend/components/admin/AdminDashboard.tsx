@@ -26,15 +26,18 @@ import { useEffect, useMemo, useState } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
 import { VenueDetailsDrawer } from "@/components/admin/VenueDetailsDrawer";
 import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
-import { useAuth } from "@/features/auth/AuthProvider";
-import { fallbackAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
+import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
 import {
-  getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus, getAdminVendor, getAdminVendorReviews,
+  getAdminQueues,
+  getAdminVendor,
+  getAdminVendorReviews,
+  moderateAdminReview,
   moderateAdminVendorReview,
+  reviewAdminHall,
+  reviewAdminVendor,
+  updateAdminUserStatus,
   type AdminVendorReview
 } from "@/features/admin/admin-client";
-import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
-import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus, getAdminVendor } from "@/features/admin/admin-client";
 import {
   auditEvents as initialAuditEvents,
   type AdminEnquiry,
@@ -45,6 +48,7 @@ import {
   type VendorApplication,
   type VenueApplication
 } from "@/features/admin/mock-data";
+import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
 import type { EnquiryStatus } from "@/features/enquiries/types";
 
@@ -120,6 +124,7 @@ export function AdminDashboard() {
   const [venues, setVenues] = useState<VenueApplication[]>([]);
   const [vendors, setVendors] = useState<VendorApplication[]>([]);
   const [reviews, setReviews] = useState<ReportedReview[]>([]);
+  const [vendorReviews, setVendorReviews] = useState<AdminVendorReview[]>([]);
   const [enquiries, setEnquiries] = useState<AdminEnquiry[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [analytics, setAnalytics] = useState<AdminAnalytics>(emptyAdminAnalytics);
@@ -296,8 +301,7 @@ export function AdminDashboard() {
     reason: string
   ) {
     try {
-
-      const updated = await moderateAdminVendorReview(
+      await moderateAdminVendorReview(
         id,
         status,
         reason,

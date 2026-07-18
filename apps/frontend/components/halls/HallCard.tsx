@@ -21,21 +21,23 @@ export function HallCard({ hall, initialSaved, onSavedChange }: HallCardProps) {
   return (
     <article className="group overflow-hidden rounded-lg border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-        <Image
-          alt={`${hall.name} venue interior`}
-          className="object-cover transition duration-500 group-hover:scale-[1.03]"
-          fill
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          src={hall.imageUrl}
-        />
-        <div className="absolute left-3 top-3 flex gap-2">
-          {hall.availableThisMonth && (
-            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-emerald-700 shadow-sm">
-              Dates available
-            </span>
-          )}
-        </div>
-        <SaveHallButton className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white text-foreground shadow-sm hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60" hall={hall} initialSaved={initialSaved} onSavedChange={onSavedChange} />
+        <Link aria-label={`View details for ${hall.name}`} className="block size-full" href={`/halls/${hall.id}`}>
+          <Image
+            alt={`${hall.name} venue interior`}
+            className="object-cover transition duration-500 group-hover:scale-[1.03]"
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            src={hall.imageUrl}
+          />
+          <div className="absolute left-3 top-3 flex gap-2">
+            {hall.availableThisMonth && (
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-emerald-700 shadow-sm">
+                Dates available
+              </span>
+            )}
+          </div>
+        </Link>
+        <SaveHallButton className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-white text-foreground shadow-sm hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60" hall={hall} initialSaved={initialSaved} onSavedChange={onSavedChange} />
       </div>
 
       <div className="p-4">
