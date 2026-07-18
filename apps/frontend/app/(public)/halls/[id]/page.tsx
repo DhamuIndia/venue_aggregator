@@ -111,11 +111,28 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
                 <h2 className="text-xl font-semibold">Verified customer reviews</h2>
                 <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700"><BadgeCheck size={17} /> Verified service</span>
               </div>
-              <div className="mt-5 border-l-2 border-emerald-500 pl-4">
-                <div className="flex items-center gap-2 text-sm"><strong>Priya S.</strong><span className="text-muted-foreground">Completed event</span></div>
-                <div className="mt-2 flex gap-1 text-amber-400">{[1, 2, 3, 4, 5].map((star) => <Star aria-hidden="true" className="fill-current" key={star} size={15} />)}</div>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">The venue was clean, the dining space was well managed, and the owner responded quickly throughout the booking.</p>
-              </div>
+              {hall.reviews?.length ? (
+                <div className="mt-5 grid gap-6">
+                  {hall.reviews.map((review, index) => (
+                    <article className="border-l-2 border-emerald-500 pl-4" key={`${review.customerName}-${index}`}>
+                      <div className="flex items-center gap-2 text-sm">
+                        <strong>{review.customerName}</strong>
+                        {review.verifiedService && <span className="text-muted-foreground">Completed event</span>}
+                      </div>
+                      <div className="mt-2 flex gap-1 text-amber-400">
+                        {Array.from({ length: Math.max(0, Math.min(5, Math.round(review.rating))) }, (_, star) => (
+                          <Star aria-hidden="true" className="fill-current" key={star} size={15} />
+                        ))}
+                      </div>
+                      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{review.comment}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-5 rounded-md border border-dashed border-border bg-white px-4 py-5 text-sm text-muted-foreground">
+                  No verified customer reviews yet.
+                </p>
+              )}
             </section>
           </div>
 

@@ -21,7 +21,7 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
   const [isLoading, setIsLoading] = useState(true);
   const [isFullCalendarOpen, setIsFullCalendarOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
-  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()));
   const [selectedSlot, setSelectedSlot] = useState<HallBaseSlot | "">("");
 
   useEffect(() => {
@@ -147,7 +147,7 @@ function AvailabilityDayCard({ date, hallId, selectedDate, selectedSlot, unavail
   }
 
   return (
-    <article className={`rounded-md border p-3 ${isSelectedDay ? "border-primary ring-2 ring-primary/15" : isToday ? "border-primary" : "border-border"}`}>
+    <article className={`rounded-md border p-3 ${isSelectedDay ? "border-primary ring-2 ring-primary/15" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">{formatDisplayDate(date)}</p>

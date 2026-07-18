@@ -1,7 +1,7 @@
 import { apiRequest } from "@/lib/api-client";
 import { toTitleCase } from "@/lib/display-format";
 import { getHallById as getMockHallById, halls as mockHalls } from "./mock-data";
-import type { HallSummary, VenueType } from "./types";
+import type { HallSummary, PublicHallReview, VenueType } from "./types";
 
 export type HallSort = "recommended" | "rating" | "price-low" | "capacity";
 
@@ -131,7 +131,8 @@ function toHallSummary(value: unknown): HallSummary | undefined {
     amenities: amenities(value, fallback.amenities),
     isVerified: booleanValue(value, ["isVerified", "verified"]) ?? statusIsApproved(value) ?? fallback.isVerified,
     availableThisMonth: booleanValue(value, ["availableThisMonth", "hasAvailability"]) ?? fallback.availableThisMonth,
-    description: stringValue(value, ["description", "summary"]) ?? fallback.description
+    description: stringValue(value, ["description", "summary"]) ?? fallback.description,
+    reviews: publicReviews(value)
   };
 }
 
@@ -175,6 +176,28 @@ function amenities(record: ApiHallRecord, fallback: string[]) {
   ].filter(Boolean);
 
   return inferred.length ? inferred : fallback;
+}
+
+function publicReviews(record: ApiHallRecord): PublicHallReview[] {
+  const list = Array.isArray(record.reviews) ? record.reviews : [];
+  return list
+    .map((item) => toPublicHallReview(item))
+    .filter(Boolean) as PublicHallReview[];
+}
+
+function toPublicHallReview(value: unknown): PublicHallReview | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const rating = numberValue(value, ["rating"]);
+  const comment = stringValue(value, ["comment", "review", "message"]);
+  if (!rating || !comment) return undefined;
+
+  return {
+    customerName: stringValue(value, ["customerName", "customer_name", "name"]) ?? "Anonymous",
+    rating,
+    comment,
+    verifiedService: booleanValue(value, ["verifiedService", "verified_service"]) ?? false
+  };
 }
 
 function statusIsApproved(record: ApiHallRecord) {
