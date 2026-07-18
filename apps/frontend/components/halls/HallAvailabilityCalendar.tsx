@@ -4,7 +4,18 @@ import { CalendarDays, ChevronLeft, ChevronRight, LoaderCircle } from "lucide-re
 import { useEffect, useMemo, useState } from "react";
 import { getPublicHallAvailability, slotStatusForDate, type PublicHallUnavailableSlot } from "@/features/halls/availability-client";
 import { HALL_SLOT_SELECTION_EVENT, emitHallSlotSelection, type HallSlotSelectionDetail } from "@/features/halls/slot-selection-events";
-import { HALL_SLOT_DETAILS, formatDisplayDate, toDateInputValue, type HallBaseSlot } from "@/features/halls/slot-model";
+import {
+  HALL_SLOT_COMBINATIONS,
+  HALL_SLOT_DETAILS,
+  buildSlotRequests,
+  formatDisplayDate,
+  formatSlotRequests,
+  slotConflicts,
+  toDateInputValue,
+  type HallBaseSlot,
+  type HallSlotCombinationId,
+  type HallSlotRequest
+} from "@/features/halls/slot-model";
 
 type HallAvailabilityCalendarProps = {
   hallId: string;
@@ -22,7 +33,7 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
   const [isFullCalendarOpen, setIsFullCalendarOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()));
-  const [selectedSlot, setSelectedSlot] = useState<HallBaseSlot | "">("");
+  const [selectedSlot, setSelectedSlot] = useState<HallSlotCombinationId>("FULL_DAY");
 
   useEffect(() => {
     let isCurrent = true;
@@ -65,10 +76,15 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
     });
   }, []);
   const visibleDates = isFullCalendarOpen ? monthDates : compactDates;
+  const selectedSlotRequests = useMemo(() => buildSlotRequests(selectedDate, selectedSlot), [selectedDate, selectedSlot]);
 
   function moveMonth(direction: -1 | 1) {
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + direction, 1));
     setIsFullCalendarOpen(true);
+  }
+
+  function selectCombination(slot: HallSlotCombinationId, date = selectedDate) {
+    emitHallSlotSelection({ hallId, date, slot });
   }
 
   return (
@@ -109,6 +125,34 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
             <span className="inline-flex items-center gap-1.5"><i className="size-2.5 rounded-full bg-rose-200" /> Blocked</span>
           </div>
         </div>
+        <div className="mt-4 rounded-md border border-border bg-muted/25 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Selected date</p>
+              <p className="mt-0.5 text-sm font-semibold">{formatDisplayDate(selectedDate)}</p>
+            </div>
+            <p className="max-w-xl text-xs text-muted-foreground">Selected: {formatSlotRequests(selectedSlotRequests)}</p>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {HALL_SLOT_COMBINATIONS.map((option) => {
+              const isSelected = selectedSlot === option.id;
+              const isAvailable = isCombinationAvailable(selectedDate, option.id, unavailableSlots);
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={`rounded-md border px-3 py-2 text-left text-xs outline-none transition ${isSelected ? "border-primary bg-emerald-50 text-primary" : "border-border bg-white text-muted-foreground"} ${isAvailable ? "hover:border-primary hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/25" : "cursor-not-allowed bg-muted/50 opacity-60"}`}
+                  disabled={!isAvailable}
+                  key={option.id}
+                  onClick={() => selectCombination(option.id)}
+                  type="button"
+                >
+                  <span className="block font-semibold">{option.label}</span>
+                  <span className="mt-0.5 block">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {isLoading ? (
           <div className="mt-5 grid min-h-48 place-items-center rounded-md bg-muted/40 text-sm text-muted-foreground">
@@ -122,13 +166,13 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
               </div>
               <div className="mt-3 grid grid-cols-7 gap-2">
                 {Array.from({ length: firstDayOffset(visibleMonth) }, (_, index) => <span aria-hidden="true" className="block" key={`blank-${index}`} />)}
-                {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlot={selectedSlot} unavailableSlots={unavailableSlots} />)}
+                {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlotRequests={selectedSlotRequests} unavailableSlots={unavailableSlots} />)}
               </div>
             </div>
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlot={selectedSlot} unavailableSlots={unavailableSlots} />)}
+            {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlotRequests={selectedSlotRequests} unavailableSlots={unavailableSlots} />)}
           </div>
         )}
       </div>
@@ -136,18 +180,18 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
   );
 }
 
-function AvailabilityDayCard({ date, hallId, selectedDate, selectedSlot, unavailableSlots }: { date: string; hallId: string; selectedDate: string; selectedSlot: HallBaseSlot | ""; unavailableSlots: PublicHallUnavailableSlot[] }) {
+function AvailabilityDayCard({ date, hallId, selectedDate, selectedSlotRequests, unavailableSlots }: { date: string; hallId: string; selectedDate: string; selectedSlotRequests: HallSlotRequest[]; unavailableSlots: PublicHallUnavailableSlot[] }) {
   const statuses = slotStatusForDate(date, unavailableSlots);
   const isToday = date === toDateInputValue(new Date());
+  const hasSelectedSlot = selectedSlotRequests.some((request) => request.date === date);
   const isSelectedDay = selectedDate === date;
 
   function selectSlot(slot: HallBaseSlot) {
     emitHallSlotSelection({ hallId, date, slot });
-    document.getElementById("enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
-    <article className={`rounded-md border p-3 ${isSelectedDay ? "border-primary ring-2 ring-primary/15" : "border-border"}`}>
+    <article className={`rounded-md border p-3 ${isSelectedDay || hasSelectedSlot ? "border-primary ring-2 ring-primary/15" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">{formatDisplayDate(date)}</p>
@@ -156,7 +200,7 @@ function AvailabilityDayCard({ date, hallId, selectedDate, selectedSlot, unavail
         {isToday && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-primary">Today</span>}
       </div>
       <div className="mt-3 grid gap-1">
-        {statuses.map((item) => <SlotStatusChip key={item.slot} onSelect={() => selectSlot(item.slot)} selected={isSelectedDay && selectedSlot === item.slot} slot={item.slot} status={item.status} />)}
+        {statuses.map((item) => <SlotStatusChip key={item.slot} onSelect={() => selectSlot(item.slot)} selected={selectedSlotRequests.some((request) => request.date === date && request.slot === item.slot)} slot={item.slot} status={item.status} />)}
       </div>
     </article>
   );
@@ -194,4 +238,12 @@ function datesForMonth(date: Date) {
   const month = date.getMonth();
   const days = new Date(year, month + 1, 0).getDate();
   return Array.from({ length: days }, (_, index) => toDateInputValue(new Date(year, month, index + 1)));
+}
+
+function isCombinationAvailable(date: string, slot: HallSlotCombinationId, unavailableSlots: PublicHallUnavailableSlot[]) {
+  return buildSlotRequests(date, slot).every((request) => {
+    return !unavailableSlots.some((unavailableSlot) => {
+      return unavailableSlot.date === request.date && slotConflicts(unavailableSlot.slot, request.slot);
+    });
+  });
 }

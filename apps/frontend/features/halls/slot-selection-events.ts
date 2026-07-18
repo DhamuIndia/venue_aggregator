@@ -1,11 +1,11 @@
-import type { HallBaseSlot } from "./slot-model";
+import type { HallSlotCombinationId } from "./slot-model";
 
 export const HALL_SLOT_SELECTION_EVENT = "venue:hall-slot-selected";
 
 export type HallSlotSelectionDetail = {
   hallId: string;
   date: string;
-  slot: HallBaseSlot;
+  slot: HallSlotCombinationId;
 };
 
 export function emitHallSlotSelection(detail: HallSlotSelectionDetail) {

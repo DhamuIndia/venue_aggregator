@@ -16,7 +16,10 @@ export type HallSlotCombinationId =
   | "MORNING_AFTERNOON"
   | "AFTERNOON_EVENING"
   | "FULL_DAY"
-  | "EVENING_NEXT_MORNING";
+  | "EVENING_NEXT_MORNING"
+  | "EVENING_NEXT_AFTERNOON"
+  | "EVENING_NEXT_MORNING_AFTERNOON"
+  | "AFTERNOON_EVENING_NEXT_MORNING";
 
 export type HallSlotCombination = {
   id: HallSlotCombinationId;
@@ -74,6 +77,27 @@ export const HALL_SLOT_COMBINATIONS: HallSlotCombination[] = [
     label: "Evening + next morning",
     description: "4 PM - 11 PM, then 6 AM - 12 PM next day",
     slots: ["EVENING"],
+    nextDaySlots: ["MORNING"]
+  },
+  {
+    id: "EVENING_NEXT_AFTERNOON",
+    label: "Evening + next afternoon",
+    description: "4 PM - 11 PM, then 12 PM - 4 PM next day",
+    slots: ["EVENING"],
+    nextDaySlots: ["AFTERNOON"]
+  },
+  {
+    id: "EVENING_NEXT_MORNING_AFTERNOON",
+    label: "Evening + next morning + afternoon",
+    description: "4 PM - 11 PM, then 6 AM - 4 PM next day",
+    slots: ["EVENING"],
+    nextDaySlots: ["MORNING", "AFTERNOON"]
+  },
+  {
+    id: "AFTERNOON_EVENING_NEXT_MORNING",
+    label: "Afternoon + evening + next morning",
+    description: "12 PM - 11 PM, then 6 AM - 12 PM next day",
+    slots: ["AFTERNOON", "EVENING"],
     nextDaySlots: ["MORNING"]
   }
 ];

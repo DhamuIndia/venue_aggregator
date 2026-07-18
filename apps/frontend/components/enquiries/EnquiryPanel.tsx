@@ -236,12 +236,16 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         <fieldset>
           <legend className="text-sm font-medium">Preferred slot</legend>
           <div className="mt-2 grid gap-2">
-            {HALL_SLOT_COMBINATIONS.map((option) => (
-              <button aria-pressed={slotCombination === option.id} className={`min-h-14 rounded-md border px-3 py-2 text-left text-xs ${slotCombination === option.id ? "border-primary bg-emerald-50 text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-foreground"}`} key={option.id} onClick={() => updateSlotCombination(option.id)} type="button">
-                <span className="block font-semibold">{option.label}</span>
-                <span className="mt-0.5 block">{option.description}</span>
-              </button>
-            ))}
+            {HALL_SLOT_COMBINATIONS.map((option) => {
+              const optionRequests = eventDate ? buildSlotRequests(eventDate, option.id) : [];
+              const isUnavailable = eventDate && !isAvailabilityLoading && hasUnavailableRequest(optionRequests, unavailableSlots);
+              return (
+                <button aria-pressed={slotCombination === option.id} className={`min-h-14 rounded-md border px-3 py-2 text-left text-xs ${slotCombination === option.id ? "border-primary bg-emerald-50 text-primary" : "border-border text-muted-foreground"} ${isUnavailable ? "cursor-not-allowed bg-muted/50 opacity-60" : "hover:border-primary hover:text-foreground"}`} disabled={Boolean(isUnavailable)} key={option.id} onClick={() => updateSlotCombination(option.id)} type="button">
+                  <span className="block font-semibold">{option.label}</span>
+                  <span className="mt-0.5 block">{option.description}</span>
+                </button>
+              );
+            })}
           </div>
           {selectedSlotRequests.length > 0 && <p className="mt-2 text-xs text-muted-foreground">Selected: {formatSlotRequests(selectedSlotRequests)}</p>}
         </fieldset>
