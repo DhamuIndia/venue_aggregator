@@ -102,6 +102,40 @@ export function VendorDetailsDrawer({
                             value={vendor.email}
                         />
 
+                        <Field
+                            label="WhatsApp"
+                            value={vendor.whatsAppNumber}
+                        />
+
+                    </Section>
+
+                    <Section title="Service Area">
+
+                        <Field
+                            label="Address"
+                            value={vendor.addressLine}
+                        />
+
+                        <Field
+                            label="Area"
+                            value={vendor.area}
+                        />
+
+                        <Field
+                            label="Pincode"
+                            value={vendor.pincode}
+                        />
+
+                        <Field
+                            label="Service radius"
+                            value={vendor.serviceRadius ? `${vendor.serviceRadius} km` : undefined}
+                        />
+
+                        <Field
+                            label="Years in business"
+                            value={vendor.yearsInBusiness}
+                        />
+
                     </Section>
 
                     {/* Description */}
@@ -144,7 +178,7 @@ export function VendorDetailsDrawer({
 
                         <Field
                             label="Starting Price"
-                            value={`₹${vendor.startingPrice}`}
+                            value={vendor.startingPrice != null ? `INR ${new Intl.NumberFormat("en-IN").format(vendor.startingPrice)}` : undefined}
                         />
 
                         <Field

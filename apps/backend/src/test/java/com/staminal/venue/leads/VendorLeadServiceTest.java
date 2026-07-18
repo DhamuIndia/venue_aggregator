@@ -51,6 +51,8 @@ class VendorLeadServiceTest {
     private AuditService auditService;
 
     @Mock
+    private NotificationService notificationService;
+
     private VendorLeadService vendorLeadService;
 
     @Mock

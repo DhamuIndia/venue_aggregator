@@ -5,14 +5,12 @@ import { notFound } from "next/navigation";
 import { ShareButton } from "@/components/common/ShareButton";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { VendorQuotePanel } from "@/components/vendors/VendorQuotePanel";
-import { categoryLabels, vendors } from "@/features/vendors/mock-data";
+import { categoryLabels } from "@/features/vendors/mock-data";
 import { getPublicVendor } from "@/features/vendors/vendor-client";
 
 type VendorDetailPageProps = { params: Promise<{ id: string }> };
 
-export function generateStaticParams() {
-  return vendors.map((vendor) => ({ id: vendor.id }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function VendorDetailPage({ params }: VendorDetailPageProps) {
   const { id } = await params;
@@ -24,7 +22,7 @@ export default async function VendorDetailPage({ params }: VendorDetailPageProps
       <SiteHeader />
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
         <div className="flex items-center justify-between gap-4"><Link className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground" href="/vendors"><ArrowLeft size={17} /> Back to vendors</Link><ShareButton label="Share vendor" text={`View ${vendor.businessName} on VenueMart`} title={vendor.businessName} /></div>
-        <div className="mt-5 grid gap-3 overflow-hidden rounded-lg md:grid-cols-[1.6fr_1fr]"><div className="relative aspect-[16/10] overflow-hidden bg-muted md:aspect-auto md:min-h-[440px]"><Image alt={`${vendor.businessName} service portfolio`} className="object-cover" fill priority sizes="(max-width: 768px) 100vw, 65vw" src={vendor.imageUrl} /></div><div className="hidden gap-3 md:grid">{vendor.galleryUrls.map((url, index) => <div className="relative overflow-hidden bg-muted" key={url}><Image alt={`${vendor.businessName} portfolio ${index + 1}`} className="object-cover" fill sizes="35vw" src={url} /></div>)}</div></div>
+        <div className="mt-5 grid gap-3 overflow-hidden rounded-lg md:grid-cols-[1.6fr_1fr]"><div className="relative aspect-[16/10] overflow-hidden bg-muted md:aspect-auto md:min-h-[440px]"><Image alt={`${vendor.businessName} service portfolio`} className="object-cover" fill priority sizes="(max-width: 768px) 100vw, 65vw" src={vendor.imageUrl} unoptimized /></div><div className="hidden gap-3 md:grid">{vendor.galleryUrls.map((url, index) => <div className="relative overflow-hidden bg-muted" key={url}><Image alt={`${vendor.businessName} portfolio ${index + 1}`} className="object-cover" fill sizes="35vw" src={url} unoptimized /></div>)}</div></div>
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div>
             <div className="flex flex-wrap items-start justify-between gap-5 border-b border-border pb-7"><div><div className="flex items-center gap-2 text-sm font-medium text-primary">{categoryLabels[vendor.category]}{vendor.verified && <BadgeCheck aria-label="Verified vendor" size={17} />}</div><h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{vendor.businessName}</h1><p className="mt-3 flex items-center gap-2 text-muted-foreground"><MapPin size={17} /> {vendor.area}, {vendor.city}</p></div><div className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold"><Star className="fill-amber-400 text-amber-400" size={17} /> {vendor.rating} <span className="font-normal text-muted-foreground">({vendor.reviewCount})</span></div></div>

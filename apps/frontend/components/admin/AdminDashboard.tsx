@@ -24,6 +24,7 @@ import {
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
+import { VenueDetailsDrawer } from "@/components/admin/VenueDetailsDrawer";
 import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { fallbackAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
@@ -32,13 +33,11 @@ import {
   moderateAdminVendorReview,
   type AdminVendorReview
 } from "@/features/admin/admin-client";
+import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
+import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus, getAdminVendor } from "@/features/admin/admin-client";
 import {
-  adminEnquiries,
   auditEvents as initialAuditEvents,
-  adminUsers as initialAdminUsers,
-  initialReportedReviews,
-  initialVendorApplications,
-  initialVenueApplications,
+  type AdminEnquiry,
   type AdminUser,
   type AdminUserStatus,
   type ModerationStatus,
@@ -118,17 +117,15 @@ function VenueImage({ venue, sizes }: { venue: VenueApplication; sizes: string }
 export function AdminDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
-  const [venues, setVenues] = useState<VenueApplication[]>(initialVenueApplications);
-  const [vendors, setVendors] = useState<VendorApplication[]>(initialVendorApplications);
-  const [reviews, setReviews] = useState<ReportedReview[]>(initialReportedReviews);
-  const [vendorReviews, setVendorReviews] =
-    useState<AdminVendorReview[]>([]);
-  const [enquiries, setEnquiries] = useState(adminEnquiries);
-  const [users, setUsers] = useState<AdminUser[]>(initialAdminUsers);
-  const [analytics, setAnalytics] = useState<AdminAnalytics>(fallbackAdminAnalytics);
+  const [venues, setVenues] = useState<VenueApplication[]>([]);
+  const [vendors, setVendors] = useState<VendorApplication[]>([]);
+  const [reviews, setReviews] = useState<ReportedReview[]>([]);
+  const [enquiries, setEnquiries] = useState<AdminEnquiry[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [analytics, setAnalytics] = useState<AdminAnalytics>(emptyAdminAnalytics);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
-  const [auditEvents, setAuditEvents] = useState(initialAuditEvents);
+  const [auditEvents, setAuditEvents] = useState<typeof initialAuditEvents>([]);
   const [isLoadingQueues, setIsLoadingQueues] = useState(true);
   const [adminError, setAdminError] = useState("");
   const [venueFilter, setVenueFilter] = useState<"ALL" | ModerationStatus>("PENDING_APPROVAL");
@@ -141,6 +138,8 @@ export function AdminDashboard() {
   const [notice, setNotice] = useState("");
   const [selectedVendor, setSelectedVendor] =
     useState<VendorApplication | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<VenueApplication | null>(null);
+  const [loadingVendorId, setLoadingVendorId] = useState<string | null>(null);
 
   const pendingVenueCount = venues.filter((venue) => venue.status === "PENDING_APPROVAL").length;
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
@@ -239,7 +238,7 @@ export function AdminDashboard() {
         setAnalytics(response);
       } catch {
         if (!isCurrent) return;
-        setAnalytics(fallbackAdminAnalytics);
+        setAnalytics(emptyAdminAnalytics);
         setAnalyticsError("Could not load latest reports.");
       } finally {
         if (isCurrent) setIsLoadingAnalytics(false);
@@ -340,6 +339,18 @@ export function AdminDashboard() {
     }
   }
 
+  async function openVendorDetails(vendor: VendorApplication) {
+    try {
+      setLoadingVendorId(vendor.id);
+      const fullVendor = await getAdminVendor(vendor.id, accessToken);
+      setSelectedVendor({ ...vendor, ...fullVendor });
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not load vendor details.");
+    } finally {
+      setLoadingVendorId(null);
+    }
+  }
+
   const tabBadge: Partial<Record<AdminTab, number>> = {
     venues: pendingVenueCount,
     vendors: pendingVendorCount,
@@ -414,7 +425,7 @@ export function AdminDashboard() {
                 const documentReviewRequired = venue.documentReviewRequired ?? true;
                 const documentChecks = [{ label: "Ownership", ready: venue.documents.ownership }, { label: "Identity", ready: venue.documents.identity }, { label: "Address", ready: venue.documents.address }];
                 const complete = !documentReviewRequired || documentChecks.every((document) => document.ready);
-                return <article className="rounded-lg border border-border bg-white p-4 sm:p-5" key={venue.id}><div className="grid gap-5 lg:grid-cols-[160px_minmax(0,1fr)_220px]"><div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted lg:aspect-auto lg:min-h-32"><VenueImage sizes="(min-width: 1024px) 160px, 100vw" venue={venue} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{venue.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[venue.status]}`}>{readableStatus(venue.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{venue.location} | {venue.venueType} | {venue.capacity} guests</p><p className="mt-3 text-sm"><strong className="font-medium">Owner:</strong> {venue.ownerName} | {venue.ownerPhone}</p><p className="mt-1 text-sm"><strong className="font-medium">Starting price:</strong> {formatPrice(venue.startingPrice)}</p><p className="mt-3 text-xs text-muted-foreground">Submitted {new Date(venue.submittedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} | {venue.id}</p></div><div><p className="text-xs font-semibold uppercase text-muted-foreground">Review checks</p>{documentReviewRequired ? <div className="mt-3 grid gap-2 text-sm">{documentChecks.map((document) => <p className={`flex items-center gap-2 ${document.ready ? "text-emerald-700" : "text-amber-700"}`} key={document.label}>{document.ready ? <FileCheck2 size={16} /> : <CircleAlert size={16} />}{document.label}</p>)}</div> : <div className="mt-3 grid gap-2 text-sm"><p className="flex items-center gap-2 text-emerald-700"><FileCheck2 size={16} /> MVP manual review</p><p className="text-xs leading-5 text-muted-foreground">Document upload is not collected yet.</p></div>}{venue.status === "PENDING_APPROVAL" && <div className="mt-5 grid grid-cols-2 gap-2"><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 text-sm font-semibold text-rose-700" onClick={() => setRejectTarget({ kind: "venue", id: venue.id, name: venue.ownerName })}><XCircle size={17} /> Reject</button><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!complete} onClick={() => updateVenue(venue.id, "APPROVED")} title={complete ? "Approve venue" : "Complete all document checks first"}><Check size={17} /> Approve</button></div>}</div></div></article>;
+                return <article className="rounded-lg border border-border bg-white p-4 sm:p-5" key={venue.id}><div className="grid gap-5 lg:grid-cols-[160px_minmax(0,1fr)_240px]"><div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted lg:aspect-auto lg:min-h-32"><VenueImage sizes="(min-width: 1024px) 160px, 100vw" venue={venue} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{venue.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[venue.status]}`}>{readableStatus(venue.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{venue.location} | {venue.venueType} | {venue.capacity} guests</p><p className="mt-3 text-sm"><strong className="font-medium">Owner:</strong> {venue.ownerName} | {venue.ownerPhone}</p><p className="mt-1 text-sm"><strong className="font-medium">Starting price:</strong> {formatPrice(venue.startingPrice)}</p><p className="mt-3 text-xs text-muted-foreground">Submitted {new Date(venue.submittedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} | {venue.id}</p></div><div><p className="text-xs font-semibold uppercase text-muted-foreground">Review checks</p>{documentReviewRequired ? <div className="mt-3 grid gap-2 text-sm">{documentChecks.map((document) => <p className={`flex items-center gap-2 ${document.ready ? "text-emerald-700" : "text-amber-700"}`} key={document.label}>{document.ready ? <FileCheck2 size={16} /> : <CircleAlert size={16} />}{document.label}</p>)}</div> : <div className="mt-3 grid gap-2 text-sm"><p className="flex items-center gap-2 text-emerald-700"><FileCheck2 size={16} /> MVP manual review</p><p className="text-xs leading-5 text-muted-foreground">Document upload is not collected yet.</p></div>}<div className="mt-5 grid gap-2"><button className="inline-flex h-10 items-center justify-center rounded-md border border-border text-sm font-semibold hover:border-primary" onClick={() => setSelectedVenue(venue)} type="button">View details</button>{venue.status === "PENDING_APPROVAL" && <div className="grid grid-cols-2 gap-2"><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 text-sm font-semibold text-rose-700" onClick={() => setRejectTarget({ kind: "venue", id: venue.id, name: venue.ownerName })} type="button"><XCircle size={17} /> Reject</button><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!complete} onClick={() => updateVenue(venue.id, "APPROVED")} title={complete ? "Approve venue" : "Complete all document checks first"} type="button"><Check size={17} /> Approve</button></div>}</div></div></div></article>;
               })}
               {filteredVenues.length === 0 && <p className="rounded-lg border border-dashed border-border bg-white px-5 py-12 text-center text-sm text-muted-foreground">No venue applications match this filter.</p>}
             </div>
@@ -425,18 +436,28 @@ export function AdminDashboard() {
           <section className="py-7">
             <div><h2 className="text-xl font-semibold">Vendor applications</h2><p className="mt-1 text-sm text-muted-foreground">Review service category and business identity.</p></div>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
-              <div className="hidden grid-cols-[1.4fr_1fr_1fr_120px_220px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
-              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px_220px] md:items-center" key={vendor.id}><div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div><p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p><p className="text-sm text-muted-foreground">{vendor.submittedAt}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>{vendor.status === "PENDING_APPROVAL" ? <div className="flex justify-end">
-                <button
-                  className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-semibold"
-                  onClick={async () => {
-                    const fullVendor = await getAdminVendor(vendor.id, accessToken);
-                    setSelectedVendor(fullVendor);
-                  }}
-                >
-                  View Details
-                </button>
-              </div> : <span />}</article>)}
+              <div className="hidden grid-cols-[1.3fr_0.8fr_1fr_120px_300px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => {
+                const isLoadingVendor = loadingVendorId === vendor.id;
+                return (
+                  <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.3fr_0.8fr_1fr_120px_300px] md:items-center" key={vendor.id}>
+                    <div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div>
+                    <p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p>
+                    <p className="text-sm text-muted-foreground">{vendor.submittedAt}</p>
+                    <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isLoadingVendor} onClick={() => openVendorDetails(vendor)} type="button">{isLoadingVendor ? "Loading..." : "View details"}</button>
+                      {vendor.status === "PENDING_APPROVAL" && (
+                        <>
+                          <button className="inline-flex h-9 items-center justify-center rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50" onClick={() => setRejectTarget({ kind: "vendor", id: vendor.id, name: vendor.contactName })} type="button"><X size={16} /></button>
+                          <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" onClick={() => updateVendor(vendor.id, "APPROVED")} type="button"><Check size={16} /> Approve</button>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+              {!isLoadingQueues && vendors.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No vendor applications match this filter.</p>}
             </div>
           </section>
         )}
@@ -536,25 +557,25 @@ export function AdminDashboard() {
                   <section className="rounded-lg border border-border bg-white">
                     <div className="border-b border-border px-5 py-4"><h3 className="font-semibold">Monthly trend</h3></div>
                     <div className="divide-y divide-border">
-                      {analytics.trends.map((point) => (
+                      {analytics.trends.length > 0 ? analytics.trends.map((point) => (
                         <div className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[80px_1fr_1fr_1fr]" key={point.label}>
                           <strong>{point.label}</strong>
                           <span>{point.enquiries} enquiries</span>
                           <span>{point.bookings} bookings</span>
                           <span className="font-medium">{formatCompactMoney(point.revenue)}</span>
                         </div>
-                      ))}
+                      )) : <p className="px-5 py-10 text-center text-sm text-muted-foreground">No monthly trend data available yet.</p>}
                     </div>
                   </section>
                   <section className="rounded-lg border border-border bg-white">
                     <div className="border-b border-border px-5 py-4"><h3 className="font-semibold">Top cities</h3></div>
                     <div className="divide-y divide-border">
-                      {analytics.topCities.map((city) => (
+                      {analytics.topCities.length > 0 ? analytics.topCities.map((city) => (
                         <div className="flex items-center justify-between gap-4 px-5 py-4" key={city.city}>
                           <div><p className="font-medium">{city.city}</p><p className="mt-1 text-sm text-muted-foreground">{city.enquiries} enquiries</p></div>
                           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-800">{city.bookings} bookings</span>
                         </div>
-                      ))}
+                      )) : <p className="px-5 py-10 text-center text-sm text-muted-foreground">No city report data available yet.</p>}
                     </div>
                   </section>
                 </div>
@@ -700,13 +721,28 @@ export function AdminDashboard() {
             <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Enquiry tracking</h2><p className="mt-1 text-sm text-muted-foreground">Marketplace-wide status visibility for support and reconciliation.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setEnquiryFilter(event.target.value as "ALL" | EnquiryStatus)} value={enquiryFilter}><option value="ALL">All enquiries</option><option value="PENDING_OWNER_RESPONSE">Pending owner response</option><option value="CONFIRMED">Confirmed</option><option value="DECLINED">Declined</option><option value="COMPLETED">Completed</option></select></label></div>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[130px_1.4fr_1fr_1fr_150px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>ID</span><span>Venue</span><span>Customer</span><span>Event date</span><span>Status</span></div>
-              {filteredEnquiries.map((enquiry) => <article className="grid gap-2 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[130px_1.4fr_1fr_1fr_150px] md:items-center" key={enquiry.id}><p className="text-sm font-medium">{enquiry.id}</p><div><p className="font-medium">{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground md:hidden">Submitted {enquiry.submittedAt}</p></div><p className="text-sm">{enquiry.customerName}</p><p className="text-sm text-muted-foreground">{enquiry.eventDate}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span></article>)}
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[72px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredEnquiries.map((enquiry) => <article className="grid gap-2 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[130px_1.4fr_1fr_1fr_150px] md:items-center" key={enquiry.id}><p className="text-sm font-medium">{enquiry.id}</p><div><p className="font-medium">{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground md:hidden">Submitted {enquiry.submittedAt}</p></div><p className="text-sm">{enquiry.customerName}</p><p className="text-sm text-muted-foreground">{enquiry.eventDate}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span></article>)}
+              {!isLoadingQueues && filteredEnquiries.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No enquiries match this filter.</p>}
             </div>
           </section>
         )}
       </div>
 
       {rejectTarget && <RejectionDialog onClose={() => setRejectTarget(null)} onReject={rejectWithReason} subject={rejectTarget.name} />}
+      {selectedVenue && (
+        <VenueDetailsDrawer
+          venue={selectedVenue}
+          onClose={() => setSelectedVenue(null)}
+          onApprove={async () => {
+            await updateVenue(selectedVenue.id, "APPROVED");
+            setSelectedVenue(null);
+          }}
+          onReject={() => {
+            setRejectTarget({ kind: "venue", id: selectedVenue.id, name: selectedVenue.ownerName });
+            setSelectedVenue(null);
+          }}
+        />
+      )}
       {selectedVendor && (
         <VendorDetailsDrawer
           vendor={selectedVendor}

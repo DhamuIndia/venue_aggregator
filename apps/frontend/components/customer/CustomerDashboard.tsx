@@ -10,7 +10,6 @@ import {
   CreditCard,
   Heart,
   LoaderCircle,
-  LogOut,
   MessageSquareText,
   Star,
   UserRound
@@ -18,7 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
-import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
+import { NotificationActivity } from "@/components/notifications/NotificationCenter";
 import { VenueCompare } from "@/components/customer/VenueCompare";
 import { formatGuestCount } from "@/lib/display-format";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -117,7 +116,7 @@ function emptyReviewEligibility(reason = "Completed eligible services will appea
 }
 
 export function CustomerDashboard() {
-  const { accessToken, logout, user } = useAuth();
+  const { accessToken, user } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -404,11 +403,6 @@ export function CustomerDashboard() {
     };
   }, [accessToken]);
 
-  function signOut() {
-    logout();
-    router.push("/");
-  }
-
   async function submitReview(payload: { rating: number; comment: string }) {
     if (!reviewEligibility.eligible) {
       throw new Error(reviewEligibility.reason ?? "This completed service is not eligible for review.");
@@ -503,10 +497,6 @@ export function CustomerDashboard() {
           <div className="flex items-center gap-4">
             <span className="grid size-12 place-items-center rounded-full bg-emerald-50 text-lg font-semibold text-emerald-800">{user?.fullName.charAt(0)}</span>
             <div><p className="text-sm text-muted-foreground">Welcome back</p><h1 className="text-2xl font-semibold sm:text-3xl">{user?.fullName}</h1></div>
-          </div>
-          <div className="flex items-center gap-2">
-            <NotificationBell />
-            <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-foreground" onClick={signOut} type="button"><LogOut size={17} /> Sign out</button>
           </div>
         </div>
 

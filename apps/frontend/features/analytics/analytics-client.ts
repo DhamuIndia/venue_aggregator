@@ -69,6 +69,18 @@ export const fallbackAdminAnalytics: AdminAnalytics = {
   ]
 };
 
+export const emptyAdminAnalytics: AdminAnalytics = {
+  totalUsers: 0,
+  activeListings: 0,
+  monthlyEnquiries: 0,
+  confirmedBookings: 0,
+  bookingRevenue: 0,
+  vendorRevenue: 0,
+  conversionRate: 0,
+  trends: [],
+  topCities: []
+};
+
 export const fallbackOwnerAnalytics: OwnerAnalytics = {
   enquiries: 42,
   confirmedBookings: 11,
@@ -142,14 +154,11 @@ export const emptyVendorAnalytics: VendorAnalytics = {
 };
 
 export async function getAdminAnalytics(accessToken?: string | null): Promise<AdminAnalytics> {
-  if (useMockAnalytics || !accessToken) return fallbackAdminAnalytics;
+  if (useMockAnalytics) return fallbackAdminAnalytics;
+  if (!accessToken) return emptyAdminAnalytics;
 
-  try {
-    const response = await apiRequest<unknown>("/admin/reports/summary", { token: accessToken });
-    return toAdminAnalytics(response) ?? fallbackAdminAnalytics;
-  } catch {
-    return fallbackAdminAnalytics;
-  }
+  const response = await apiRequest<unknown>("/admin/reports/summary", { token: accessToken });
+  return toAdminAnalytics(response) ?? emptyAdminAnalytics;
 }
 
 export async function getOwnerAnalytics(hallId: string, accessToken?: string | null): Promise<OwnerAnalytics> {
@@ -179,15 +188,15 @@ function toAdminAnalytics(value: unknown): AdminAnalytics | undefined {
   if (!record) return undefined;
 
   return {
-    totalUsers: numberValue(record, ["totalUsers", "total_users"]) ?? fallbackAdminAnalytics.totalUsers,
-    activeListings: numberValue(record, ["activeListings", "active_listings"]) ?? fallbackAdminAnalytics.activeListings,
-    monthlyEnquiries: numberValue(record, ["monthlyEnquiries", "monthly_enquiries", "enquiries"]) ?? fallbackAdminAnalytics.monthlyEnquiries,
-    confirmedBookings: numberValue(record, ["confirmedBookings", "confirmed_bookings", "bookings"]) ?? fallbackAdminAnalytics.confirmedBookings,
-    bookingRevenue: numberValue(record, ["bookingRevenue", "booking_revenue"]) ?? fallbackAdminAnalytics.bookingRevenue,
-    vendorRevenue: numberValue(record, ["vendorRevenue", "vendor_revenue", "subscriptionRevenue"]) ?? fallbackAdminAnalytics.vendorRevenue,
-    conversionRate: numberValue(record, ["conversionRate", "conversion_rate"]) ?? fallbackAdminAnalytics.conversionRate,
-    trends: trendList(record.trends) ?? fallbackAdminAnalytics.trends,
-    topCities: cityList(record.topCities) ?? fallbackAdminAnalytics.topCities
+    totalUsers: numberValue(record, ["totalUsers", "total_users"]) ?? emptyAdminAnalytics.totalUsers,
+    activeListings: numberValue(record, ["activeListings", "active_listings"]) ?? emptyAdminAnalytics.activeListings,
+    monthlyEnquiries: numberValue(record, ["monthlyEnquiries", "monthly_enquiries", "enquiries"]) ?? emptyAdminAnalytics.monthlyEnquiries,
+    confirmedBookings: numberValue(record, ["confirmedBookings", "confirmed_bookings", "bookings"]) ?? emptyAdminAnalytics.confirmedBookings,
+    bookingRevenue: numberValue(record, ["bookingRevenue", "booking_revenue"]) ?? emptyAdminAnalytics.bookingRevenue,
+    vendorRevenue: numberValue(record, ["vendorRevenue", "vendor_revenue", "subscriptionRevenue"]) ?? emptyAdminAnalytics.vendorRevenue,
+    conversionRate: numberValue(record, ["conversionRate", "conversion_rate"]) ?? emptyAdminAnalytics.conversionRate,
+    trends: trendList(record.trends) ?? emptyAdminAnalytics.trends,
+    topCities: cityList(record.topCities) ?? emptyAdminAnalytics.topCities
   };
 }
 

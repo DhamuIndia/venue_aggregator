@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { createOwnerMedia } from "@/features/owner/media-client";
 import { emptyOwnerOnboardingDraft, getOwnerOnboardingDraft, saveOwnerOnboardingDraft, submitOwnerOnboardingDraft, type OwnerOnboardingDraft } from "@/features/owner/onboarding-client";
@@ -39,6 +39,7 @@ export function OwnerOnboarding() {
   const [isCapturingLocation, setIsCapturingLocation] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedPhotoPreviews, setSelectedPhotoPreviews] = useState<Array<{ name: string; url: string }>>([]);
+  const selectedPhotoPreviewsRef = useRef(selectedPhotoPreviews);
   const [amenities, setAmenities] = useState<string[]>(emptyOwnerOnboardingDraft.amenities);
   const [form, setForm] = useState(formFromDraft(emptyOwnerOnboardingDraft));
   const capacityOptions = (() => {
@@ -78,9 +79,13 @@ export function OwnerOnboarding() {
     };
   }, [accessToken]);
 
-  useEffect(() => () => {
-    selectedPhotoPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+  useEffect(() => {
+    selectedPhotoPreviewsRef.current = selectedPhotoPreviews;
   }, [selectedPhotoPreviews]);
+
+  useEffect(() => () => {
+    selectedPhotoPreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, []);
 
   function updateField(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -89,8 +94,16 @@ export function OwnerOnboarding() {
 
   function selectVenuePhotos(files: FileList | null) {
     const nextFiles = Array.from(files ?? []);
-    setSelectedFiles(nextFiles);
-    setSelectedPhotoPreviews(nextFiles.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })));
+    if (nextFiles.length === 0) return;
+    setSelectedFiles((current) => [...current, ...nextFiles].slice(0, 10));
+    setSelectedPhotoPreviews((current) => {
+      const additions = nextFiles.map((file) => ({ name: file.name, url: URL.createObjectURL(file) }));
+      const combined = [...current, ...additions];
+      const kept = combined.slice(0, 10);
+      combined.slice(10).forEach((preview) => URL.revokeObjectURL(preview.url));
+      return kept;
+    });
+    setForm((current) => ({ ...current, coverImageUrl: "" }));
     setError("");
   }
 
@@ -242,7 +255,7 @@ export function OwnerOnboarding() {
                 <UploadCloud className="text-primary" size={28} />
                 <span className="mt-3 text-sm font-semibold">Choose venue photos</span>
                 <span className="mt-1 text-xs text-muted-foreground">JPG, PNG or WebP, up to 10 files. First image becomes the cover.</span>
-                <input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => selectVenuePhotos(event.target.files)} type="file" />
+                <input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => { selectVenuePhotos(event.target.files); event.target.value = ""; }} type="file" />
               </label>
 
               {selectedFiles.length > 0 && <p className="mt-3 text-sm text-emerald-700">{selectedFiles.length} photo{selectedFiles.length === 1 ? "" : "s"} selected</p>}

@@ -23,7 +23,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
+import { NotificationActivity } from "@/components/notifications/NotificationCenter";
 import { formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
 import { fallbackOwnerAnalytics, getOwnerAnalytics, type OwnerAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -57,6 +57,7 @@ import {
 } from "@/features/owner/listing-client";
 import {
   deleteOwnerMedia,
+  getOwnerMedia,
   getLocalOwnerMedia,
   mediaFromListing,
   updateOwnerMedia,
@@ -496,11 +497,12 @@ export function OwnerDashboard() {
       try {
         const fallbackListing = fallbackListingForHall(activeHallId);
         const response = await getOwnerHallListing(activeHallId, accessToken, fallbackListing);
+        const loadedMedia = await getOwnerMedia(response.id, accessToken, mediaFromListing(response));
         if (!isCurrent) return;
         setListing(response);
         setActiveHallId(response.id);
         setListingForm(formFromListing(response));
-        setMedia(getLocalOwnerMedia(response.id, mediaFromListing(response)));
+        setMedia(loadedMedia);
       } catch {
         if (!isCurrent) return;
         const fallbackListing = fallbackListingForHall(activeHallId);
@@ -926,7 +928,7 @@ export function OwnerDashboard() {
       <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div><div className="flex items-center gap-2 text-sm font-semibold text-primary"><BadgeCheck size={17} /> Owner workspace</div><h1 className="mt-2 text-3xl font-semibold">{listing.name}</h1><p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listing.area}, {listing.city}</p></div>
-          <div className="flex flex-wrap items-center gap-2"><NotificationBell />{isListingPublic ? <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link> : <button className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-muted-foreground" disabled type="button"><Eye size={17} /> Awaiting approval</button>}<Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
+          <div className="flex flex-wrap items-center gap-2">{isListingPublic ? <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link> : <button className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-muted-foreground" disabled type="button"><Eye size={17} /> Awaiting approval</button>}<Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
         </div>
 
         {notice && <div className="mt-6 flex items-start justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><span className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0" size={18} />{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")}><X size={17} /></button></div>}

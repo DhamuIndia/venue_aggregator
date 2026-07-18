@@ -4,6 +4,8 @@ import {
   BadgeCheck,
   CalendarCheck2,
   CalendarX2,
+  ChevronLeft,
+  ChevronRight,
   LoaderCircle,
   LogIn,
   Send
@@ -14,7 +16,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { createEnquiry } from "@/features/enquiries/enquiry-client";
 import { getPublicHallAvailability, type PublicHallUnavailableSlot } from "@/features/halls/availability-client";
 import { HALL_SLOT_SELECTION_EVENT, type HallSlotSelectionDetail } from "@/features/halls/slot-selection-events";
-import { HALL_SLOT_COMBINATIONS, buildSlotRequests, formatDisplayDate, formatSlotRequests, representativeSlot, slotConflicts, toDateInputValue, type HallSlotCombinationId } from "@/features/halls/slot-model";
+import { HALL_SLOT_COMBINATIONS, addDays, buildSlotRequests, formatDisplayDate, formatSlotRequests, representativeSlot, slotConflicts, toDateInputValue, type HallSlotCombinationId } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
 import { formatGuestCount } from "@/lib/display-format";
 
@@ -25,7 +27,7 @@ type EnquiryPanelProps = {
 type AvailabilityState = "idle" | "available" | "unavailable";
 
 export function EnquiryPanel({ hall }: EnquiryPanelProps) {
-  const { accessToken, user } = useAuth();
+  const { getValidAccessToken, user } = useAuth();
   const router = useRouter();
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
@@ -38,11 +40,10 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const todayValue = toDateInputValue(new Date());
+  const selectedDateValue = eventDate || todayValue;
   const suggestedDates = useMemo(() => [0, 1, 2].map((offset) => {
-    const date = new Date(`${todayValue}T00:00:00`);
-    date.setDate(date.getDate() + offset);
-    return toDateInputValue(date);
-  }), [todayValue]);
+    return addDays(selectedDateValue, offset);
+  }), [selectedDateValue]);
   const selectedSlotRequests = eventDate ? buildSlotRequests(eventDate, slotCombination) : [];
 
   useEffect(() => {
@@ -103,9 +104,14 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   }
 
   function updateDate(value: string) {
-    setEventDate(value);
+    const nextDate = value && value < todayValue ? todayValue : value;
+    setEventDate(nextDate);
     setAvailability("idle");
     setError("");
+  }
+
+  function moveEventDate(days: number) {
+    updateDate(addDays(selectedDateValue, days));
   }
 
   function updateSlotCombination(value: HallSlotCombinationId) {
@@ -139,6 +145,12 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     try {
       setIsSubmitting(true);
       setAvailability("available");
+      const token = await getValidAccessToken();
+      if (!token) {
+        setError("Your session expired. Sign in again to send this enquiry.");
+        router.push(`/auth/login?next=/halls/${hall.id}`);
+        return;
+      }
       const enquiry = await createEnquiry({
         hallId: hall.id,
         hallName: hall.name,
@@ -149,7 +161,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         slot: representativeSlot(selectedSlotRequests),
         slotRequests: selectedSlotRequests,
         notes: notes.trim() || undefined
-      }, accessToken);
+      }, token);
       router.push(`/enquiries/confirmation/${enquiry.id}`);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Could not send enquiry. Please try again.");
@@ -166,7 +178,16 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
 
       <form className="mt-5 grid gap-4" onSubmit={submitEnquiry}>
         <div>
-          <label className="text-sm font-medium">Event date<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min={todayValue} onChange={(event) => updateDate(event.target.value)} required type="date" value={eventDate} /></label>
+          <label className="text-sm font-medium" htmlFor={`event-date-${hall.id}`}>Event date</label>
+          <div className="mt-2 grid grid-cols-[44px_minmax(0,1fr)_44px] gap-2">
+            <button aria-label="Previous event date" className="grid h-11 place-items-center rounded-md border border-border bg-white text-muted-foreground hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45" disabled={selectedDateValue <= todayValue} onClick={() => moveEventDate(-1)} type="button">
+              <ChevronLeft size={17} />
+            </button>
+            <input className="h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" id={`event-date-${hall.id}`} min={todayValue} onChange={(event) => updateDate(event.target.value)} onInput={(event) => updateDate(event.currentTarget.value)} required type="date" value={eventDate} />
+            <button aria-label="Next event date" className="grid h-11 place-items-center rounded-md border border-border bg-white text-muted-foreground hover:border-primary hover:text-foreground" onClick={() => moveEventDate(1)} type="button">
+              <ChevronRight size={17} />
+            </button>
+          </div>
           <div className="mt-2 flex gap-2 overflow-x-auto" aria-label="Suggested available dates">
             {suggestedDates.map((date) => (
               <button aria-pressed={eventDate === date} className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium ${eventDate === date ? "border-primary bg-emerald-50 text-primary" : "border-border text-muted-foreground hover:border-primary"}`} key={date} onClick={() => updateDate(date)} type="button">{formatDisplayDate(date)}</button>
