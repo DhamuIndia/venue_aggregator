@@ -42,6 +42,9 @@ public class EnquirySlotRequest {
     @Column(name = "slot_type", nullable = false, length = 30)
     private SlotType slotType;
 
+    @Column(name = "event_type", length = 120)
+    private String eventType;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -82,6 +85,14 @@ public class EnquirySlotRequest {
 
     public void setSlotType(SlotType slotType) {
         this.slotType = slotType;
+    }
+
+    public String getEventType() {
+        return eventType;
+    }
+
+    public void setEventType(String eventType) {
+        this.eventType = eventType;
     }
 
     public Instant getCreatedAt() {

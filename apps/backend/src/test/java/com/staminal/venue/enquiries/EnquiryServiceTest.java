@@ -138,8 +138,8 @@ class EnquiryServiceTest {
                 450,
                 SlotType.EVENING,
                 List.of(
-                        new EnquirySlotRequestDto(eventDate, SlotType.EVENING),
-                        new EnquirySlotRequestDto(eventDate.plusDays(1), SlotType.MORNING)),
+                        new EnquirySlotRequestDto(eventDate, SlotType.EVENING, "Wedding"),
+                        new EnquirySlotRequestDto(eventDate.plusDays(1), SlotType.MORNING, "Reception")),
                 "Need evening and next morning.");
 
         when(userRepository.findById(101L)).thenReturn(Optional.of(customer));

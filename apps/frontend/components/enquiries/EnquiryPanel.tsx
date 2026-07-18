@@ -26,11 +26,21 @@ type EnquiryPanelProps = {
 
 type AvailabilityState = "idle" | "available" | "unavailable";
 
+const EVENT_TYPE_OPTIONS = [
+  "Wedding",
+  "Reception",
+  "Engagement",
+  "Birthday celebration",
+  "Corporate event",
+  "Other"
+];
+
 export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   const { getValidAccessToken, user } = useAuth();
   const router = useRouter();
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
+  const [segmentEventTypes, setSegmentEventTypes] = useState<Record<string, string>>({});
   const [guestCount, setGuestCount] = useState("");
   const [slotCombination, setSlotCombination] = useState<HallSlotCombinationId>("FULL_DAY");
   const [notes, setNotes] = useState("");
@@ -44,7 +54,25 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
   const suggestedDates = useMemo(() => [0, 1, 2].map((offset) => {
     return addDays(selectedDateValue, offset);
   }), [selectedDateValue]);
-  const selectedSlotRequests = eventDate ? buildSlotRequests(eventDate, slotCombination) : [];
+  const baseSlotRequests = useMemo(() => eventDate ? buildSlotRequests(eventDate, slotCombination) : [], [eventDate, slotCombination]);
+  const usesSegmentEventTypes = baseSlotRequests.length > 1;
+  const selectedSlotRequests = useMemo(() => baseSlotRequests.map((request) => ({
+    ...request,
+    eventType: usesSegmentEventTypes ? segmentEventTypes[slotRequestKey(request)] : eventType || undefined
+  })), [baseSlotRequests, eventType, segmentEventTypes, usesSegmentEventTypes]);
+  const effectiveEventType = useMemo(() => summarizeEventTypes(selectedSlotRequests), [selectedSlotRequests]);
+
+  useEffect(() => {
+    if (!usesSegmentEventTypes) return;
+    setSegmentEventTypes((current) => {
+      const next: Record<string, string> = {};
+      baseSlotRequests.forEach((request) => {
+        const key = slotRequestKey(request);
+        next[key] = current[key] ?? eventType;
+      });
+      return next;
+    });
+  }, [baseSlotRequests, eventType, usesSegmentEventTypes]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -86,6 +114,11 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     return "";
   }
 
+  function validateEventPlan() {
+    if (!effectiveEventType) return usesSegmentEventTypes ? "Select the event type for each selected slot." : "Select the type of event.";
+    return "";
+  }
+
   function checkAvailability() {
     const message = validateCoreFields();
     if (message) {
@@ -119,6 +152,10 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     setAvailability("idle");
   }
 
+  function updateSegmentEventType(key: string, value: string) {
+    setSegmentEventTypes((current) => ({ ...current, [key]: value }));
+  }
+
   async function submitEnquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -128,8 +165,9 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     }
 
     const message = validateCoreFields();
-    if (message || !eventType) {
-      setError(message || "Select the type of event.");
+    const eventPlanMessage = validateEventPlan();
+    if (message || eventPlanMessage) {
+      setError(message || eventPlanMessage);
       return;
     }
     if (isAvailabilityLoading) {
@@ -156,7 +194,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         hallName: hall.name,
         customerId: user.id,
         eventDate,
-        eventType,
+        eventType: effectiveEventType,
         guestCount: Number(guestCount),
         slot: representativeSlot(selectedSlotRequests),
         slotRequests: selectedSlotRequests,
@@ -208,7 +246,27 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
           {selectedSlotRequests.length > 0 && <p className="mt-2 text-xs text-muted-foreground">Selected: {formatSlotRequests(selectedSlotRequests)}</p>}
         </fieldset>
 
-        <label className="text-sm font-medium">Event type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => setEventType(event.target.value)} required value={eventType}><option value="">Select event</option><option>Wedding</option><option>Reception</option><option>Engagement</option><option>Birthday celebration</option><option>Corporate event</option><option>Other</option></select></label>
+        {usesSegmentEventTypes ? (
+          <fieldset>
+            <legend className="text-sm font-medium">Event plan</legend>
+            <div className="mt-2 grid gap-2">
+              {baseSlotRequests.map((request) => {
+                const key = slotRequestKey(request);
+                return (
+                  <label className="grid gap-1 rounded-md border border-border p-3 text-xs font-medium text-muted-foreground" key={key}>
+                    <span>{formatDisplayDate(request.date)} {request.slot.toLowerCase()} slot</span>
+                    <select className="h-10 rounded-md border border-border bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary" onChange={(event) => updateSegmentEventType(key, event.target.value)} required value={segmentEventTypes[key] ?? ""}>
+                      <option value="">Select event</option>
+                      {EVENT_TYPE_OPTIONS.map((option) => <option key={option}>{option}</option>)}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        ) : (
+          <label className="text-sm font-medium">Event type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => setEventType(event.target.value)} required value={eventType}><option value="">Select event</option>{EVENT_TYPE_OPTIONS.map((option) => <option key={option}>{option}</option>)}</select></label>
+        )}
         <label className="text-sm font-medium">Guest count<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" max={hall.capacity} min="1" onChange={(event) => setGuestCount(event.target.value)} placeholder={`Up to ${formatGuestCount(hall.capacity)}`} required type="number" value={guestCount} /></label>
         <label className="text-sm font-medium">Message <span className="font-normal text-muted-foreground">(optional)</span><textarea className="mt-2 min-h-20 w-full resize-y rounded-md border border-border p-3 font-normal outline-none focus:border-primary" maxLength={300} onChange={(event) => setNotes(event.target.value)} placeholder="Package, catering, or timing requirements" value={notes} /></label>
 
@@ -231,4 +289,14 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
 
 function hasUnavailableRequest(requests: ReturnType<typeof buildSlotRequests>, unavailableSlots: PublicHallUnavailableSlot[]) {
   return requests.some((request) => unavailableSlots.some((unavailable) => unavailable.date === request.date && slotConflicts(unavailable.slot, request.slot)));
+}
+
+function slotRequestKey(request: ReturnType<typeof buildSlotRequests>[number]) {
+  return `${request.date}|${request.slot}`;
+}
+
+function summarizeEventTypes(requests: ReturnType<typeof buildSlotRequests>) {
+  const selectedTypes = requests.map((request) => request.eventType?.trim()).filter(Boolean) as string[];
+  if (selectedTypes.length !== requests.length) return "";
+  return Array.from(new Set(selectedTypes)).join(" + ");
 }

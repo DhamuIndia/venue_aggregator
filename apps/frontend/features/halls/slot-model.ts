@@ -6,6 +6,7 @@ export type HallSlot = HallBaseSlot | "FULL_DAY";
 export type HallSlotRequest = {
   date: string;
   slot: HallBaseSlot;
+  eventType?: string;
 };
 
 export type HallSlotCombinationId =
@@ -119,7 +120,10 @@ export function representativeSlot(requests: HallSlotRequest[]): HallSlot {
 
 export function formatSlotRequests(requests: HallSlotRequest[]) {
   return requests
-    .map((request) => `${formatDisplayDate(request.date)} ${slotLabel(request.slot)}`)
+    .map((request) => {
+      const eventType = request.eventType ? ` - ${request.eventType}` : "";
+      return `${formatDisplayDate(request.date)} ${slotLabel(request.slot)}${eventType}`;
+    })
     .join(", ");
 }
 

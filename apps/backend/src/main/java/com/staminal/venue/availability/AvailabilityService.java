@@ -182,6 +182,9 @@ public class AvailabilityService {
 
                 response.setEventDate(slotRequest.getEventDate());
                 response.setSlot(slotRequest.getSlotType() != null ? slotRequest.getSlotType().name() : null);
+                if (!publicView && slotRequest.getEventType() != null && !slotRequest.getEventType().isBlank()) {
+                        response.setEventType(slotRequest.getEventType());
+                }
 
                 return response;
         }

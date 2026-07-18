@@ -313,7 +313,7 @@ public class EnquiryService {
     private List<EnquirySlotRequestDto> normalizeSlotRequests(CreateEnquiryRequest request) {
         List<EnquirySlotRequestDto> requestedSlots = request.slotRequests();
         if (requestedSlots == null || requestedSlots.isEmpty()) {
-            return expandSlotRequest(request.eventDate(), request.slot());
+            return expandSlotRequest(request.eventDate(), request.slot(), request.eventType());
         }
 
         Map<String, EnquirySlotRequestDto> uniqueRequests = new LinkedHashMap<>();
@@ -327,7 +327,10 @@ public class EnquiryService {
                         "Requested slot date cannot be before the event date");
             }
 
-            for (EnquirySlotRequestDto expandedSlot : expandSlotRequest(requestedSlot.date(), requestedSlot.slot())) {
+            String eventType = trimToNull(requestedSlot.eventType()) != null
+                    ? requestedSlot.eventType()
+                    : request.eventType();
+            for (EnquirySlotRequestDto expandedSlot : expandSlotRequest(requestedSlot.date(), requestedSlot.slot(), eventType)) {
                 uniqueRequests.put(expandedSlot.date() + "|" + expandedSlot.slot(), expandedSlot);
             }
         }
@@ -336,19 +339,25 @@ public class EnquiryService {
     }
 
     private List<EnquirySlotRequestDto> expandSlotRequest(LocalDate date, SlotType slot) {
+        return expandSlotRequest(date, slot, null);
+    }
+
+    private List<EnquirySlotRequestDto> expandSlotRequest(LocalDate date, SlotType slot, String eventType) {
         assertSupportedSlot(slot);
+        String normalizedEventType = trimToNull(eventType);
         if (slot == SlotType.FULL_DAY) {
             return DAY_SLOTS.stream()
-                    .map(daySlot -> new EnquirySlotRequestDto(date, daySlot))
+                    .map(daySlot -> new EnquirySlotRequestDto(date, daySlot, normalizedEventType))
                     .toList();
         }
-        return List.of(new EnquirySlotRequestDto(date, slot));
+        return List.of(new EnquirySlotRequestDto(date, slot, normalizedEventType));
     }
 
     private EnquirySlotRequest toSlotRequestEntity(EnquirySlotRequestDto request) {
         EnquirySlotRequest slotRequest = new EnquirySlotRequest();
         slotRequest.setEventDate(request.date());
         slotRequest.setSlotType(request.slot());
+        slotRequest.setEventType(trimToNull(request.eventType()));
         return slotRequest;
     }
 
@@ -358,7 +367,10 @@ public class EnquiryService {
                     .stream()
                     .map(slotRequest -> new EnquirySlotRequestDto(
                             slotRequest.getEventDate(),
-                            slotRequest.getSlotType()))
+                            slotRequest.getSlotType(),
+                            trimToNull(slotRequest.getEventType()) != null
+                                    ? slotRequest.getEventType()
+                                    : enquiry.getEventType()))
                     .toList();
         }
 

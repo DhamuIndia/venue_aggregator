@@ -233,7 +233,11 @@ function slotRequestsValue(record: Record<string, unknown>): HallSlotRequest[] |
     const date = stringValue(item, ["date", "eventDate", "event_date"]);
     const slot = stringValue(item, ["slot", "slotType", "slot_type"]);
     if (!date || !isBaseSlot(slot)) return undefined;
-    return { date: date.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? date, slot };
+    return {
+      date: date.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? date,
+      slot,
+      eventType: stringValue(item, ["eventType", "event_type"])
+    };
   }).filter((item): item is HallSlotRequest => Boolean(item));
 
   return requests.length ? requests : undefined;
