@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  X,
   CreditCard,
   Heart,
   LoaderCircle,
@@ -23,7 +24,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
 import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
-import { getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
+import { getVendorReviewEligibility, submitVendorReview, getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
 import { getCustomerSavedHalls, subscribeToSavedHallChanges } from "@/features/customer/saved-halls-client";
 import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
@@ -126,6 +127,7 @@ export function CustomerDashboard() {
   const [enquiries, setEnquiries] = useState<CustomerEnquiry[]>(() => useCustomerEnquiryDemoFallback ? customerEnquiries : []);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
+  const [expandedEnquiryId, setExpandedEnquiryId] = useState<string | null>(null);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
@@ -194,7 +196,7 @@ export function CustomerDashboard() {
         if (!isCurrent) return;
         const hallBookings = response.source === "api" || useCustomerBookingDemoFallback ? response.bookings : [];
         const vendorBookings = vendorResponse.leads
-          .filter((lead) => lead.status === "BOOKED")
+          .filter((lead) => lead.status === "BOOKED" || lead.status === "COMPLETED")
           .map(bookingFromVendorLead);
         setBookings(sortBookings([...hallBookings, ...vendorBookings]));
       } catch {
@@ -216,19 +218,78 @@ export function CustomerDashboard() {
   useEffect(() => {
     let isCurrent = true;
 
+    // async function loadReviewEligibility() {
+    //   if (isLoadingBookings) return;
+
+    //   setIsLoadingReviewEligibility(true);
+    //   setReviewError("");
+
+    //   const completedReviewBooking = bookings.find((booking): booking is BookingItem & { enquiryId: string } => (
+    //     booking.status === "COMPLETED" && Boolean(booking.enquiryId)
+    //   ));
+    //   const isVendorReview =
+    //     completedReviewBooking?.enquiryId.startsWith("VLEAD-") ?? false;
+    //   const fallback = completedReviewBooking ? reviewEligibilityFromBooking(completedReviewBooking) : fallbackReviewEligibility;
+
+    //   if (!useCustomerReviewDemoFallback && !completedReviewBooking) {
+    //     if (!isCurrent) return;
+    //     setReviewEligibility(emptyReviewEligibility());
+    //     setReviewSubmitted(false);
+    //     setIsLoadingReviewEligibility(false);
+    //     return;
+    //   }
+
+    //   try {
+    //     let eligibility: ReviewEligibility;
+
+    //     if (isVendorReview) {
+    //       const response = await getVendorReviewEligibility(
+    //         completedReviewBooking!.enquiryId,
+    //         accessToken
+    //       );
+
+    //       eligibility = {
+    //         eligible: response.eligible,
+    //         enquiryId: response.leadId,
+    //         hallName: response.vendorName,
+    //         eventDate: response.eventDate,
+    //         eventType: response.eventType,
+    //         reason: response.reason,
+    //         submittedReviewId: response.submittedReviewId
+    //       };
+    //     } else {
+    //       eligibility = await getCustomerReviewEligibility(
+    //         completedReviewBooking!.enquiryId,
+    //         accessToken,
+    //         fallback
+    //       );
+    //     }
+    //     if (!isCurrent) return;
+    //     setReviewEligibility(eligibility);
+    //     setReviewSubmitted(Boolean(eligibility.submittedReviewId));
+    //   } catch {
+    //     if (!isCurrent) return;
+    //     setReviewEligibility(useCustomerReviewDemoFallback ? fallback : emptyReviewEligibility());
+    //     setReviewError("Could not load review eligibility.");
+    //   } finally {
+    //     if (isCurrent) setIsLoadingReviewEligibility(false);
+    //   }
+    // }
     async function loadReviewEligibility() {
       if (isLoadingBookings) return;
 
       setIsLoadingReviewEligibility(true);
       setReviewError("");
 
-      const completedReviewBooking = bookings.find((booking): booking is BookingItem & { enquiryId: string } => (
-        booking.status === "COMPLETED" && Boolean(booking.enquiryId)
-      ));
-      const fallback = completedReviewBooking ? reviewEligibilityFromBooking(completedReviewBooking) : fallbackReviewEligibility;
+      const completedReviewBookings = bookings.filter(
+        (booking): booking is BookingItem & { enquiryId: string } =>
+          booking.status === "COMPLETED" &&
+          Boolean(booking.enquiryId)
+      );
 
-      if (!useCustomerReviewDemoFallback && !completedReviewBooking) {
+      if (!useCustomerReviewDemoFallback && completedReviewBookings.length === 0) {
         if (!isCurrent) return;
+
         setReviewEligibility(emptyReviewEligibility());
         setReviewSubmitted(false);
         setIsLoadingReviewEligibility(false);
@@ -236,16 +297,73 @@ export function CustomerDashboard() {
       }
 
       try {
-        const eligibility = await getCustomerReviewEligibility(fallback.enquiryId, accessToken, fallback);
+        let foundEligibility: ReviewEligibility | null = null;
+
+        for (const booking of completedReviewBookings) {
+          const isVendorReview = booking.enquiryId.startsWith("VLEAD-");
+          const fallback = reviewEligibilityFromBooking(booking);
+
+          let eligibility: ReviewEligibility;
+
+          if (isVendorReview) {
+            const response = await getVendorReviewEligibility(
+              booking.enquiryId,
+              accessToken
+            );
+
+            eligibility = {
+              eligible: response.eligible,
+              enquiryId: response.leadId,
+              hallName: response.vendorName,
+              eventDate: response.eventDate,
+              eventType: response.eventType,
+              reason: response.reason,
+              submittedReviewId: response.submittedReviewId
+            };
+          } else {
+            eligibility = await getCustomerReviewEligibility(
+              booking.enquiryId,
+              accessToken,
+              fallback
+            );
+          }
+
+          // First booking that is eligible
+          if (eligibility.eligible) {
+            foundEligibility = eligibility;
+            break;
+          }
+
+          // Keep the last response (usually "Review already exists")
+          foundEligibility = eligibility;
+        }
+
         if (!isCurrent) return;
-        setReviewEligibility(eligibility);
-        setReviewSubmitted(Boolean(eligibility.submittedReviewId));
+
+        if (foundEligibility) {
+          setReviewEligibility(foundEligibility);
+          setReviewSubmitted(Boolean(foundEligibility.submittedReviewId));
+        } else {
+          setReviewEligibility(
+            useCustomerReviewDemoFallback
+              ? fallbackReviewEligibility
+              : emptyReviewEligibility()
+          );
+          setReviewSubmitted(false);
+        }
       } catch {
         if (!isCurrent) return;
-        setReviewEligibility(useCustomerReviewDemoFallback ? fallback : emptyReviewEligibility());
+
+        setReviewEligibility(
+          useCustomerReviewDemoFallback
+            ? fallbackReviewEligibility
+            : emptyReviewEligibility()
+        );
         setReviewError("Could not load review eligibility.");
       } finally {
-        if (isCurrent) setIsLoadingReviewEligibility(false);
+        if (isCurrent) {
+          setIsLoadingReviewEligibility(false);
+        }
       }
     }
 
@@ -293,11 +411,27 @@ export function CustomerDashboard() {
       throw new Error("No completed eligible service is available for review.");
     }
 
-    const review = await submitCustomerReview({
-      enquiryId: reviewEligibility.enquiryId,
-      rating: payload.rating,
-      comment: payload.comment
-    }, accessToken);
+    let review;
+
+    if (reviewEligibility.enquiryId.startsWith("VLEAD-")) {
+      review = await submitVendorReview(
+        {
+          leadId: reviewEligibility.enquiryId,
+          rating: payload.rating,
+          comment: payload.comment
+        },
+        accessToken
+      );
+    } else {
+      review = await submitCustomerReview(
+        {
+          enquiryId: reviewEligibility.enquiryId,
+          rating: payload.rating,
+          comment: payload.comment
+        },
+        accessToken
+      );
+    }
     setReviewSubmitted(true);
     setReviewEligibility((current) => ({
       ...current,
@@ -407,7 +541,43 @@ export function CustomerDashboard() {
         )}
 
         {activeTab === "enquiries" && (
-          <section className="py-7"><h2 className="text-xl font-semibold">Your enquiries</h2><p className="mt-1 text-sm text-muted-foreground">Track responses and confirmed event details.</p>{enquiriesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{enquiriesError}</p>}{isLoadingEnquiries ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? <div className="mt-5 grid gap-3">{enquiries.map((enquiry) => <article className="grid gap-4 rounded-lg border border-border bg-white p-5 sm:grid-cols-[1fr_auto] sm:items-center" key={enquiry.id}><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{enquiry.venue}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[enquiry.status]}`}>{statusLabel(enquiry.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">Event: {enquiry.eventDate} | Enquiry {enquiry.id}</p></div><button className="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:border-primary">View details <ChevronRight size={16} /></button></article>)}</div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No enquiries yet</h3><p className="mt-2 text-sm text-muted-foreground">Browse venues and send your first enquiry.</p></div>}</section>
+          <section className="py-7">
+            <h2 className="text-xl font-semibold">Your enquiries</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Track responses and confirmed event details.</p>
+            {enquiriesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{enquiriesError}</p>}
+            {isLoadingEnquiries ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? (
+              <div className="mt-5 grid gap-3">
+                {enquiries.map((enquiry) => {
+                  const isExpanded = expandedEnquiryId === enquiry.id;
+                  return (
+                    <article className="rounded-lg border border-border bg-white p-5" key={enquiry.id}>
+                      <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                        <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{enquiry.venue}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[enquiry.status]}`}>{statusLabel(enquiry.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">Event: {enquiry.eventDate} | Enquiry {enquiry.id}</p></div>
+                        <button aria-expanded={isExpanded} className="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:border-primary" onClick={() => setExpandedEnquiryId(isExpanded ? null : enquiry.id)} type="button">{isExpanded ? "Close details" : "View details"} {isExpanded ? <X size={16} /> : <ChevronRight size={16} />}</button>
+                      </div>
+                      {isExpanded && (
+                        <div className="mt-5 border-t border-border pt-5">
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            <EnquiryDetail label="Enquiry ID" value={enquiry.id} />
+                            <EnquiryDetail label="Venue / provider" value={enquiry.venue} />
+                            <EnquiryDetail label="Event date" value={enquiry.eventDate} />
+                            <EnquiryDetail label="Status" value={statusLabel(enquiry.status)} />
+                            <EnquiryDetail label="Submitted" value={formatCustomerEventDate(enquiry.submittedAt)} />
+                            {enquiry.eventType && <EnquiryDetail label="Event type" value={enquiry.eventType} />}
+                            {enquiry.guestCount !== undefined && <EnquiryDetail label="Guests" value={formatGuestCount(enquiry.guestCount)} />}
+                            {enquiry.slot && <EnquiryDetail label="Time slot" value={formatSlot(enquiry.slot as StoredEnquiry["slot"])} />}
+                            {enquiry.location && <EnquiryDetail label="Location" value={enquiry.location} />}
+                            {enquiry.budget !== undefined && <EnquiryDetail label="Budget" value={`INR ${new Intl.NumberFormat("en-IN").format(enquiry.budget)}`} />}
+                          </div>
+                          {enquiry.notes && <div className="mt-4 rounded-md bg-muted/50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</p><p className="mt-1 text-sm leading-6">{enquiry.notes}</p></div>}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No enquiries yet</h3><p className="mt-2 text-sm text-muted-foreground">Browse venues and send your first enquiry.</p></div>}
+          </section>
         )}
 
         {activeTab === "bookings" && (
@@ -514,7 +684,11 @@ function toCustomerEnquiry(enquiry: StoredEnquiry): CustomerEnquiry {
     venue: enquiry.hallName,
     eventDate: formatCustomerEventDate(enquiry.eventDate),
     submittedAt: enquiry.submittedAt,
-    status: enquiry.status
+    status: enquiry.status,
+    eventType: enquiry.eventType,
+    guestCount: enquiry.guestCount,
+    slot: enquiry.slot,
+    notes: enquiry.notes
   };
 }
 
@@ -524,7 +698,11 @@ function toCustomerVendorEnquiry(lead: VendorLead): CustomerEnquiry {
     venue: lead.vendorName || lead.service,
     eventDate: formatCustomerEventDate(lead.eventDate),
     submittedAt: lead.submittedAt,
-    status: vendorLeadCustomerStatus(lead)
+    status: vendorLeadCustomerStatus(lead),
+    eventType: lead.eventType,
+    location: lead.location,
+    budget: lead.budget,
+    notes: lead.notes
   };
 }
 
@@ -540,8 +718,10 @@ function bookingFromVendorLead(lead: VendorLead): BookingItem {
     eventType: lead.service || lead.eventType,
     guestCount: 0,
     slot: "FULL_DAY",
-    status: "CONFIRMED",
-    amount: lead.budget,
+    status:
+      lead.status === "COMPLETED"
+        ? "COMPLETED"
+        : "CONFIRMED", amount: lead.budget,
     paymentStatus: "NOT_STARTED",
     notes: lead.notes,
     confirmedAt: lead.submittedAt,
@@ -550,9 +730,22 @@ function bookingFromVendorLead(lead: VendorLead): BookingItem {
 }
 
 function vendorLeadCustomerStatus(lead: VendorLead): CustomerEnquiry["status"] {
-  if (lead.status === "BOOKED") return "CONFIRMED";
-  if (lead.status === "DECLINED") return "DECLINED";
-  return "AWAITING_RESPONSE";
+  // if (lead.status === "BOOKED") return "CONFIRMED";
+  // if (lead.status === "DECLINED") return "DECLINED";
+  // return "AWAITING_RESPONSE";
+  switch (lead.status) {
+    case "BOOKED":
+      return "CONFIRMED";
+
+    case "COMPLETED":
+      return "COMPLETED";
+
+    case "DECLINED":
+      return "DECLINED";
+
+    default:
+      return "AWAITING_RESPONSE";
+  }
 }
 
 function vendorLeadReference(id: string) {
@@ -560,11 +753,16 @@ function vendorLeadReference(id: string) {
 }
 
 function formatCustomerEventDate(value: string) {
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "long" }).format(new Date(`${value}T00:00:00`));
+  const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-IN", { dateStyle: "long" }).format(date);
 }
 
 function sortCustomerEnquiries(items: CustomerEnquiry[]) {
   return [...items].sort((first, second) => Date.parse(second.submittedAt) - Date.parse(first.submittedAt));
+}
+
+function EnquiryDetail({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-md bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>;
 }
 
 function sortBookings(items: BookingItem[]) {

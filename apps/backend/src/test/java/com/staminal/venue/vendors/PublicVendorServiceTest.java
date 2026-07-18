@@ -19,10 +19,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.enquiries.Enquiry;
-import com.staminal.venue.reviews.Review;
-import com.staminal.venue.reviews.ReviewModerationStatus;
-import com.staminal.venue.reviews.ReviewRepository;
+import com.staminal.venue.leads.VendorLead;
+import com.staminal.venue.reviews.VendorReview.VendorReview;
+import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
+import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Dto.PublicVendorListResponse;
 import com.staminal.venue.vendors.Dto.PublicVendorResponse;
@@ -48,7 +48,7 @@ class PublicVendorServiceTest {
     private VendorMediaRepository vendorMediaRepository;
 
     @Mock
-    private ReviewRepository reviewRepository;
+    private VendorReviewRepository vendorReviewRepository;
 
     private PublicVendorService publicVendorService;
 
@@ -58,7 +58,7 @@ class PublicVendorServiceTest {
                 vendorRepository,
                 vendorPackageRepository,
                 vendorMediaRepository,
-                reviewRepository);
+                vendorReviewRepository);
     }
 
     @Test
@@ -68,8 +68,12 @@ class PublicVendorServiceTest {
         when(vendorRepository.findByStatus(VendorStatus.APPROVED)).thenReturn(List.of(vendor));
         when(vendorMediaRepository.findByVendor_Id(501L)).thenReturn(List.of(media(vendor)));
         when(vendorPackageRepository.findByVendor_Id(501L)).thenReturn(List.of(vendorPackage(vendor)));
-        when(reviewRepository.findPublishedReviewsByVendorId(501L))
-                .thenReturn(List.of(review(901L, vendor, 5), review(902L, vendor, 4)));
+        when(vendorReviewRepository.findByVendor_IdAndActiveTrueAndModerationStatus(
+                501L,
+                ReviewModerationStatus.PUBLISHED))
+                .thenReturn(List.of(
+                        vendorReview(901L, vendor, 5),
+                        vendorReview(902L, vendor, 4)));
 
         PublicVendorListResponse response = publicVendorService.searchPublicVendors(
                 "catering",
@@ -103,8 +107,10 @@ class PublicVendorServiceTest {
         when(vendorRepository.findByStatus(VendorStatus.APPROVED)).thenReturn(List.of(vendor));
         when(vendorMediaRepository.findByVendor_Id(501L)).thenReturn(List.of());
         when(vendorPackageRepository.findByVendor_Id(501L)).thenReturn(List.of());
-        when(reviewRepository.findPublishedReviewsByVendorId(501L)).thenReturn(List.of());
-
+        when(vendorReviewRepository.findByVendor_IdAndActiveTrueAndModerationStatus(
+                501L,
+                ReviewModerationStatus.PUBLISHED))
+                .thenReturn(List.of());
         PublicVendorResponse response = publicVendorService.getPublicVendor("saffron-leaf-catering");
 
         assertThat(response.id()).isEqualTo("501");
@@ -170,26 +176,28 @@ class PublicVendorServiceTest {
         return vendorPackage;
     }
 
-    private Review review(Long id, Vendors vendor, int rating) {
+    private VendorReview vendorReview(Long id, Vendors vendor, int rating) {
+
         User customer = new User();
         customer.setId(101L);
         customer.setFullName("Priya Raman");
 
-        Enquiry enquiry = new Enquiry();
-        enquiry.setEventType("Wedding");
-        enquiry.setEventDate(LocalDate.parse("2026-08-12"));
+        VendorLead lead = new VendorLead();
+        lead.setEventType("Wedding");
+        lead.setEventDate(LocalDate.parse("2026-08-12"));
 
-        Review review = new Review();
+        VendorReview review = new VendorReview();
+
         review.setId(id);
         review.setVendor(vendor);
         review.setCustomer(customer);
-        review.setEnquiry(enquiry);
+        review.setVendorLead(lead);
         review.setRating(rating);
         review.setComment("Excellent service.");
-        review.setVerifiedService(true);
         review.setActive(true);
         review.setModerationStatus(ReviewModerationStatus.PUBLISHED);
         review.setCreatedAt(Instant.parse("2026-06-20T10:00:00Z"));
+
         return review;
     }
 }

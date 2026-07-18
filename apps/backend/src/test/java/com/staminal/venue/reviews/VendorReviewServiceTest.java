@@ -17,8 +17,16 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import com.staminal.venue.leads.VendorLead;
+import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enquiries.Enquiry;
+import com.staminal.venue.leads.VendorLeadRepository;
+import com.staminal.venue.reviews.VendorReview.VendorReview;
+import com.staminal.venue.reviews.VendorReview.VendorRatingAggregateService;
+import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
+import com.staminal.venue.reviews.VendorReview.VendorReviewService;
 import com.staminal.venue.users.Entity.User;
+import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Dto.VendorReviewListResponse;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
@@ -27,16 +35,34 @@ import com.staminal.venue.vendors.Repository.VendorRepository;
 class VendorReviewServiceTest {
 
     @Mock
-    private ReviewRepository reviewRepository;
+    private VendorRepository vendorRepository;
 
     @Mock
-    private VendorRepository vendorRepository;
+    private VendorReviewRepository vendorReviewRepository;
 
     private VendorReviewService vendorReviewService;
 
+    @Mock
+    private VendorLeadRepository vendorLeadRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private AuditService auditService;
+
+    @Mock
+    private VendorRatingAggregateService vendorRatingAggregateService;
+
     @BeforeEach
     void setUp() {
-        vendorReviewService = new VendorReviewService(reviewRepository, vendorRepository);
+        vendorReviewService = new VendorReviewService(
+                vendorRepository,
+                vendorReviewRepository,
+                vendorLeadRepository,
+                userRepository,
+                auditService,
+                vendorRatingAggregateService);
     }
 
     @Test
@@ -44,7 +70,7 @@ class VendorReviewServiceTest {
         Vendors vendor = vendor();
 
         when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
-        when(reviewRepository.findPublishedReviewsByVendorId(501L))
+        when(vendorReviewRepository.findByVendor_IdAndActiveTrue(501L))
                 .thenReturn(List.of(review(901L, 5), review(902L, 4)));
 
         VendorReviewListResponse response = vendorReviewService.getMyReviews(vendorAuth());
@@ -54,23 +80,25 @@ class VendorReviewServiceTest {
         assertThat(response.reviews()).extracting("eventType").containsExactly("Wedding", "Wedding");
     }
 
-    private Review review(Long id, int rating) {
+    private VendorReview review(Long id, int rating) {
+
         User customer = new User();
         customer.setId(101L);
         customer.setFullName("Priya Raman");
 
-        Enquiry enquiry = new Enquiry();
-        enquiry.setEventType("Wedding");
-        enquiry.setEventDate(LocalDate.parse("2026-08-12"));
+        VendorLead lead = new VendorLead();
+        lead.setEventType("Wedding");
+        lead.setEventDate(LocalDate.parse("2026-08-12"));
 
-        Review review = new Review();
+        VendorReview review = new VendorReview();
         review.setId(id);
         review.setCustomer(customer);
-        review.setEnquiry(enquiry);
+        review.setVendorLead(lead);
         review.setRating(rating);
         review.setComment("Excellent service.");
-        review.setVerifiedService(true);
+        review.setActive(true);
         review.setCreatedAt(Instant.parse("2026-06-20T10:00:00Z"));
+
         return review;
     }
 

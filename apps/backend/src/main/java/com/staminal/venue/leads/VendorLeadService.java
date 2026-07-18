@@ -216,6 +216,16 @@ public class VendorLeadService {
                         "Your booking with " + vendorName + " has been confirmed.",
                         "/customer?tab=vendor-bookings");
 
+            case COMPLETED ->
+
+                notificationService.notifyUser(
+                        lead.getCustomer(),
+                        NotificationType.BOOKING,
+                        "Service completed",
+                        "Your service with " + vendorName
+                                + " has been marked as completed. You can now leave a review.",
+                        "/customer?tab=reviews");
+
             case DECLINED ->
 
                 notificationService.notifyUser(
@@ -383,7 +393,7 @@ public class VendorLeadService {
             VendorLeadStatus current,
             VendorLeadStatus next) {
 
-        if (current == VendorLeadStatus.BOOKED ||
+        if (current == VendorLeadStatus.COMPLETED ||
                 current == VendorLeadStatus.DECLINED) {
 
             throw new ResponseStatusException(
@@ -422,6 +432,15 @@ public class VendorLeadService {
                 if (next != VendorLeadStatus.BOOKED &&
                         next != VendorLeadStatus.DECLINED) {
 
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Invalid status transition");
+                }
+            }
+
+            case BOOKED -> {
+
+                if (next != VendorLeadStatus.COMPLETED) {
                     throw new ResponseStatusException(
                             HttpStatus.BAD_REQUEST,
                             "Invalid status transition");

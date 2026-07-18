@@ -55,6 +55,9 @@ class VendorLeadServiceTest {
 
     private VendorLeadService vendorLeadService;
 
+    @Mock
+    private NotificationService notificationService;
+
     @BeforeEach
     void setUp() {
         vendorLeadService = new VendorLeadService(
@@ -102,8 +105,9 @@ class VendorLeadServiceTest {
         when(vendorRepository.findById(501L)).thenReturn(Optional.of(vendor(VendorStatus.PENDING)));
 
         assertThatThrownBy(() -> vendorLeadService.createLead(createRequest("501"), customerAuth()))
-                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> assertThat(exception.getStatusCode())
-                        .isEqualTo(HttpStatus.NOT_FOUND));
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode())
+                                .isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test

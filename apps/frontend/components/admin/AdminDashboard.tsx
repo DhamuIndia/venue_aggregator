@@ -27,6 +27,12 @@ import { RejectionDialog } from "@/components/admin/RejectionDialog";
 import { VenueDetailsDrawer } from "@/components/admin/VenueDetailsDrawer";
 import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { fallbackAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
+import {
+  getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus, getAdminVendor, getAdminVendorReviews,
+  moderateAdminVendorReview,
+  type AdminVendorReview
+} from "@/features/admin/admin-client";
 import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
 import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus, getAdminVendor } from "@/features/admin/admin-client";
 import {
@@ -42,7 +48,7 @@ import {
 import type { AuthRole } from "@/features/auth/types";
 import type { EnquiryStatus } from "@/features/enquiries/types";
 
-type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "enquiries";
+type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "vendorReviews" | "enquiries";
 type RejectTarget = { kind: "venue" | "vendor"; id: string; name: string };
 
 const tabs: { id: AdminTab; label: string }[] = [
@@ -51,7 +57,8 @@ const tabs: { id: AdminTab; label: string }[] = [
   { id: "vendors", label: "Vendor approvals" },
   { id: "users", label: "Users" },
   { id: "reports", label: "Reports" },
-  { id: "reviews", label: "Reviews" },
+  { id: "reviews", label: "Hall Reviews" },
+  { id: "vendorReviews", label: "Vendor Reviews" },
   { id: "enquiries", label: "Enquiries" }
 ];
 
@@ -191,6 +198,34 @@ export function AdminDashboard() {
   }, [accessToken]);
 
   useEffect(() => {
+
+    if (!accessToken) return;
+
+    async function loadVendorReviews() {
+
+      try {
+
+        const response =
+          await getAdminVendorReviews(accessToken);
+
+        setVendorReviews(response);
+
+      } catch (error) {
+
+        console.error(
+          "Failed to load vendor reviews",
+          error
+        );
+
+      }
+
+    }
+
+    loadVendorReviews();
+
+  }, [accessToken]);
+
+  useEffect(() => {
     let isCurrent = true;
 
     async function loadAnalytics() {
@@ -255,6 +290,37 @@ export function AdminDashboard() {
     }
   }
 
+  async function moderateVendorReview(
+    id: string,
+    status: "PUBLISHED" | "HIDDEN" | "REJECTED",
+    reason: string
+  ) {
+    try {
+
+      const updated = await moderateAdminVendorReview(
+        id,
+        status,
+        reason,
+        accessToken
+      );
+
+      setVendorReviews((current) =>
+        current.filter((review) => review.id !== id)
+      );
+
+      setNotice(`Vendor review ${status.toLowerCase()}.`);
+
+    } catch (error) {
+
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Failed to moderate vendor review."
+      );
+
+    }
+  }
+
   async function changeUserStatus(id: string, status: Exclude<AdminUserStatus, "PENDING_VERIFICATION">) {
     const previousUsers = users;
     const reason = status === "ACTIVE" ? "Account reviewed and activated by admin." : "Account suspended by admin for platform review.";
@@ -290,6 +356,9 @@ export function AdminDashboard() {
     vendors: pendingVendorCount,
     users: suspendedUserCount + pendingUserCount,
     reviews: reportedReviewCount,
+    vendorReviews: vendorReviews.filter(
+      review => review.status === "PENDING"
+    ).length,
     enquiries: pendingEnquiryCount
   };
 
@@ -517,10 +586,133 @@ export function AdminDashboard() {
 
         {activeTab === "reviews" && (
           <section className="py-7">
-            <div><h2 className="text-xl font-semibold">Reported reviews</h2><p className="mt-1 text-sm text-muted-foreground">Moderate reports while preserving verified customer feedback.</p></div>
+            <div><h2 className="text-xl font-semibold">Hall reviews</h2><p className="mt-1 text-sm text-muted-foreground">Moderate customer reviews submitted for halls.</p></div>
             <div className="mt-5 grid gap-4">
               {reviews.map((review) => <article className="rounded-lg border border-border bg-white p-5" key={review.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{review.hallName}</h3>{review.verifiedService && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800"><BadgeCheck size={13} /> Verified service</span>}</div><p className="mt-1 text-sm text-muted-foreground">{review.customerName} | {review.rating}/5 | {review.id}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${review.status === "REPORTED" ? "bg-rose-50 text-rose-700" : review.status === "HIDDEN" ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-800"}`}>{review.status.toLowerCase()}</span></div><blockquote className="mt-4 border-l-2 border-border pl-4 text-sm leading-6">&ldquo;{review.comment}&rdquo;</blockquote><p className="mt-4 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800"><CircleAlert size={16} /> Report: {review.reportReason}</p>{review.status === "REPORTED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => moderateReview(review.id, "PUBLISHED")}><Check size={17} /> Keep published</button><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => moderateReview(review.id, "HIDDEN")}><MessageSquareWarning size={17} /> Hide review</button></div>}</article>)}
             </div>
+          </section>
+        )}
+
+        {activeTab === "vendorReviews" && (
+          <section className="py-7">
+
+            <div>
+              <h2 className="text-xl font-semibold">
+                Vendor Reviews
+              </h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                Moderate customer reviews before publishing.
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+
+              {vendorReviews.length === 0 && (
+                <div className="rounded-lg border border-dashed border-border bg-white px-5 py-10 text-center text-muted-foreground">
+                  No vendor reviews found.
+                </div>
+              )}
+
+              {vendorReviews.map((review) => (
+
+                <article
+                  key={review.id}
+                  className="rounded-lg border border-border bg-white p-5"
+                >
+
+                  <div className="flex items-start justify-between">
+
+                    <div>
+
+                      <h3 className="font-semibold">
+                        {review.vendorName}
+                      </h3>
+
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {review.customerName}
+                      </p>
+
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${review.status === "PENDING"
+                        ? "bg-amber-100 text-amber-700"
+                        : review.status === "PUBLISHED"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-rose-100 text-rose-700"
+                        }`}
+                    >
+                      {review.status}
+                    </span>
+
+                  </div>
+
+                  <div className="mt-4">
+
+                    <p className="text-sm">
+                      ⭐ {review.rating}/5
+                    </p>
+
+                    <blockquote className="mt-3 border-l-2 border-border pl-4 text-sm leading-6">
+                      "{review.comment}"
+                    </blockquote>
+
+                  </div>
+
+                  {review.status === "PENDING" && (
+
+                    <div className="mt-5 flex gap-2">
+
+                      <button
+                        className="rounded-md bg-emerald-600 px-4 py-2 text-white"
+                        onClick={() =>
+                          moderateVendorReview(
+                            review.id,
+                            "PUBLISHED",
+                            "",
+                          )
+                        }
+                      >
+                        Publish
+                      </button>
+
+                      <button
+                        className="rounded-md bg-slate-700 px-4 py-2 text-white"
+                        onClick={() =>
+                          moderateVendorReview(
+                            review.id,
+                            "HIDDEN",
+                            "Hidden by admin",
+                          )
+                        }
+                      >
+                        Hide
+                      </button>
+
+                      <button
+                        className="rounded-md bg-rose-600 px-4 py-2 text-white"
+                        onClick={() =>
+                          moderateVendorReview(
+                            review.id,
+                            "REJECTED",
+                            "Rejected by admin",
+                          )
+                        }
+                      >
+                        Reject
+                      </button>
+
+                    </div>
+
+                  )}
+
+                </article>
+
+              ))}
+
+            </div>
+
           </section>
         )}
 

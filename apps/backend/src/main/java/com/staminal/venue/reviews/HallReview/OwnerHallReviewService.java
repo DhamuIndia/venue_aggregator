@@ -1,4 +1,4 @@
-package com.staminal.venue.reviews;
+package com.staminal.venue.reviews.HallReview;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -13,8 +13,8 @@ import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.enquiries.Enquiry;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallRepository;
-import com.staminal.venue.reviews.Dto.OwnerHallReviewListResponse;
-import com.staminal.venue.reviews.Dto.OwnerHallReviewResponse;
+import com.staminal.venue.reviews.HallReview.Dto.OwnerHallReviewListResponse;
+import com.staminal.venue.reviews.HallReview.Dto.OwnerHallReviewResponse;
 
 import lombok.RequiredArgsConstructor;
 

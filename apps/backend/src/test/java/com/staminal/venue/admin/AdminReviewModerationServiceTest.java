@@ -22,9 +22,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.halls.Entity.Halls;
-import com.staminal.venue.reviews.Review;
-import com.staminal.venue.reviews.ReviewModerationStatus;
-import com.staminal.venue.reviews.ReviewRepository;
+import com.staminal.venue.reviews.HallReview.Review;
+import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
+import com.staminal.venue.reviews.HallReview.ReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 

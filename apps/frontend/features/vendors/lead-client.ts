@@ -206,6 +206,7 @@ function statusValue(record: Record<string, unknown>): VendorLeadStatus | undefi
   if (value === "IN_PROGRESS") return "CONTACTED";
   if (value === "QUOTED") return "QUOTE_SENT";
   if (value === "CONFIRMED") return "BOOKED";
+  if (value === "COMPLETED") return "COMPLETED";
   if (value === "REJECTED") return "DECLINED";
   return undefined;
 }

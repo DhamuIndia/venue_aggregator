@@ -13,8 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.reviews.Review;
-import com.staminal.venue.reviews.ReviewRepository;
+import com.staminal.venue.reviews.HallReview.Review;
+import com.staminal.venue.reviews.VendorReview.VendorReview;
+import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
 import com.staminal.venue.vendors.Dto.PublicVendorListResponse;
 import com.staminal.venue.vendors.Dto.PublicVendorPackageResponse;
 import com.staminal.venue.vendors.Dto.PublicVendorResponse;
@@ -25,6 +26,7 @@ import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorMediaRepository;
 import com.staminal.venue.vendors.Repository.VendorPackageRepository;
 import com.staminal.venue.vendors.Repository.VendorRepository;
+import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,13 +34,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PublicVendorService {
 
-    private static final String DEFAULT_IMAGE_URL =
-            "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=82";
+    private static final String DEFAULT_IMAGE_URL = "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=82";
 
     private final VendorRepository vendorRepository;
     private final VendorPackageRepository vendorPackageRepository;
     private final VendorMediaRepository vendorMediaRepository;
-    private final ReviewRepository reviewRepository;
+    private final VendorReviewRepository vendorReviewRepository;
 
     @Transactional(readOnly = true)
     public PublicVendorListResponse searchPublicVendors(
@@ -104,11 +105,14 @@ public class PublicVendorService {
                 .filter(this::isUsableImageUrl)
                 .distinct()
                 .toList();
-        List<Review> publishedReviews = reviewRepository.findPublishedReviewsByVendorId(vendor.getId());
+        List<VendorReview> publishedReviews = vendorReviewRepository
+                .findByVendor_IdAndActiveTrueAndModerationStatus(
+                        vendor.getId(),
+                        ReviewModerationStatus.PUBLISHED);
         List<PublicVendorReviewResponse> reviews = publishedReviews.stream()
                 .map(this::reviewResponse)
                 .toList();
-        double rating = averageRating(publishedReviews);
+        double rating = vendor.getAverageRating();
 
         return new PublicVendorResponse(
                 String.valueOf(vendor.getId()),
@@ -118,7 +122,7 @@ public class PublicVendorService {
                 firstText(vendor.getCity(), ""),
                 firstText(vendor.getArea(), ""),
                 rating,
-                reviews.size(),
+                vendor.getReviewCount(),
                 firstNonNull(vendor.getStartingPrice(), BigDecimal.ZERO),
                 imageUrl,
                 galleryUrls.isEmpty() ? List.of(imageUrl) : galleryUrls,
@@ -188,7 +192,9 @@ public class PublicVendorService {
         if ("RATING_DESC".equals(normalized)) {
             return Comparator
                     .comparingDouble((Vendors vendor) -> averageRating(
-                            reviewRepository.findPublishedReviewsByVendorId(vendor.getId())))
+                            vendorReviewRepository.findByVendor_IdAndActiveTrueAndModerationStatus(
+                                    vendor.getId(),
+                                    ReviewModerationStatus.PUBLISHED)))
                     .reversed()
                     .thenComparing(Vendors::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
         }
@@ -209,10 +215,11 @@ public class PublicVendorService {
                 firstText(vendor.getCity(), ""),
                 firstText(vendor.getArea(), ""),
                 vendor.getServices() == null ? "" : String.join(" ", vendor.getServices()),
-                vendor.getCategories() == null ? "" : vendor.getCategories().stream()
-                        .map(VendorCategory::getCategoryName)
-                        .toList()
-                        .toString()));
+                vendor.getCategories() == null ? ""
+                        : vendor.getCategories().stream()
+                                .map(VendorCategory::getCategoryName)
+                                .toList()
+                                .toString()));
         return haystack.contains(needle);
     }
 
@@ -261,7 +268,7 @@ public class PublicVendorService {
         };
     }
 
-    private PublicVendorReviewResponse reviewResponse(Review review) {
+    private PublicVendorReviewResponse reviewResponse(VendorReview review) {
         return new PublicVendorReviewResponse(
                 String.valueOf(review.getId()),
                 review.getCustomer() == null || !hasText(review.getCustomer().getFullName())
@@ -271,33 +278,36 @@ public class PublicVendorService {
                 eventType(review),
                 firstText(review.getComment(), ""),
                 eventDate(review),
-                Boolean.TRUE.equals(review.getVerifiedService()));
+                true);
     }
 
-    private double averageRating(List<Review> reviews) {
+    private double averageRating(List<VendorReview> reviews) {
         double average = reviews.stream()
                 .filter(review -> review.getRating() != null)
-                .mapToInt(Review::getRating)
+                .mapToInt(VendorReview::getRating)
                 .average()
                 .orElse(0.0);
         return Math.round(average * 10.0) / 10.0;
     }
 
-    private String eventType(Review review) {
-        if (review.getEnquiry() != null && hasText(review.getEnquiry().getEventType())) {
-            return review.getEnquiry().getEventType();
+    private String eventType(VendorReview review) {
+        if (review.getVendorLead() != null && hasText(review.getVendorLead().getEventType())) {
+            return review.getVendorLead().getEventType();
         }
         return "Completed event";
     }
 
-    private String eventDate(Review review) {
-        if (review.getEnquiry() != null && review.getEnquiry().getEventDate() != null) {
-            return review.getEnquiry().getEventDate().toString();
+    private String eventDate(VendorReview review) {
+
+        if (review.getVendorLead() != null &&
+                review.getVendorLead().getEventDate() != null) {
+
+            return review.getVendorLead().getEventDate().toString();
         }
-        if (review.getBooking() != null && review.getBooking().getEventDate() != null) {
-            return review.getBooking().getEventDate().toString();
-        }
-        return review.getCreatedAt() == null ? "" : review.getCreatedAt().toString();
+
+        return review.getCreatedAt() == null
+                ? ""
+                : review.getCreatedAt().toString();
     }
 
     private BigDecimal startingPrice(Vendors vendor) {

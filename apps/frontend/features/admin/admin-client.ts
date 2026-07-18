@@ -17,6 +17,20 @@ import {
 
 const useMockAdmin = process.env.NEXT_PUBLIC_ADMIN_MODE === "mock";
 
+export type AdminVendorReview = {
+  id: string;
+  vendorName: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  moderationReason: string;
+  verifiedService: boolean;
+  status: "PENDING" | "PUBLISHED" | "HIDDEN" | "REJECTED";
+  createdAt: string;
+  moderatedByAdminId?: number;
+  moderatedAt?: string;
+};
+
 type AdminQueueResult = {
   venues: VenueApplication[];
   vendors: VendorApplication[];
@@ -97,6 +111,34 @@ export async function moderateAdminReview(id: string, status: ReportedReview["st
   }
 }
 
+export async function moderateAdminVendorReview(
+  id: string,
+  status: "PUBLISHED" | "HIDDEN" | "REJECTED",
+  reason: string,
+  accessToken?: string | null
+) {
+
+  const response = await apiRequest<unknown>(
+    `/admin/vendor-reviews/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      token: accessToken ?? undefined,
+      body: JSON.stringify({
+        status,
+        reason
+      })
+    }
+  );
+
+  const review = toAdminVendorReview(response);
+
+  if (!review) {
+    throw new Error("Failed to moderate vendor review.");
+  }
+
+  return review;
+}
+
 export async function updateAdminUserStatus(id: string, status: Exclude<AdminUserStatus, "PENDING_VERIFICATION">, reason: string, accessToken?: string | null) {
   if (useMockAdmin || !accessToken) return updateMockUser(id, status);
 
@@ -131,6 +173,20 @@ async function getAdminReviews(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/reviews?status=REPORTED", { token: accessToken });
   const reviews = extractList(response).map(toReportedReview).filter(Boolean) as ReportedReview[];
   return reviews;
+}
+
+export async function getAdminVendorReviews(accessToken: string | null) {
+
+  const response = await apiRequest<unknown>(
+    "/admin/vendor-reviews?status=PENDING",
+    {
+      token: accessToken ?? undefined
+    }
+  );
+
+  return extractList(response)
+    .map(toAdminVendorReview)
+    .filter(Boolean) as AdminVendorReview[];
 }
 
 async function getAdminEnquiries(accessToken: string) {
@@ -321,6 +377,56 @@ function toReportedReview(value: unknown): ReportedReview | undefined {
     reportReason: stringValue(value, ["reportReason", "report_reason", "reason"]) ?? "Reported by user",
     verifiedService: booleanValue(value, ["verifiedService", "verified_service", "verified"]) ?? false,
     status: reviewStatus(value) ?? "REPORTED"
+  };
+}
+
+function toAdminVendorReview(
+  value: unknown
+): AdminVendorReview | undefined {
+
+  if (!isRecord(value)) return undefined;
+
+  const id = stringValue(value, ["id"]);
+
+  if (!id) return undefined;
+
+  return {
+
+    id,
+
+    vendorName:
+      stringValue(value, ["vendorName"]) ?? "",
+
+    customerName:
+      stringValue(value, ["customerName"]) ?? "",
+
+    rating:
+      numberValue(value, ["rating"]) ?? 0,
+
+    comment:
+      stringValue(value, ["comment"]) ?? "",
+
+    moderationReason:
+      stringValue(value, ["moderationReason"]) ?? "",
+
+    verifiedService:
+      booleanValue(value, ["verifiedService"]) ?? true,
+
+    status:
+      stringValue(value, ["status"]) as
+      | "PENDING"
+      | "PUBLISHED"
+      | "HIDDEN"
+      | "REJECTED",
+
+    createdAt:
+      stringValue(value, ["createdAt"]) ?? "",
+
+    moderatedByAdminId:
+      numberValue(value, ["moderatedByAdminId"]),
+
+    moderatedAt:
+      stringValue(value, ["moderatedAt"]),
   };
 }
 

@@ -1,4 +1,4 @@
-package com.staminal.venue.reviews;
+package com.staminal.venue.reviews.HallReview;
 
 import java.util.Map;
 
@@ -19,10 +19,11 @@ import com.staminal.venue.enquiries.EnquiryIds;
 import com.staminal.venue.enquiries.EnquiryRepository;
 import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.UserRole;
-import com.staminal.venue.reviews.Dto.CreateReviewRequest;
-import com.staminal.venue.reviews.Dto.ReviewEligibilityResponse;
-import com.staminal.venue.reviews.Dto.ReviewResponse;
-import com.staminal.venue.reviews.Dto.UpdateReviewRequest;
+import com.staminal.venue.reviews.HallReview.Dto.CreateReviewRequest;
+import com.staminal.venue.reviews.HallReview.Dto.ReviewEligibilityResponse;
+import com.staminal.venue.reviews.HallReview.Dto.ReviewResponse;
+import com.staminal.venue.reviews.HallReview.Dto.UpdateReviewRequest;
+import com.staminal.venue.reviews.VendorReview.VendorRatingAggregateService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -38,6 +39,7 @@ public class ReviewService {
         private final EnquiryRepository enquiryRepository;
         private final UserRepository userRepository;
         private final AuditService auditService;
+        // private final VendorRatingAggregateService vendorRatingAggregateService;
 
         public ReviewResponse createReview(
                         CreateReviewRequest request,
@@ -66,7 +68,7 @@ public class ReviewService {
                                         "Booking is not completed");
                 }
 
-                if (reviewRepository.existsByEnquiry_IdAndActiveTrue(enquiryId)) {
+                if (reviewRepository.existsByEnquiry_Id(enquiryId)) {
                         throw new ResponseStatusException(
                                         HttpStatus.CONFLICT,
                                         "Review already exists");
@@ -88,6 +90,7 @@ public class ReviewService {
                 review.setModerationStatus(ReviewModerationStatus.PENDING);
 
                 Review savedReview = reviewRepository.save(review);
+                // vendorRatingAggregateService.refreshFor(savedReview);
 
                 auditService.record(
                                 new AuditCommand(
@@ -137,6 +140,7 @@ public class ReviewService {
                 review.setModeratedAt(null);
 
                 Review savedReview = reviewRepository.save(review);
+                // vendorRatingAggregateService.refreshFor(savedReview);
 
                 auditService.record(
                                 new AuditCommand(
@@ -182,7 +186,7 @@ public class ReviewService {
                                         "Booking is not completed");
                 }
 
-                if (reviewRepository.existsByEnquiry_IdAndActiveTrue(enquiryId)) {
+                if (reviewRepository.existsByEnquiry_Id(enquiryId)) {
                         return new ReviewEligibilityResponse(
                                         false,
                                         "Review already submitted");

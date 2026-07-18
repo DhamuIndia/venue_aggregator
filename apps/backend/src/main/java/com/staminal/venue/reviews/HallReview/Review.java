@@ -1,4 +1,4 @@
-package com.staminal.venue.reviews;
+package com.staminal.venue.reviews.HallReview;
 
 import java.time.Instant;
 

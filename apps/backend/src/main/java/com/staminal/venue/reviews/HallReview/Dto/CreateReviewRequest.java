@@ -1,4 +1,4 @@
-package com.staminal.venue.reviews.Dto;
+package com.staminal.venue.reviews.HallReview.Dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -6,7 +6,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record UpdateReviewRequest(
+public record CreateReviewRequest(
+
+        @NotBlank
+        String enquiryId,
 
         @NotNull
         @Min(1)

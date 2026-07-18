@@ -13,13 +13,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
 import com.staminal.venue.audit.AuditAction;
 import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
-import com.staminal.venue.reviews.HallReview.Review;
 import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
-import com.staminal.venue.reviews.HallReview.ReviewRepository;
+import com.staminal.venue.reviews.VendorReview.VendorReview;
+import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
 import com.staminal.venue.reviews.VendorReview.VendorRatingAggregateService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -28,86 +27,175 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class AdminReviewModerationService {
+@Transactional
+public class AdminVendorReviewModerationService {
 
-    private final ReviewRepository reviewRepository;
+    private final VendorReviewRepository vendorReviewRepository;
     private final AdminRepository adminRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
-    // private final VendorRatingAggregateService vendorRatingAggregateService;
+    private final VendorRatingAggregateService vendorRatingAggregateService;
 
     @Transactional(readOnly = true)
-    public AdminReviewListResponse getReviews(String status, int page, int size) {
+    public AdminVendorReviewListResponse getReviews(String status, int page, int size) {
+
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
 
         Set<ReviewModerationStatus> statuses = toStatusFilter(status);
-        List<Review> filtered = statuses == null
-                ? reviewRepository.findAllForAdmin()
-                : reviewRepository.findForAdminByStatuses(statuses);
+
+        List<VendorReview> filtered = statuses == null
+                ? vendorReviewRepository.findAll()
+                : vendorReviewRepository.findByModerationStatusIn(statuses);
 
         int fromIndex = Math.min(safePage * safeSize, filtered.size());
         int toIndex = Math.min(fromIndex + safeSize, filtered.size());
-        List<AdminReviewResponse> content = filtered.subList(fromIndex, toIndex)
+
+        List<AdminVendorReviewResponse> content = filtered.subList(fromIndex, toIndex)
                 .stream()
                 .map(this::toResponse)
                 .toList();
 
-        int totalPages = filtered.isEmpty() ? 0 : (int) Math.ceil((double) filtered.size() / safeSize);
-        return new AdminReviewListResponse(content, safePage, safeSize, filtered.size(), totalPages);
+        int totalPages = filtered.isEmpty()
+                ? 0
+                : (int) Math.ceil((double) filtered.size() / safeSize);
+
+        return new AdminVendorReviewListResponse(
+                content,
+                safePage,
+                safeSize,
+                filtered.size(),
+                totalPages);
     }
 
     @Transactional
-    public AdminReviewResponse moderateReview(
+    public AdminVendorReviewResponse moderateReview(
             String reviewId,
             AdminReviewModerationRequest request,
             Authentication authentication) {
-        Review review = findReview(reviewId);
+
+        VendorReview review = findReview(reviewId);
+
         ReviewModerationStatus previousStatus = safeStatus(review.getModerationStatus());
+
         ReviewModerationStatus nextStatus = moderationDecision(request);
 
-        if ((nextStatus == ReviewModerationStatus.HIDDEN || nextStatus == ReviewModerationStatus.REJECTED)
+        if ((nextStatus == ReviewModerationStatus.HIDDEN
+                || nextStatus == ReviewModerationStatus.REJECTED)
                 && !hasText(request.reason())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reason is required");
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Reason is required");
         }
 
         Reviewer reviewer = currentAdmin(authentication);
+
         Instant moderatedAt = Instant.now();
 
         review.setModerationStatus(nextStatus);
-        review.setModerationReason(hasText(request.reason()) ? request.reason().trim() : null);
-        review.setModeratedByAdmin(reviewer.legacyAdmin().orElse(null));
+        review.setModerationReason(
+                hasText(request.reason())
+                        ? request.reason().trim()
+                        : null);
+
+        review.setModeratedByAdmin(
+                reviewer.legacyAdmin().orElse(null));
+
         review.setModeratedAt(moderatedAt);
+
         review.setActive(nextStatus == ReviewModerationStatus.PUBLISHED);
 
-        Review savedReview = reviewRepository.save(review);
-        // vendorRatingAggregateService.refreshFor(savedReview);
+        VendorReview saved = vendorReviewRepository.save(review);
 
-        auditService.record(new AuditCommand(
-                reviewer.actorUserId(),
-                "ADMIN",
-                nextStatus == ReviewModerationStatus.PUBLISHED
-                        ? AuditAction.REVIEW_APPROVED
-                        : AuditAction.REVIEW_HIDDEN,
-                "REVIEW",
-                String.valueOf(savedReview.getId()),
-                nextStatus == ReviewModerationStatus.PUBLISHED
-                        ? "Review published"
-                        : "Review hidden",
-                Map.of("status", previousStatus.name()),
-                auditNewValues(savedReview),
-                null));
+        vendorRatingAggregateService.refreshForVendorId(
+                saved.getVendor().getId());
 
-        return toResponse(savedReview);
+        auditService.record(
+                new AuditCommand(
+                        reviewer.actorUserId(),
+                        "ADMIN",
+                        nextStatus == ReviewModerationStatus.PUBLISHED
+                                ? AuditAction.REVIEW_APPROVED
+                                : AuditAction.REVIEW_HIDDEN,
+                        "VENDOR_REVIEW",
+                        String.valueOf(saved.getId()),
+                        nextStatus == ReviewModerationStatus.PUBLISHED
+                                ? "Vendor review published"
+                                : "Vendor review hidden",
+                        Map.of("status", previousStatus.name()),
+                        auditNewValues(saved),
+                        null));
+
+        return toResponse(saved);
     }
 
-    private Review findReview(String reviewId) {
-        Long numericId = tryParseLong(reviewId);
-        if (numericId == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid review id");
+    private VendorReview findReview(String reviewId) {
+
+        Long id = tryParseLong(reviewId);
+
+        if (id == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid review id");
         }
-        return reviewRepository.findByIdForAdmin(numericId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
+
+        return vendorReviewRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Review not found"));
+    }
+
+    private AdminVendorReviewResponse toResponse(VendorReview review) {
+
+        return new AdminVendorReviewResponse(
+
+                String.valueOf(review.getId()),
+
+                review.getVendor().getBusinessName(),
+
+                review.getCustomer() == null
+                        ? "Customer"
+                        : review.getCustomer().getFullName(),
+
+                review.getRating(),
+
+                review.getComment(),
+
+                firstText(review.getModerationReason(), ""),
+
+                true,
+
+                safeStatus(review.getModerationStatus()).name(),
+
+                review.getCreatedAt(),
+
+                review.getModeratedByAdmin() == null
+                        ? null
+                        : review.getModeratedByAdmin().getId(),
+
+                review.getModeratedAt());
+    }
+
+    private Map<String, Object> auditNewValues(VendorReview review) {
+
+        Map<String, Object> values = new HashMap<>();
+
+        values.put(
+                "status",
+                safeStatus(review.getModerationStatus()).name());
+
+        if (hasText(review.getModerationReason())) {
+            values.put(
+                    "reason",
+                    review.getModerationReason());
+        }
+
+        return values;
+    }
+
+    private ReviewModerationStatus safeStatus(ReviewModerationStatus status) {
+        return status == null ? ReviewModerationStatus.PENDING : status;
     }
 
     private ReviewModerationStatus moderationDecision(AdminReviewModerationRequest request) {
@@ -147,7 +235,8 @@ public class AdminReviewModerationService {
         Long userId = tryParseLong(principal);
         if (userId != null) {
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Admin session is invalid"));
+                    .orElseThrow(
+                            () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Admin session is invalid"));
             Optional<Admin> legacyAdmin = hasText(user.getEmail())
                     ? adminRepository.findByEmail(user.getEmail())
                     : Optional.empty();
@@ -160,47 +249,8 @@ public class AdminReviewModerationService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Admin session is invalid");
         }
 
-        return new Reviewer(user.map(User::getId).orElseGet(() -> legacyAdmin.map(Admin::getId).orElse(null)), legacyAdmin);
-    }
-
-    private AdminReviewResponse toResponse(Review review) {
-        return new AdminReviewResponse(
-                String.valueOf(review.getId()),
-                reviewTargetName(review),
-                review.getCustomer() == null || !hasText(review.getCustomer().getFullName())
-                        ? "Customer"
-                        : review.getCustomer().getFullName(),
-                review.getRating(),
-                review.getComment(),
-                firstText(review.getReportReason(), review.getModerationReason(), ""),
-                review.getVerifiedService(),
-                safeStatus(review.getModerationStatus()).name(),
-                review.getCreatedAt(),
-                review.getModeratedByAdmin() == null ? null : review.getModeratedByAdmin().getId(),
-                review.getModeratedAt());
-    }
-
-    private String reviewTargetName(Review review) {
-        if (review.getHall() != null && hasText(review.getHall().getName())) {
-            return review.getHall().getName();
-        }
-        if (review.getVendor() != null && hasText(review.getVendor().getBusinessName())) {
-            return review.getVendor().getBusinessName();
-        }
-        return "Marketplace listing";
-    }
-
-    private ReviewModerationStatus safeStatus(ReviewModerationStatus status) {
-        return status == null ? ReviewModerationStatus.PENDING : status;
-    }
-
-    private Map<String, Object> auditNewValues(Review review) {
-        Map<String, Object> values = new HashMap<>();
-        values.put("status", safeStatus(review.getModerationStatus()).name());
-        if (hasText(review.getModerationReason())) {
-            values.put("reason", review.getModerationReason());
-        }
-        return values;
+        return new Reviewer(user.map(User::getId).orElseGet(() -> legacyAdmin.map(Admin::getId).orElse(null)),
+                legacyAdmin);
     }
 
     private Long tryParseLong(String value) {
@@ -229,4 +279,5 @@ public class AdminReviewModerationService {
 
     private record Reviewer(Long actorUserId, Optional<Admin> legacyAdmin) {
     }
+
 }
