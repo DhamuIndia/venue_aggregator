@@ -55,9 +55,6 @@ class VendorLeadServiceTest {
 
     private VendorLeadService vendorLeadService;
 
-    @Mock
-    private NotificationService notificationService;
-
     @BeforeEach
     void setUp() {
         vendorLeadService = new VendorLeadService(
