@@ -19,8 +19,20 @@ export function RegisterForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (!form.fullName.trim() || form.phone.replace(/\D/g, "").length < 10 || form.password.length < 8 || !accepted) {
-      setError("Complete the required fields, use an 8-character password, and accept the terms.");
+    if (!form.fullName.trim()) {
+      setError("Enter your full name.");
+      return;
+    }
+    if (form.phone.replace(/\D/g, "").length !== 10) {
+      setError("Enter a valid 10-digit mobile number.");
+      return;
+    }
+    if (form.password.length < 8) {
+      setError("Use a password with at least 8 characters.");
+      return;
+    }
+    if (!accepted) {
+      setError("Accept the terms and privacy policy to continue.");
       return;
     }
 

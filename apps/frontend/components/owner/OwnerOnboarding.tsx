@@ -156,9 +156,39 @@ export function OwnerOnboarding() {
   }
 
   function continueStep() {
-    if (step === 0 && (!form.hallName.trim() || !form.addressLine.trim() || !form.area.trim() || !form.pincode.trim() || !form.contactNumber.trim() || Number(form.capacity) < 1 || !hasCapturedLocation(form))) {
-      setError("Enter the venue name, address, area, pincode, contact number, guest capacity, and location coordinates.");
-      return;
+    if (step === 0) {
+      if (!form.hallName.trim()) {
+        setError("Enter the venue name.");
+        return;
+      }
+      if (Number(form.capacity) < 1) {
+        setError("Choose the maximum guest capacity.");
+        return;
+      }
+      if (!form.area.trim()) {
+        setError("Enter the venue area.");
+        return;
+      }
+      if (!form.pincode.trim()) {
+        setError("Enter the venue pincode.");
+        return;
+      }
+      if (!form.addressLine.trim()) {
+        setError("Enter the venue address.");
+        return;
+      }
+      if (!hasCapturedLocation(form)) {
+        setError("Capture or enter the venue location coordinates.");
+        return;
+      }
+      if (!form.contactNumber.trim()) {
+        setError("Enter the venue contact number.");
+        return;
+      }
+      if (!form.description.trim()) {
+        setError("Enter a short venue description.");
+        return;
+      }
     }
     if (step === 1 && amenities.length === 0) {
       setError("Select at least one facility.");
