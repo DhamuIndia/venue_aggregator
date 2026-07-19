@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   FileCheck2,
   ImagePlus,
+  KeyRound,
   MessageSquareWarning,
   RotateCcw,
   Search,
@@ -18,25 +19,30 @@ import {
   Store,
   TrendingUp,
   UserCog,
+  UserPlus,
   X,
   XCircle
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
 import { VenueDetailsDrawer } from "@/components/admin/VenueDetailsDrawer";
 import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
 import {
+  createAdminUser,
   getAdminQueues,
   getAdminVendor,
   getAdminVendorReviews,
   moderateAdminReview,
   moderateAdminVendorReview,
+  resetAdminUserPassword,
   reviewAdminHall,
   reviewAdminVendor,
+  updateAdminUserRole,
   updateAdminUserStatus,
-  type AdminVendorReview
+  type AdminVendorReview,
+  type ManagedAdminRole
 } from "@/features/admin/admin-client";
 import {
   auditEvents as initialAuditEvents,
@@ -119,7 +125,7 @@ function VenueImage({ venue, sizes }: { venue: VenueApplication; sizes: string }
 }
 
 export function AdminDashboard() {
-  const { accessToken } = useAuth();
+  const { accessToken, user: authUser } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [venues, setVenues] = useState<VenueApplication[]>([]);
   const [vendors, setVendors] = useState<VendorApplication[]>([]);
@@ -139,6 +145,18 @@ export function AdminDashboard() {
   const [userStatusFilter, setUserStatusFilter] = useState<"ALL" | AdminUserStatus>("ALL");
   const [userSearch, setUserSearch] = useState("");
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [roleUpdatingUserId, setRoleUpdatingUserId] = useState<string | null>(null);
+  const [passwordResetUserId, setPasswordResetUserId] = useState<string | null>(null);
+  const [passwordResetValue, setPasswordResetValue] = useState("");
+  const [adminForm, setAdminForm] = useState({
+    fullName: "",
+    phone: "",
+    email: "",
+    password: "",
+    role: "ADMIN" as ManagedAdminRole
+  });
+  const [adminFormError, setAdminFormError] = useState("");
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<RejectTarget | null>(null);
   const [notice, setNotice] = useState("");
   const [selectedVendor, setSelectedVendor] =
@@ -152,6 +170,7 @@ export function AdminDashboard() {
   const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const suspendedUserCount = users.filter((user) => user.status === "SUSPENDED").length;
   const pendingUserCount = users.filter((user) => user.status === "PENDING_VERIFICATION").length;
+  const isSuperAdmin = authUser?.role === "SUPER_ADMIN";
 
   const filteredVenues = useMemo(
     () => venueFilter === "ALL" ? venues : venues.filter((venue) => venue.status === venueFilter),
@@ -343,6 +362,75 @@ export function AdminDashboard() {
     }
   }
 
+  function updateAdminFormField(field: keyof typeof adminForm, value: string) {
+    setAdminForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitNewAdminUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAdminFormError("");
+
+    try {
+      setIsCreatingAdmin(true);
+      const createdUser = await createAdminUser(adminForm, accessToken);
+      setUsers((current) => [createdUser, ...current]);
+      setAdminForm({
+        fullName: "",
+        phone: "",
+        email: "",
+        password: "",
+        role: "ADMIN"
+      });
+      setNotice(`${userRoleLabels[createdUser.role]} account created.`);
+    } catch (exception) {
+      setAdminFormError(exception instanceof Error ? exception.message : "Could not create admin user.");
+    } finally {
+      setIsCreatingAdmin(false);
+    }
+  }
+
+  async function changeUserRole(id: string, role: ManagedAdminRole) {
+    const previousUsers = users;
+
+    try {
+      setRoleUpdatingUserId(id);
+      setUsers((current) => current.map((user) => user.id === id ? { ...user, role } : user));
+      const updatedUser = await updateAdminUserRole(id, role, accessToken);
+      setUsers((current) => current.map((user) => user.id === id ? { ...user, ...updatedUser } : user));
+      setNotice("Admin role updated.");
+    } catch (exception) {
+      setUsers(previousUsers);
+      setNotice(exception instanceof Error ? exception.message : "Could not update admin role.");
+    } finally {
+      setRoleUpdatingUserId(null);
+    }
+  }
+
+  async function submitPasswordReset(id: string) {
+    if (passwordResetUserId !== id) {
+      setPasswordResetUserId(id);
+      setPasswordResetValue("");
+      return;
+    }
+
+    if (passwordResetValue.trim().length < 8) {
+      setNotice("Password must be at least 8 characters.");
+      return;
+    }
+
+    try {
+      setUpdatingUserId(id);
+      await resetAdminUserPassword(id, passwordResetValue, accessToken);
+      setPasswordResetUserId(null);
+      setPasswordResetValue("");
+      setNotice("Admin password reset.");
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not reset admin password.");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
+
   async function openVendorDetails(vendor: VendorApplication) {
     try {
       setLoadingVendorId(vendor.id);
@@ -485,6 +573,7 @@ export function AdminDashboard() {
                   <option value="HALL_OWNER">Owners</option>
                   <option value="VENDOR">Vendors</option>
                   <option value="ADMIN">Admins</option>
+                  <option value="SUPER_ADMIN">Super admins</option>
                 </select>
                 <select className="h-10 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
                   <option value="ALL">All statuses</option>
@@ -496,6 +585,33 @@ export function AdminDashboard() {
               </div>
             </div>
 
+            {isSuperAdmin ? (
+              <form className="mt-5 rounded-lg border border-border bg-white p-5" onSubmit={submitNewAdminUser}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="inline-flex items-center gap-2 font-semibold"><UserPlus size={18} /> Create admin account</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Use this for internal platform operators only.</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">Super admin</span>
+                </div>
+                <div className="mt-5 grid gap-4 md:grid-cols-[1fr_150px_1fr_170px_150px]">
+                  <label className="text-sm font-medium">Full name<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateAdminFormField("fullName", event.target.value)} placeholder="Admin name" required value={adminForm.fullName} /></label>
+                  <label className="text-sm font-medium">Phone<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(event) => updateAdminFormField("phone", event.target.value)} placeholder="10 digits" required value={adminForm.phone} /></label>
+                  <label className="text-sm font-medium">Email<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateAdminFormField("email", event.target.value)} placeholder="admin@example.com" required type="email" value={adminForm.email} /></label>
+                  <label className="text-sm font-medium">Password<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" minLength={8} onChange={(event) => updateAdminFormField("password", event.target.value)} placeholder="Min 8 chars" required type="password" value={adminForm.password} /></label>
+                  <label className="text-sm font-medium">Role<select className="mt-2 h-10 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateAdminFormField("role", event.target.value as ManagedAdminRole)} value={adminForm.role}><option value="ADMIN">Admin</option><option value="SUPER_ADMIN">Super admin</option></select></label>
+                </div>
+                {adminFormError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{adminFormError}</p>}
+                <div className="mt-5 flex justify-end">
+                  <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isCreatingAdmin} type="submit">{isCreatingAdmin ? <Activity className="animate-spin" size={16} /> : <UserPlus size={16} />} Create admin</button>
+                </div>
+              </form>
+            ) : (
+              <div className="mt-5 rounded-lg border border-border bg-white p-4 text-sm text-muted-foreground">
+                Super admin controls are hidden for this account.
+              </div>
+            )}
+
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Total users</p><p className="mt-2 text-2xl font-semibold">{users.length}</p></div>
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Pending verification</p><p className="mt-2 text-2xl font-semibold">{pendingUserCount}</p></div>
@@ -503,14 +619,17 @@ export function AdminDashboard() {
             </div>
 
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
-              <div className="hidden grid-cols-[1.4fr_150px_130px_1fr_190px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
+              <div className="hidden grid-cols-[1.2fr_160px_130px_0.8fr_360px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[84px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredUsers.map((user) => {
                 const isUpdating = updatingUserId === user.id;
-                const canActivate = user.status === "SUSPENDED" || user.status === "PENDING_VERIFICATION";
-                const canSuspend = user.status === "ACTIVE" && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN";
+                const isCurrentUser = authUser?.id === user.id;
+                const isAdminAccount = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+                const canActivate = (user.status === "SUSPENDED" || user.status === "PENDING_VERIFICATION") && (!isAdminAccount || isSuperAdmin);
+                const canSuspend = user.status === "ACTIVE" && !isCurrentUser && (!isAdminAccount || isSuperAdmin);
+                const canManageAdminAccount = isSuperAdmin && isAdminAccount;
 
                 return (
-                  <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_150px_130px_1fr_190px] md:items-center" key={user.id}>
+                  <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.2fr_160px_130px_0.8fr_360px] md:items-center" key={user.id}>
                     <div>
                       <div className="flex items-center gap-3">
                         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-800">{user.fullName.charAt(0)}</span>
@@ -527,10 +646,26 @@ export function AdminDashboard() {
                       <p>Joined {new Date(user.joinedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>
                       {user.lastActiveAt && <p className="mt-1">Last active {new Date(user.lastActiveAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>}
                     </div>
-                    <div className="flex flex-wrap gap-2 md:justify-end">
+                    <div className="grid gap-2">
+                      {canManageAdminAccount && (
+                        <div className="flex justify-end">
+                          <select className="h-9 rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-primary disabled:opacity-60" disabled={roleUpdatingUserId === user.id} onChange={(event) => changeUserRole(user.id, event.target.value as ManagedAdminRole)} value={user.role as ManagedAdminRole}>
+                            <option value="ADMIN">Admin</option>
+                            <option value="SUPER_ADMIN">Super admin</option>
+                          </select>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 md:justify-end">
                       {canActivate && <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "ACTIVE")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <Check size={16} />} Activate</button>}
                       {canSuspend && <button className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "SUSPENDED")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <ShieldBan size={16} />} Suspend</button>}
-                      {!canActivate && !canSuspend && <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">Protected</span>}
+                      {!canActivate && !canSuspend && <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">{isCurrentUser ? "Current user" : "Protected"}</span>}
+                      </div>
+                      {canManageAdminAccount && (
+                        <div className="flex flex-wrap gap-2 md:justify-end">
+                          {passwordResetUserId === user.id && <input className="h-9 w-44 rounded-md border border-border px-3 text-sm outline-none focus:border-primary" minLength={8} onChange={(event) => setPasswordResetValue(event.target.value)} placeholder="New password" type="password" value={passwordResetValue} />}
+                          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isUpdating} onClick={() => submitPasswordReset(user.id)} type="button">{isUpdating && passwordResetUserId === user.id ? <Activity className="animate-spin" size={16} /> : <KeyRound size={16} />}{passwordResetUserId === user.id ? "Save password" : "Reset password"}</button>
+                        </div>
+                      )}
                     </div>
                   </article>
                 );

@@ -31,6 +31,16 @@ export type AdminVendorReview = {
   moderatedAt?: string;
 };
 
+export type ManagedAdminRole = Extract<AdminUser["role"], "ADMIN" | "SUPER_ADMIN">;
+
+export type CreateAdminUserPayload = {
+  fullName: string;
+  phone: string;
+  email: string;
+  password: string;
+  role: ManagedAdminRole;
+};
+
 type AdminQueueResult = {
   venues: VenueApplication[];
   vendors: VendorApplication[];
@@ -157,6 +167,51 @@ export async function updateAdminUserStatus(id: string, status: Exclude<AdminUse
   }
 }
 
+export async function createAdminUser(payload: CreateAdminUserPayload, accessToken?: string | null) {
+  if (useMockAdmin) return createMockAdminUser(payload);
+  if (!accessToken) throw new Error("Authentication required");
+
+  const response = await apiRequest<unknown>("/admin/users", {
+    method: "POST",
+    token: accessToken,
+    body: JSON.stringify(payload)
+  });
+
+  const adminUser = toAdminUser(response);
+  if (!adminUser) throw new Error("Could not create admin user.");
+  return adminUser;
+}
+
+export async function updateAdminUserRole(id: string, role: ManagedAdminRole, accessToken?: string | null) {
+  if (useMockAdmin) return updateMockUserRole(id, role);
+  if (!accessToken) throw new Error("Authentication required");
+
+  const response = await apiRequest<unknown>(`/admin/users/${encodeURIComponent(id)}/role`, {
+    method: "PATCH",
+    token: accessToken,
+    body: JSON.stringify({ role })
+  });
+
+  const adminUser = toAdminUser(response);
+  if (!adminUser) throw new Error("Could not update admin role.");
+  return adminUser;
+}
+
+export async function resetAdminUserPassword(id: string, password: string, accessToken?: string | null) {
+  if (useMockAdmin) return adminUsers.find((adminUser) => adminUser.id === id);
+  if (!accessToken) throw new Error("Authentication required");
+
+  const response = await apiRequest<unknown>(`/admin/users/${encodeURIComponent(id)}/password`, {
+    method: "PATCH",
+    token: accessToken,
+    body: JSON.stringify({ password })
+  });
+
+  const adminUser = toAdminUser(response);
+  if (!adminUser) throw new Error("Could not reset admin password.");
+  return adminUser;
+}
+
 async function getAdminVenues(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/halls?status=PENDING_APPROVAL", { token: accessToken });
   const venues = extractList(response).map(toVenueApplication).filter(Boolean) as VenueApplication[];
@@ -252,6 +307,24 @@ function updateMockReview(id: string, status: ReportedReview["status"]) {
 function updateMockUser(id: string, status: Exclude<AdminUserStatus, "PENDING_VERIFICATION">) {
   return adminUsers.find((user) => user.id === id)
     ? { ...adminUsers.find((user) => user.id === id)!, status }
+    : undefined;
+}
+
+function createMockAdminUser(payload: CreateAdminUserPayload) {
+  return {
+    id: `admin-${Date.now()}`,
+    fullName: payload.fullName,
+    phone: payload.phone,
+    email: payload.email,
+    role: payload.role,
+    status: "ACTIVE",
+    joinedAt: new Date().toISOString()
+  } satisfies AdminUser;
+}
+
+function updateMockUserRole(id: string, role: ManagedAdminRole) {
+  return adminUsers.find((user) => user.id === id)
+    ? { ...adminUsers.find((user) => user.id === id)!, role }
     : undefined;
 }
 

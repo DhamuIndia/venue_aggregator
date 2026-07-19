@@ -17,7 +17,6 @@ export type HallSlotCombinationId =
   | "AFTERNOON_EVENING"
   | "FULL_DAY"
   | "EVENING_NEXT_MORNING"
-  | "EVENING_NEXT_AFTERNOON"
   | "EVENING_NEXT_MORNING_AFTERNOON"
   | "AFTERNOON_EVENING_NEXT_MORNING";
 
@@ -78,13 +77,6 @@ export const HALL_SLOT_COMBINATIONS: HallSlotCombination[] = [
     description: "4 PM - 11 PM, then 6 AM - 12 PM next day",
     slots: ["EVENING"],
     nextDaySlots: ["MORNING"]
-  },
-  {
-    id: "EVENING_NEXT_AFTERNOON",
-    label: "Evening + next afternoon",
-    description: "4 PM - 11 PM, then 12 PM - 4 PM next day",
-    slots: ["EVENING"],
-    nextDaySlots: ["AFTERNOON"]
   },
   {
     id: "EVENING_NEXT_MORNING_AFTERNOON",

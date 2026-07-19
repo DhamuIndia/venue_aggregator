@@ -7,6 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,6 +21,13 @@ import lombok.RequiredArgsConstructor;
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
+
+    @PostMapping
+    public AdminUserResponse createAdminUser(
+            @RequestBody CreateAdminUserRequest request,
+            Authentication authentication) {
+        return adminUserService.createAdminUser(request, authentication);
+    }
 
     @GetMapping
     public AdminUserListResponse getUsers(
@@ -39,7 +47,37 @@ public class AdminUserController {
         return adminUserService.updateUserStatus(userId, request, authentication);
     }
 
+    @PatchMapping("/{userId}/role")
+    public AdminUserResponse updateUserRole(
+            @PathVariable String userId,
+            @RequestBody UpdateUserRoleRequest request,
+            Authentication authentication) {
+        return adminUserService.updateUserRole(userId, request, authentication);
+    }
+
+    @PatchMapping("/{userId}/password")
+    public AdminUserResponse resetUserPassword(
+            @PathVariable String userId,
+            @RequestBody ResetUserPasswordRequest request,
+            Authentication authentication) {
+        return adminUserService.resetUserPassword(userId, request, authentication);
+    }
+
+    public record CreateAdminUserRequest(
+            String fullName,
+            String phone,
+            String email,
+            String password,
+            String role) {
+    }
+
+    public record UpdateUserRoleRequest(String role) {
+    }
+
     public record UpdateUserStatusRequest(String status) {
+    }
+
+    public record ResetUserPasswordRequest(String password) {
     }
 
     public record AdminUserListResponse(

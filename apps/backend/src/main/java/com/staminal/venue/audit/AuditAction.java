@@ -1,6 +1,9 @@
 package com.staminal.venue.audit;
 
 public enum AuditAction {
+    ADMIN_USER_CREATED,
+    ADMIN_USER_ROLE_CHANGED,
+    ADMIN_USER_PASSWORD_RESET,
     ADMIN_USER_STATUS_CHANGED,
     HALL_APPROVED,
     HALL_REJECTED,
