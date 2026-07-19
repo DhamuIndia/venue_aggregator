@@ -102,6 +102,32 @@ class AdminHallModerationServiceTest {
     }
 
     @Test
+    void approvePendingHallWorksWithUnifiedNumericSuperAdminSession() {
+        Halls hall = hall(12L, HallStatus.PENDING_APPROVAL);
+        User superAdminUser = adminUser(901L, "super@example.com");
+        Admin legacySuperAdmin = legacyAdmin(101L, "super@example.com");
+
+        when(hallRepository.findById(12L)).thenReturn(Optional.of(hall));
+        when(userRepository.findById(901L)).thenReturn(Optional.of(superAdminUser));
+        when(adminRepository.findByEmail("super@example.com")).thenReturn(Optional.of(legacySuperAdmin));
+        when(hallRepository.save(any(Halls.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminHallResponse response = adminHallModerationService.reviewHall(
+                "12",
+                new AdminReviewRequest("APPROVED", "Documents verified"),
+                auth("901", "ROLE_SUPER_ADMIN"));
+
+        ArgumentCaptor<Halls> hallCaptor = ArgumentCaptor.forClass(Halls.class);
+        verify(hallRepository).save(hallCaptor.capture());
+
+        Halls saved = hallCaptor.getValue();
+        assertThat(saved.getStatus()).isEqualTo(HallStatus.APPROVED);
+        assertThat(saved.getApprovedBy()).isSameAs(legacySuperAdmin);
+        assertThat(response.status()).isEqualTo("APPROVED");
+        assertThat(response.reviewedBy()).isEqualTo(101L);
+    }
+
+    @Test
     void rejectRequiresReason() {
         Halls hall = hall(11L, HallStatus.PENDING_APPROVAL);
 
@@ -156,30 +182,42 @@ class AdminHallModerationServiceTest {
     }
 
     private User adminUser() {
+        return adminUser(900L, "admin@example.com");
+    }
+
+    private User adminUser(Long id, String email) {
         User admin = new User();
-        admin.setId(900L);
+        admin.setId(id);
         admin.setFullName("Test Admin");
         admin.setPhone("9000000001");
-        admin.setEmail("admin@example.com");
+        admin.setEmail(email);
         admin.setStatus("ACTIVE");
         admin.setPasswordHash("hashed-password");
         return admin;
     }
 
     private Admin legacyAdmin() {
+        return legacyAdmin(100L, "admin@example.com");
+    }
+
+    private Admin legacyAdmin(Long id, String email) {
         Admin admin = new Admin();
-        admin.setId(100L);
+        admin.setId(id);
         admin.setFullName("Legacy Admin");
-        admin.setEmail("admin@example.com");
+        admin.setEmail(email);
         admin.setStatus("ACTIVE");
         admin.setPasswordHash("hashed-password");
         return admin;
     }
 
     private UsernamePasswordAuthenticationToken auth() {
+        return auth("900", "ROLE_ADMIN");
+    }
+
+    private UsernamePasswordAuthenticationToken auth(String principal, String role) {
         return new UsernamePasswordAuthenticationToken(
-                "900",
+                principal,
                 null,
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+                List.of(new SimpleGrantedAuthority(role)));
     }
 }

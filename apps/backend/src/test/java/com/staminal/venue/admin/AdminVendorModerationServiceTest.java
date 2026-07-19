@@ -23,6 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.users.Entity.User;
+import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
@@ -39,11 +41,18 @@ class AdminVendorModerationServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private UserRepository userRepository;
+
     private AdminVendorModerationService adminVendorModerationService;
 
     @BeforeEach
     void setUp() {
-        adminVendorModerationService = new AdminVendorModerationService(vendorRepository, auditService, adminRepository);
+        adminVendorModerationService = new AdminVendorModerationService(
+                vendorRepository,
+                auditService,
+                adminRepository,
+                userRepository);
     }
 
     @Test
@@ -88,6 +97,32 @@ class AdminVendorModerationServiceTest {
         assertThat(response.status()).isEqualTo("APPROVED");
         assertThat(response.reviewedBy()).isEqualTo(900L);
         assertThat(response.reviewedAt()).isNotNull();
+    }
+
+    @Test
+    void approvePendingVendorWorksWithUnifiedNumericSuperAdminSession() {
+        Vendors vendor = vendor(502L, VendorStatus.PENDING);
+        User superAdminUser = adminUser(901L, "super@example.com");
+        Admin superAdmin = admin(901L, "super@example.com");
+
+        when(vendorRepository.findById(502L)).thenReturn(Optional.of(vendor));
+        when(userRepository.findById(901L)).thenReturn(Optional.of(superAdminUser));
+        when(adminRepository.findByEmail("super@example.com")).thenReturn(Optional.of(superAdmin));
+        when(vendorRepository.save(any(Vendors.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AdminVendorResponse response = adminVendorModerationService.reviewVendor(
+                "502",
+                new AdminReviewRequest("APPROVED", "Business identity verified"),
+                auth("901", "ROLE_SUPER_ADMIN"));
+
+        ArgumentCaptor<Vendors> vendorCaptor = ArgumentCaptor.forClass(Vendors.class);
+        verify(vendorRepository).save(vendorCaptor.capture());
+
+        Vendors saved = vendorCaptor.getValue();
+        assertThat(saved.getStatus()).isEqualTo(VendorStatus.APPROVED);
+        assertThat(saved.getReviewedByAdmin()).isSameAs(superAdmin);
+        assertThat(response.status()).isEqualTo("APPROVED");
+        assertThat(response.reviewedBy()).isEqualTo(901L);
     }
 
     @Test
@@ -139,20 +174,39 @@ class AdminVendorModerationServiceTest {
     }
 
     private Admin admin() {
+        return admin(900L, "admin@example.com");
+    }
+
+    private Admin admin(Long id, String email) {
         Admin admin = new Admin();
-        admin.setId(900L);
+        admin.setId(id);
         admin.setFullName("Test Admin");
         admin.setContactNumber("9000000001");
-        admin.setEmail("admin@example.com");
+        admin.setEmail(email);
         admin.setStatus("ACTIVE");
         admin.setPasswordHash("hashed-password");
         return admin;
     }
 
+    private User adminUser(Long id, String email) {
+        User user = new User();
+        user.setId(id);
+        user.setFullName("Test Admin");
+        user.setPhone("9000000001");
+        user.setEmail(email);
+        user.setStatus("ACTIVE");
+        user.setPasswordHash("hashed-password");
+        return user;
+    }
+
     private UsernamePasswordAuthenticationToken auth() {
+        return auth("admin@example.com", "ROLE_ADMIN");
+    }
+
+    private UsernamePasswordAuthenticationToken auth(String principal, String role) {
         return new UsernamePasswordAuthenticationToken(
-                "admin@example.com",
+                principal,
                 null,
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+                List.of(new SimpleGrantedAuthority(role)));
     }
 }

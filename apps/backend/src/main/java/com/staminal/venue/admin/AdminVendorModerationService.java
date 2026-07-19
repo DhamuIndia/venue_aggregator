@@ -25,6 +25,8 @@ import com.staminal.venue.vendors.Dto.VendorResponse;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
+import com.staminal.venue.users.Entity.User;
+import com.staminal.venue.users.Repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +37,7 @@ public class AdminVendorModerationService {
     private final VendorRepository vendorRepository;
     private final AuditService auditService;
     private final AdminRepository adminRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public AdminVendorListResponse getVendors(String status, int page, int size) {
@@ -149,6 +152,14 @@ public class AdminVendorModerationService {
         }
 
         String principal = authentication.getName();
+        Long userId = tryParseLong(principal);
+        if (userId != null) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(
+                            () -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Admin session is invalid"));
+            return hasText(user.getEmail()) ? adminRepository.findByEmail(user.getEmail()) : Optional.empty();
+        }
+
         return adminRepository.findByEmail(principal);
     }
 

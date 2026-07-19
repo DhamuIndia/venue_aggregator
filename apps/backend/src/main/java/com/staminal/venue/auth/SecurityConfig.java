@@ -97,7 +97,6 @@ public class SecurityConfig {
                                                 .requestMatchers("/v1/vendor/**", "/vendor/**")
                                                 .hasRole("VENDOR")
                                                 .requestMatchers("/v1/owner/**").hasRole("HALL_OWNER")
-                                                .requestMatchers("/v1/admin/**").hasRole("ADMIN")
                                                 .anyRequest().authenticated())
                                 .formLogin(form -> form.disable())
                                 .httpBasic(httpBasic -> httpBasic.disable())
