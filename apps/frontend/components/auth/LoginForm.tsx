@@ -12,6 +12,14 @@ function routeForRole(role: AuthRole): Route {
   return role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "VENDOR" ? "/vendor" : role === "HALL_OWNER" ? "/owner" : "/customer";
 }
 
+function isSafeNextPathForRole(nextPath: string | null, role: AuthRole) {
+  if (!nextPath?.startsWith("/") || nextPath.startsWith("//")) return false;
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return nextPath === "/admin" || nextPath.startsWith("/admin?");
+  if (role === "VENDOR") return nextPath === "/vendor" || nextPath.startsWith("/vendor/");
+  if (role === "HALL_OWNER") return nextPath === "/owner" || nextPath.startsWith("/owner/");
+  return nextPath === "/customer" || nextPath.startsWith("/customer?") || nextPath.startsWith("/halls") || nextPath.startsWith("/vendors");
+}
+
 export function LoginForm() {
   const { login, loginDemo } = useAuth();
   const [phone, setPhone] = useState("");
@@ -32,7 +40,7 @@ export function LoginForm() {
       setIsSubmitting(true);
       const user = await login({ phone, password });
       const nextPath = new URLSearchParams(window.location.search).get("next");
-      const destination: Route = nextPath?.startsWith("/") && !nextPath.startsWith("//")
+      const destination: Route = isSafeNextPathForRole(nextPath, user.role)
         ? nextPath as Route
         : routeForRole(user.role);
       window.location.assign(destination);

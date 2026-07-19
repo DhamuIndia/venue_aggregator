@@ -18,7 +18,7 @@ export function AuthGate({ children, allowedRoles }: { children: ReactNode; allo
       return;
     }
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-      const accountRoute: Route = user.role === "ADMIN" ? "/admin" : user.role === "VENDOR" ? "/vendor" : user.role === "HALL_OWNER" ? "/owner" : "/customer";
+      const accountRoute: Route = user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : user.role === "VENDOR" ? "/vendor" : user.role === "HALL_OWNER" ? "/owner" : "/customer";
       router.replace(accountRoute);
     }
   }, [allowedRoles, isLoading, router, user]);

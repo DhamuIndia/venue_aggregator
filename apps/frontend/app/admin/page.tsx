@@ -6,7 +6,7 @@ export default function AdminPage() {
   return (
     <>
       <SiteHeader />
-      <AuthGate allowedRoles={["ADMIN"]}>
+      <AuthGate allowedRoles={["ADMIN", "SUPER_ADMIN"]}>
         <AdminDashboard />
       </AuthGate>
     </>
