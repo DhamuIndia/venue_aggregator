@@ -821,6 +821,11 @@ Hall moderation list items should include:
   "startingPrice": 145000,
   "submittedAt": "2026-06-22T08:45:00Z",
   "imageUrl": "https://example.com/hall.jpg",
+  "imageUrls": [
+    "https://example.com/hall.jpg",
+    "https://example.com/hall-dining.jpg",
+    "https://example.com/hall-entrance.jpg"
+  ],
   "status": "PENDING_APPROVAL",
   "documents": {
     "ownership": true,
@@ -829,6 +834,8 @@ Hall moderation list items should include:
   }
 }
 ```
+
+`imageUrl` is the selected cover image. `imageUrls` contains every uploaded hall image, ordered with the cover first. Admin clients must expose the complete gallery before approving or rejecting the venue.
 
 Vendor moderation list items should include `id`, `businessName`, `contactName`, `category`, `city`, `submittedAt`, and `status`.
 

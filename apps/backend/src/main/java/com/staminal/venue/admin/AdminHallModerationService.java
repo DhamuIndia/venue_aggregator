@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -19,7 +20,9 @@ import com.staminal.venue.audit.AuditAction;
 import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.HallStatus;
+import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -31,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminHallModerationService {
 
     private final HallRepository hallRepository;
+    private final HallMediaRepository hallMediaRepository;
     private final UserRepository userRepository;
     private final AdminRepository adminRepository;
     private final AuditService auditService;
@@ -130,6 +134,8 @@ public class AdminHallModerationService {
         Long reviewedBy = hall.getApprovedBy() == null
                 ? null
                 : hall.getApprovedBy().getId();
+        List<String> imageUrls = imageUrls(hall);
+        String imageUrl = imageUrls.isEmpty() ? "" : imageUrls.getFirst();
 
         return new AdminHallResponse(
                 String.valueOf(hall.getId()),
@@ -144,11 +150,31 @@ public class AdminHallModerationService {
                 firstNonNull(hall.getFullDayAmount(), hall.getEveningAmount(), hall.getMorningAmount()),
                 hall.getCreatedAt(),
                 hall.getUpdatedAt(),
-                firstText(hall.getCoverImageUrl(), ""),
+                imageUrl,
+                imageUrls,
                 toModerationStatus(hall.getStatus()),
                 hall.getRejectionReason(),
                 reviewedBy,
                 hall.getApprovedAt());
+    }
+
+    private List<String> imageUrls(Halls hall) {
+        Stream<String> coverImage = hasText(hall.getCoverImageUrl())
+                ? Stream.of(hall.getCoverImageUrl().trim())
+                : Stream.empty();
+        Stream<String> galleryImages = hallMediaRepository.findByHallId_Id(hall.getId())
+                .stream()
+                .sorted(Comparator
+                        .comparing((HallMedia media) -> !Boolean.TRUE.equals(media.getIsPrimary()))
+                        .thenComparing(media -> media.getSortOrder() == null ? Integer.MAX_VALUE : media.getSortOrder())
+                        .thenComparing(media -> media.getId() == null ? Long.MAX_VALUE : media.getId()))
+                .map(HallMedia::getUrl)
+                .filter(this::hasText)
+                .map(String::trim);
+
+        return Stream.concat(coverImage, galleryImages)
+                .distinct()
+                .toList();
     }
 
     private Reviewer currentAdmin(Authentication authentication) {

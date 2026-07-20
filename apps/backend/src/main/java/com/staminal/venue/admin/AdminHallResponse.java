@@ -2,6 +2,7 @@ package com.staminal.venue.admin;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record AdminHallResponse(
         String id,
@@ -15,6 +16,7 @@ public record AdminHallResponse(
         LocalDateTime submittedAt,
         LocalDateTime updatedAt,
         String imageUrl,
+        List<String> imageUrls,
         String status,
         String rejectionReason,
         Long reviewedBy,

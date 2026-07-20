@@ -15,6 +15,7 @@ export type VenueApplication = {
   startingPrice: number;
   submittedAt: string;
   imageUrl: string;
+  imageUrls: string[];
   status: ModerationStatus;
   documents: { ownership: boolean; identity: boolean; address: boolean };
   documentReviewRequired?: boolean;
@@ -92,6 +93,7 @@ export const initialVenueApplications: VenueApplication[] = [
     startingPrice: 145000,
     submittedAt: "2026-06-22T08:45:00Z",
     imageUrl: halls[1].imageUrl,
+    imageUrls: [halls[1].imageUrl, halls[2].imageUrl, halls[4].imageUrl],
     status: "PENDING_APPROVAL",
     documents: { ownership: true, identity: true, address: true }
   },
@@ -106,6 +108,7 @@ export const initialVenueApplications: VenueApplication[] = [
     startingPrice: 48000,
     submittedAt: "2026-06-21T11:10:00Z",
     imageUrl: halls[2].imageUrl,
+    imageUrls: [halls[2].imageUrl],
     status: "PENDING_APPROVAL",
     documents: { ownership: true, identity: true, address: false }
   },
@@ -120,6 +123,7 @@ export const initialVenueApplications: VenueApplication[] = [
     startingPrice: 98000,
     submittedAt: "2026-06-20T15:25:00Z",
     imageUrl: halls[4].imageUrl,
+    imageUrls: [halls[4].imageUrl],
     status: "PENDING_APPROVAL",
     documents: { ownership: true, identity: true, address: true }
   }

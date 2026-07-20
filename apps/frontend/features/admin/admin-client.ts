@@ -341,6 +341,9 @@ function toVenueApplication(value: unknown): VenueApplication | undefined {
   const id = stringValue(value, ["id", "hallId", "hall_id", "slug"]);
   const name = stringValue(value, ["name", "hallName", "hall_name", "title"]);
   if (!id || !name) return undefined;
+  const coverImageUrl = usableImageUrl(stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl", "url"])) ?? "";
+  const galleryImageUrls = imageUrlList(value, ["imageUrls", "image_urls", "galleryUrls", "gallery_urls", "gallery", "media"]);
+  const imageUrls = [coverImageUrl, ...galleryImageUrls].filter((url, index, urls) => Boolean(url) && urls.indexOf(url) === index);
 
   return {
     id,
@@ -352,7 +355,8 @@ function toVenueApplication(value: unknown): VenueApplication | undefined {
     capacity: numberValue(value, ["capacity", "capacityMax", "capacity_max"]) ?? 0,
     startingPrice: numberValue(value, ["startingPrice", "starting_price", "price"]) ?? 0,
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at", "updatedAt"]) ?? new Date().toISOString(),
-    imageUrl: usableImageUrl(stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl", "url"])) ?? "",
+    imageUrl: imageUrls[0] ?? "",
+    imageUrls,
     status: moderationStatus(value) ?? "PENDING_APPROVAL",
     documents: documentStatus(value).documents,
     documentReviewRequired: documentStatus(value).required
@@ -582,6 +586,19 @@ function usableImageUrl(value: string | undefined) {
   const trimmed = value.trim();
   if (/^(https?:|blob:|data:image\/)/i.test(trimmed) || trimmed.startsWith("/")) return trimmed;
   return undefined;
+}
+
+function imageUrlList(record: Record<string, unknown>, keys: string[]) {
+  const candidate = keys.map((key) => record[key]).find(Array.isArray);
+  if (!Array.isArray(candidate)) return [];
+
+  return candidate
+    .map((item) => {
+      if (typeof item === "string") return usableImageUrl(item);
+      if (isRecord(item)) return usableImageUrl(stringValue(item, ["url", "imageUrl", "image_url"]));
+      return undefined;
+    })
+    .filter((url): url is string => Boolean(url));
 }
 
 function moderationStatus(record: Record<string, unknown>): ModerationStatus | undefined {

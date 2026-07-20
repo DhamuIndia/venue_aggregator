@@ -23,7 +23,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.HallStatus;
+import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -33,6 +35,9 @@ class AdminHallModerationServiceTest {
 
     @Mock
     private HallRepository hallRepository;
+
+    @Mock
+    private HallMediaRepository hallMediaRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -49,6 +54,7 @@ class AdminHallModerationServiceTest {
     void setUp() {
         adminHallModerationService = new AdminHallModerationService(
                 hallRepository,
+                hallMediaRepository,
                 userRepository,
                 adminRepository, auditService);
     }
@@ -56,8 +62,11 @@ class AdminHallModerationServiceTest {
     @Test
     void listPendingHallApplicationsReturnsFrontendShape() {
         Halls hall = hall(11L, HallStatus.PENDING_APPROVAL);
+        HallMedia cover = media(91L, hall, "https://cdn.example.com/halls/emerald.jpg", true, 0);
+        HallMedia dining = media(92L, hall, "https://cdn.example.com/halls/dining.jpg", false, 1);
 
         when(hallRepository.findByStatus(HallStatus.PENDING_APPROVAL)).thenReturn(List.of(hall));
+        when(hallMediaRepository.findByHallId_Id(11L)).thenReturn(List.of(dining, cover));
 
         AdminHallListResponse response = adminHallModerationService.getHalls("PENDING_APPROVAL", 0, 50);
 
@@ -70,6 +79,10 @@ class AdminHallModerationServiceTest {
         assertThat(item.ownerPhone()).isEqualTo("9876501234");
         assertThat(item.location()).isEqualTo("T Nagar, Chennai");
         assertThat(item.status()).isEqualTo("PENDING_APPROVAL");
+        assertThat(item.imageUrl()).isEqualTo("https://cdn.example.com/halls/emerald.jpg");
+        assertThat(item.imageUrls()).containsExactly(
+                "https://cdn.example.com/halls/emerald.jpg",
+                "https://cdn.example.com/halls/dining.jpg");
     }
 
     @Test
@@ -179,6 +192,16 @@ class AdminHallModerationServiceTest {
         hall.setCreatedAt(LocalDateTime.parse("2026-06-20T10:00:00"));
         hall.setUpdatedAt(LocalDateTime.parse("2026-06-21T10:00:00"));
         return hall;
+    }
+
+    private HallMedia media(Long id, Halls hall, String url, boolean primary, int sortOrder) {
+        HallMedia media = new HallMedia();
+        media.setId(id);
+        media.setHallId(hall);
+        media.setUrl(url);
+        media.setIsPrimary(primary);
+        media.setSortOrder(sortOrder);
+        return media;
     }
 
     private User adminUser() {
