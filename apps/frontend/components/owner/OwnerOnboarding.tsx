@@ -203,6 +203,7 @@ export function OwnerOnboarding() {
       return;
     }
     setError("");
+    if (step === 0) setNotice("");
     setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
