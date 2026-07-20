@@ -41,6 +41,9 @@ export type VendorSummary = {
   completedEvents: number;
   services: string[];
   description: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  whatsAppUrl?: string;
   packages: VendorPackage[];
   reviews: VendorReview[];
 };

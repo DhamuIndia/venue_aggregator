@@ -37,6 +37,9 @@ export type VendorApplication = {
   phone?: string;
   email?: string;
   whatsAppNumber?: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  whatsAppUrl?: string;
   categories?: string[];
   yearsInBusiness?: number;
   serviceRadius?: number;

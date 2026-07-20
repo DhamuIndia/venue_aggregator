@@ -28,6 +28,13 @@ public class UpdateVendorRequest {
     @JsonAlias("whatsappNumber")
     private String whatsAppNumber;
 
+    private String instagramUrl;
+
+    private String facebookUrl;
+
+    @JsonAlias("whatsappUrl")
+    private String whatsAppUrl;
+
     private Integer yearsInBusiness;
 
     private Integer serviceRadius;
@@ -166,5 +173,29 @@ public class UpdateVendorRequest {
 
     public void setWhatsAppNumber(String whatsAppNumber) {
         this.whatsAppNumber = whatsAppNumber;
+    }
+
+    public String getInstagramUrl() {
+        return instagramUrl;
+    }
+
+    public void setInstagramUrl(String instagramUrl) {
+        this.instagramUrl = instagramUrl;
+    }
+
+    public String getFacebookUrl() {
+        return facebookUrl;
+    }
+
+    public void setFacebookUrl(String facebookUrl) {
+        this.facebookUrl = facebookUrl;
+    }
+
+    public String getWhatsAppUrl() {
+        return whatsAppUrl;
+    }
+
+    public void setWhatsAppUrl(String whatsAppUrl) {
+        this.whatsAppUrl = whatsAppUrl;
     }
 }

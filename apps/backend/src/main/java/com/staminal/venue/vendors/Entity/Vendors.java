@@ -94,6 +94,15 @@ public class Vendors {
     @Column(name = "whatsapp_number")
     private String whatsAppNumber;
 
+    @Column(name = "instagram_url")
+    private String instagramUrl;
+
+    @Column(name = "facebook_url")
+    private String facebookUrl;
+
+    @Column(name = "whatsapp_url")
+    private String whatsAppUrl;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -322,6 +331,30 @@ public class Vendors {
 
     public void setWhatsAppNumber(String whatsAppNumber) {
         this.whatsAppNumber = whatsAppNumber;
+    }
+
+    public String getInstagramUrl() {
+        return instagramUrl;
+    }
+
+    public void setInstagramUrl(String instagramUrl) {
+        this.instagramUrl = instagramUrl;
+    }
+
+    public String getFacebookUrl() {
+        return facebookUrl;
+    }
+
+    public void setFacebookUrl(String facebookUrl) {
+        this.facebookUrl = facebookUrl;
+    }
+
+    public String getWhatsAppUrl() {
+        return whatsAppUrl;
+    }
+
+    public void setWhatsAppUrl(String whatsAppUrl) {
+        this.whatsAppUrl = whatsAppUrl;
     }
 
     public VendorStatus getStatus() {

@@ -141,6 +141,9 @@ function toVendorSummary(value: unknown): VendorSummary | undefined {
     completedEvents: numberValue(value, ["completedEvents", "completed_events", "eventsCompleted"]) ?? fallback?.completedEvents ?? 0,
     services: arrayOfStrings(value.services) ?? arrayOfStrings(value.serviceNames) ?? [],
     description: stringValue(value, ["description", "summary", "about"]) ?? "",
+    instagramUrl: stringValue(value, ["instagramUrl", "instagram_url"]),
+    facebookUrl: stringValue(value, ["facebookUrl", "facebook_url"]),
+    whatsAppUrl: stringValue(value, ["whatsAppUrl", "whatsappUrl", "whatsapp_url"]),
     packages: packages(value),
     reviews: reviews(value)
   };

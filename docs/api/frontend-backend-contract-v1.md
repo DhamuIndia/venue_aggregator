@@ -203,6 +203,9 @@ Vendor search/detail response items should include:
   "completedEvents": 212,
   "services": ["Wedding catering", "Live counters"],
   "description": "South Indian celebration menus with transparent per-plate pricing.",
+  "instagramUrl": "https://instagram.com/saffronleafcatering",
+  "facebookUrl": "https://facebook.com/saffronleafcatering",
+  "whatsAppUrl": "https://wa.me/919884012345",
   "packages": [
     {
       "id": "PKG-C1",
@@ -582,6 +585,9 @@ Vendor profile request:
   "pincode": "600020",
   "contactNumber": "9884012345",
   "whatsAppNumber": "9884012345",
+  "instagramUrl": "https://instagram.com/saffronleafcatering",
+  "facebookUrl": "https://facebook.com/saffronleafcatering",
+  "whatsAppUrl": "https://wa.me/919884012345",
   "serviceRadius": 25,
   "yearsInBusiness": 5,
   "description": "South Indian celebration menus with trained event service staff.",
@@ -593,6 +599,8 @@ Vendor profile request:
 ```
 
 Vendor profile response should return the same editable fields plus `status` (`DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `REJECTED`) and `updatedAt`. `POST /vendor/profile/submit` does not require a body; it validates the latest saved draft and returns the profile with `status=PENDING_APPROVAL`.
+
+The three social profile fields are optional. When present, they must point to the matching Instagram, Facebook, or WhatsApp host. Only these explicit public links are returned by public vendor discovery; vendor login contact fields remain private.
 
 Vendor package request:
 

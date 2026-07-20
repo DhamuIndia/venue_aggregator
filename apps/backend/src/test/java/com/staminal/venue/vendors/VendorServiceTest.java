@@ -1,6 +1,7 @@
 package com.staminal.venue.vendors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -77,12 +78,30 @@ class VendorServiceTest {
         assertThat(savedVendor.getPincode()).isEqualTo("600017");
         assertThat(savedVendor.getContactNumber()).isEqualTo("9884012345");
         assertThat(savedVendor.getWhatsAppNumber()).isEqualTo("9884012346");
+        assertThat(savedVendor.getInstagramUrl()).isEqualTo("https://instagram.com/saffronleafcatering");
+        assertThat(savedVendor.getFacebookUrl()).isEqualTo("https://facebook.com/saffronleafcatering");
+        assertThat(savedVendor.getWhatsAppUrl()).isEqualTo("https://wa.me/919884012346");
         assertThat(savedVendor.getCoverImageUrl()).isEqualTo("https://cdn.example.com/vendor-cover.jpg");
         assertThat(savedVendor.getStatus()).isEqualTo(VendorStatus.DRAFT);
         assertThat(savedVendor.getCategories()).extracting(VendorCategory::getCategoryName).containsExactly("Catering");
         assertThat(response.getStatus()).isEqualTo("DRAFT");
         assertThat(response.getCategory()).isEqualTo("CATERING");
         assertThat(response.getAddressLine()).isEqualTo("12 South Mada Street");
+        assertThat(response.getInstagramUrl()).isEqualTo("https://instagram.com/saffronleafcatering");
+    }
+
+    @Test
+    void updateProfileRejectsSocialLinkFromWrongPlatform() {
+        User user = user();
+        UpdateVendorRequest request = updateRequest();
+        request.setInstagramUrl("https://example.com/not-instagram");
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(user));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> vendorService.updateProfile("301", request))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("Enter a valid Instagram profile link");
     }
 
     @Test
@@ -131,6 +150,9 @@ class VendorServiceTest {
         request.setPincode("600017");
         request.setContactNumber("9884012345");
         request.setWhatsAppNumber("9884012346");
+        request.setInstagramUrl("@saffronleafcatering");
+        request.setFacebookUrl("saffronleafcatering");
+        request.setWhatsAppUrl("9884012346");
         request.setCoverImageUrl("https://cdn.example.com/vendor-cover.jpg");
         request.setServiceRadius(25);
         request.setYearsInBusiness(5);

@@ -4,11 +4,13 @@ import { ArrowLeft, ArrowRight, BadgeCheck, BriefcaseBusiness, Check, ImagePlus,
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/icons/SocialBrandIcons";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { categoryLabels } from "@/features/vendors/mock-data";
 import { uploadAndCreateVendorMedia } from "@/features/vendors/media-client";
 import { createVendorPackage, getVendorPackages } from "@/features/vendors/package-client";
 import { fallbackVendorProfile, getVendorProfile, saveVendorProfile, submitVendorProfile, type VendorProfileDraft } from "@/features/vendors/profile-client";
+import { normalizeSocialProfileInput, type SocialPlatform } from "@/features/vendors/social-links";
 import type { VendorCategory } from "@/features/vendors/types";
 
 const steps = ["Business", "Services", "Portfolio", "Review"];
@@ -120,6 +122,15 @@ export function VendorOnboarding() {
       setError("Enter the business name, area, and years in operation.");
       return;
     }
+    if (step === 0) {
+      try {
+        const socialProfiles = normalizedSocialProfiles(form);
+        setForm((current) => ({ ...current, ...socialProfiles }));
+      } catch (exception) {
+        setError(exception instanceof Error ? exception.message : "Check the social profile links.");
+        return;
+      }
+    }
     if (step === 1 && (services.length === 0 || !form.packageName.trim() || Number(form.startingPrice) < 1 || !validAdditionalPackages())) {
       setError("Select a service and complete every package name and starting price.");
       return;
@@ -171,7 +182,64 @@ export function VendorOnboarding() {
         <section className="rounded-lg border border-border bg-white p-5 shadow-sm sm:p-7">
           {isLoadingProfile && <div className="mb-6 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-1/2 animate-pulse rounded-full bg-primary" /></div>}
           {notice && <p className="mb-6 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700" role="status">{notice}</p>}
-          {step === 0 && <div><div className="flex items-center gap-3"><BriefcaseBusiness className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Business details</h2><p className="mt-1 text-sm text-muted-foreground">Information customers and admins will verify.</p></div></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Business name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("businessName", event.target.value)} placeholder="Registered or trading name" value={form.businessName} /></label><label className="text-sm font-medium">Service category<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("category", event.target.value)} value={form.category}>{(Object.entries(categoryLabels) as [VendorCategory, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="text-sm font-medium">Years in business<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateField("yearsInBusiness", event.target.value)} placeholder="Years" type="number" value={form.yearsInBusiness} /></label><label className="text-sm font-medium">City<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("city", event.target.value)} value={form.city}><option>Chennai</option><option>Coimbatore</option><option>Madurai</option><option>Bengaluru</option></select></label><label className="text-sm font-medium">Area<span className="relative mt-2 block"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("area", event.target.value)} placeholder="Business locality" value={form.area} /></span></label><label className="text-sm font-medium">Service radius<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateField("serviceRadius", event.target.value)} type="number" value={form.serviceRadius} /><span className="mt-1 block text-xs font-normal text-muted-foreground">Kilometres from your business location</span></label><label className="text-sm font-medium sm:col-span-2">About the business<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" onChange={(event) => updateField("description", event.target.value)} placeholder="Describe your approach, team, and event experience." value={form.description} /></label></div></div>}
+          {step === 0 && (
+            <div>
+              <div className="flex items-center gap-3">
+                <BriefcaseBusiness className="text-primary" size={23} />
+                <div>
+                  <h2 className="text-xl font-semibold">Business details</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Information customers and admins will verify.</p>
+                </div>
+              </div>
+              <div className="mt-7 grid gap-5 sm:grid-cols-2">
+                <label className="text-sm font-medium sm:col-span-2">
+                  Business name
+                  <input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("businessName", event.target.value)} placeholder="Registered or trading name" value={form.businessName} />
+                </label>
+                <label className="text-sm font-medium">
+                  Service category
+                  <select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("category", event.target.value)} value={form.category}>
+                    {(Object.entries(categoryLabels) as [VendorCategory, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                <label className="text-sm font-medium">
+                  Years in business
+                  <input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateField("yearsInBusiness", event.target.value)} placeholder="Years" type="number" value={form.yearsInBusiness} />
+                </label>
+                <label className="text-sm font-medium">
+                  City
+                  <select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("city", event.target.value)} value={form.city}>
+                    <option>Chennai</option><option>Coimbatore</option><option>Madurai</option><option>Bengaluru</option>
+                  </select>
+                </label>
+                <label className="text-sm font-medium">
+                  Area
+                  <span className="relative mt-2 block">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} />
+                    <input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("area", event.target.value)} placeholder="Business locality" value={form.area} />
+                  </span>
+                </label>
+                <label className="text-sm font-medium">
+                  Service radius
+                  <input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateField("serviceRadius", event.target.value)} type="number" value={form.serviceRadius} />
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">Kilometres from your business location</span>
+                </label>
+                <label className="text-sm font-medium sm:col-span-2">
+                  About the business
+                  <textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" onChange={(event) => updateField("description", event.target.value)} placeholder="Describe your approach, team, and event experience." value={form.description} />
+                </label>
+              </div>
+              <div className="mt-8 border-t border-border pt-6">
+                <h3 className="text-base font-semibold">Social profiles</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Customers can open these profiles directly from your public listing.</p>
+                <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                  <SocialProfileField label="Instagram" onChange={(value) => updateField("instagramUrl", value)} placeholder="@business or instagram.com/business" platform="instagram" value={form.instagramUrl} />
+                  <SocialProfileField label="Facebook" onChange={(value) => updateField("facebookUrl", value)} placeholder="facebook.com/business" platform="facebook" value={form.facebookUrl} />
+                  <SocialProfileField label="WhatsApp" onChange={(value) => updateField("whatsAppUrl", value)} placeholder="+91 number or wa.me link" platform="whatsapp" value={form.whatsAppUrl} />
+                </div>
+              </div>
+            </div>
+          )}
           {step === 1 && <div><h2 className="text-xl font-semibold">Services and starting package</h2><p className="mt-1 text-sm text-muted-foreground">Help customers understand your offering before they enquire.</p><fieldset className="mt-7"><legend className="text-sm font-medium">Services offered</legend><div className="mt-3 grid gap-2 sm:grid-cols-2">{serviceOptions.map((service) => <label className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3 text-sm ${services.includes(service) ? "border-primary bg-emerald-50" : "border-border"}`} key={service}><input checked={services.includes(service)} className="size-4 accent-[hsl(var(--primary))]" onChange={() => toggleService(service)} type="checkbox" />{service}</label>)}</div></fieldset><div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium">Package name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateField("packageName", event.target.value)} placeholder="e.g. Wedding essentials" value={form.packageName} /></label><label className="text-sm font-medium">Starting price<span className="relative mt-2 block"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">INR</span><input className="h-11 w-full rounded-md border border-border pl-12 pr-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateField("startingPrice", event.target.value)} placeholder="0" type="number" value={form.startingPrice} /></span></label><label className="text-sm font-medium sm:col-span-2">Package summary<textarea className="mt-2 min-h-24 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" onChange={(event) => updateField("packageDescription", event.target.value)} placeholder="What is included in this starting package?" value={form.packageDescription} /></label></div></div>}
           {step === 2 && <div><div className="flex items-center gap-3"><ImagePlus className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Portfolio</h2><p className="mt-1 text-sm text-muted-foreground">Add recent work that accurately represents your service.</p></div></div><label className="mt-7 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background px-5 text-center hover:border-primary"><UploadCloud className="text-primary" size={28} /><span className="mt-3 text-sm font-semibold">Choose portfolio photos</span><span className="mt-1 text-xs text-muted-foreground">JPG, PNG or WebP, up to 12 files</span><input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => selectPortfolioPhotos(event.target.files)} type="file" /></label>{selectedFiles.length > 0 && <p className="mt-3 text-sm text-emerald-700">{selectedFiles.length} photo{selectedFiles.length === 1 ? "" : "s"} selected</p>}{selectedPhotoPreviews.length > 0 && <div className="mt-7"><div className="flex items-center justify-between"><h3 className="text-sm font-medium">Selected gallery order</h3><span className="text-xs text-muted-foreground">First image is the cover</span></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{selectedPhotoPreviews.map((photo, index) => <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={photo.url}><Image alt={photo.name} className="object-cover" fill sizes="240px" src={photo.url} unoptimized />{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}</div>)}</div></div>}</div>}
           {step === 3 && <div><div className="flex items-center gap-3"><BadgeCheck className="text-primary" size={24} /><div><h2 className="text-xl font-semibold">Review your profile</h2><p className="mt-1 text-sm text-muted-foreground">Admin approval is required before publication.</p></div></div><dl className="mt-7 divide-y divide-border rounded-lg border border-border">{[{ label: "Business", value: form.businessName }, { label: "Category", value: categoryLabels[form.category] }, { label: "Location", value: `${form.area}, ${form.city}` }, { label: "Experience", value: `${form.yearsInBusiness} years` }, { label: "Services", value: `${services.length} selected` }, { label: "Packages", value: `${1 + additionalPackages.length} package${additionalPackages.length === 0 ? "" : "s"}` }, { label: "Starting price", value: `INR ${new Intl.NumberFormat("en-IN").format(Number(form.startingPrice))}` }, { label: "Photos", value: selectedFiles.length ? `${selectedFiles.length} selected` : "Add after submission" }].map((item) => <div className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr]" key={item.label}><dt className="text-sm text-muted-foreground">{item.label}</dt><dd className="text-sm font-medium">{item.value || "Not provided"}</dd></div>)}</dl><label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground"><input checked={confirmed} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(event) => setConfirmed(event.target.checked)} type="checkbox" /><span>I confirm that the business information is accurate and I am authorized to manage this profile.</span></label></div>}
@@ -192,6 +260,9 @@ function formFromProfile(profile: VendorProfileDraft) {
     serviceRadius: String(profile.serviceRadius),
     yearsInBusiness: String(profile.yearsInBusiness),
     description: profile.description,
+    instagramUrl: profile.instagramUrl,
+    facebookUrl: profile.facebookUrl,
+    whatsAppUrl: profile.whatsAppUrl,
     packageName: profile.packageName,
     startingPrice: String(profile.startingPrice),
     packageDescription: profile.packageDescription
@@ -199,6 +270,7 @@ function formFromProfile(profile: VendorProfileDraft) {
 }
 
 function profileFromForm(form: ReturnType<typeof formFromProfile>, services: string[]): VendorProfileDraft {
+  const socialProfiles = normalizedSocialProfiles(form);
   return {
     businessName: form.businessName.trim(),
     category: form.category,
@@ -207,10 +279,52 @@ function profileFromForm(form: ReturnType<typeof formFromProfile>, services: str
     serviceRadius: Number(form.serviceRadius) || 0,
     yearsInBusiness: Number(form.yearsInBusiness) || 0,
     description: form.description.trim(),
+    ...socialProfiles,
     services: supportedServices(services),
     packageName: form.packageName.trim(),
     startingPrice: Number(form.startingPrice) || 0,
     packageDescription: form.packageDescription.trim(),
     status: "DRAFT"
   };
+}
+
+function normalizedSocialProfiles(form: Pick<ReturnType<typeof formFromProfile>, "instagramUrl" | "facebookUrl" | "whatsAppUrl">) {
+  return {
+    instagramUrl: normalizeSocialProfileInput("instagram", form.instagramUrl),
+    facebookUrl: normalizeSocialProfileInput("facebook", form.facebookUrl),
+    whatsAppUrl: normalizeSocialProfileInput("whatsapp", form.whatsAppUrl)
+  };
+}
+
+type SocialProfileFieldProps = {
+  platform: SocialPlatform;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+function SocialProfileField({ platform, label, placeholder, value, onChange }: SocialProfileFieldProps) {
+  const Icon = platform === "instagram" ? InstagramIcon : platform === "facebook" ? FacebookIcon : WhatsAppIcon;
+  const iconColor = platform === "instagram" ? "text-[#FF0069]" : platform === "facebook" ? "text-[#0866FF]" : "text-[#25D366]";
+
+  return (
+    <label className="text-sm font-medium">
+      {label} <span className="font-normal text-muted-foreground">(optional)</span>
+      <span className="relative mt-2 block">
+        <Icon className={`absolute left-3 top-1/2 size-5 -translate-y-1/2 ${iconColor}`} />
+        <input
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="h-11 w-full rounded-md border border-border pl-11 pr-3 font-normal outline-none focus:border-primary"
+          inputMode={platform === "whatsapp" ? "tel" : "url"}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          spellCheck={false}
+          type="text"
+          value={value}
+        />
+      </span>
+    </label>
+  );
 }

@@ -98,6 +98,9 @@ class PublicVendorServiceTest {
         assertThat(item.reviewCount()).isEqualTo(2);
         assertThat(item.completedEvents()).isEqualTo(2);
         assertThat(item.reviews()).extracting("customerName").containsExactly("Priya Raman", "Priya Raman");
+        assertThat(item.instagramUrl()).isEqualTo("https://instagram.com/saffronleafcatering");
+        assertThat(item.facebookUrl()).isEqualTo("https://facebook.com/saffronleafcatering");
+        assertThat(item.whatsAppUrl()).isEqualTo("https://wa.me/919884012345");
     }
 
     @Test
@@ -136,10 +139,15 @@ class PublicVendorServiceTest {
         vendor.setVendorName("Manoj Krishnan");
         vendor.setBusinessName("Saffron Leaf Catering");
         vendor.setDescription("Premium wedding catering service");
+        vendor.setInstagramUrl("https://instagram.com/saffronleafcatering");
+        vendor.setFacebookUrl("https://facebook.com/saffronleafcatering");
+        vendor.setWhatsAppUrl("https://wa.me/919884012345");
         vendor.setCity("Chennai");
         vendor.setArea("Adyar");
         vendor.setCoverImageUrl("https://cdn.example.com/vendor.jpg");
         vendor.setStartingPrice(new BigDecimal("45000"));
+        vendor.setAverageRating(4.5);
+        vendor.setReviewCount(2);
         vendor.setPackageName("Wedding essentials");
         vendor.setPackageDescription("Starter package details");
         vendor.setServices(List.of("Wedding catering", "Reception service"));

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { Check, X, XCircle } from "lucide-react";
+import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/icons/SocialBrandIcons";
 import type { VendorApplication } from "@/features/admin/mock-data";
 
 type Props = {
@@ -106,6 +107,12 @@ export function VendorDetailsDrawer({
                             label="WhatsApp"
                             value={vendor.whatsAppNumber}
                         />
+
+                        <SocialLink label="Instagram" url={vendor.instagramUrl} icon={<InstagramIcon className="size-5 text-[#FF0069]" />} />
+
+                        <SocialLink label="Facebook" url={vendor.facebookUrl} icon={<FacebookIcon className="size-5 text-[#0866FF]" />} />
+
+                        <SocialLink label="WhatsApp profile" url={vendor.whatsAppUrl} icon={<WhatsAppIcon className="size-5 text-[#25D366]" />} />
 
                     </Section>
 
@@ -266,5 +273,24 @@ function Field({
             </div>
 
         </div>
+    );
+}
+
+function SocialLink({ label, url, icon }: { label: string; url?: string; icon: React.ReactNode }) {
+    if (!url) return null;
+
+    return (
+        <a
+            className="flex items-center justify-between gap-3 rounded-md border p-3 hover:bg-gray-50"
+            href={url}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            <span>
+                <span className="text-xs text-gray-500">{label}</span>
+                <span className="mt-1 block break-all text-sm font-medium">{url}</span>
+            </span>
+            {icon}
+        </a>
     );
 }

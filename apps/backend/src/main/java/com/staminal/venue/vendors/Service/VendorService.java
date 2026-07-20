@@ -1,6 +1,7 @@
 package com.staminal.venue.vendors.Service;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -72,6 +73,15 @@ public class VendorService {
                 vendor.setLongitude(request.getLongitude());
                 vendor.setContactNumber(request.getContactNumber());
                 vendor.setWhatsAppNumber(request.getWhatsAppNumber());
+                if (request.getInstagramUrl() != null) {
+                        vendor.setInstagramUrl(normalizeInstagramUrl(request.getInstagramUrl()));
+                }
+                if (request.getFacebookUrl() != null) {
+                        vendor.setFacebookUrl(normalizeFacebookUrl(request.getFacebookUrl()));
+                }
+                if (request.getWhatsAppUrl() != null) {
+                        vendor.setWhatsAppUrl(normalizeWhatsAppUrl(request.getWhatsAppUrl()));
+                }
                 vendor.setStatus(VendorStatus.PENDING);
                 vendor.setPasswordHash(savedUser.getPasswordHash());
                 vendor.setCreatedAt(Instant.now());
@@ -125,6 +135,9 @@ public class VendorService {
                 response.setPincode(vendor.getPincode());
                 response.setContactNumber(vendor.getContactNumber());
                 response.setWhatsAppNumber(vendor.getWhatsAppNumber());
+                response.setInstagramUrl(vendor.getInstagramUrl());
+                response.setFacebookUrl(vendor.getFacebookUrl());
+                response.setWhatsAppUrl(vendor.getWhatsAppUrl());
                 response.setYearsInBusiness(vendor.getYearsInBusiness());
 
                 response.setServiceRadius(vendor.getServiceRadius());
@@ -238,6 +251,15 @@ public class VendorService {
                 vendor.setPincode(firstText(request.getPincode(), vendor.getPincode(), ""));
                 vendor.setContactNumber(firstText(request.getContactNumber(), vendor.getContactNumber(), user.getPhone()));
                 vendor.setWhatsAppNumber(firstText(request.getWhatsAppNumber(), vendor.getWhatsAppNumber(), user.getPhone()));
+                if (request.getInstagramUrl() != null) {
+                        vendor.setInstagramUrl(normalizeInstagramUrl(request.getInstagramUrl()));
+                }
+                if (request.getFacebookUrl() != null) {
+                        vendor.setFacebookUrl(normalizeFacebookUrl(request.getFacebookUrl()));
+                }
+                if (request.getWhatsAppUrl() != null) {
+                        vendor.setWhatsAppUrl(normalizeWhatsAppUrl(request.getWhatsAppUrl()));
+                }
                 vendor.setDescription(trimToNull(request.getDescription()));
                 vendor.setYearsInBusiness(request.getYearsInBusiness());
                 vendor.setServiceRadius(request.getServiceRadius());
@@ -338,6 +360,9 @@ public class VendorService {
                 response.setPincode("");
                 response.setContactNumber(user.getPhone());
                 response.setWhatsAppNumber(user.getPhone());
+                response.setInstagramUrl("");
+                response.setFacebookUrl("");
+                response.setWhatsAppUrl("");
                 response.setStatus(VendorStatus.DRAFT.name());
                 response.setRejectionReason("");
                 response.setServices(List.of());
@@ -428,6 +453,66 @@ public class VendorService {
                 }
                 String trimmed = value.trim();
                 return trimmed.isEmpty() ? null : trimmed;
+        }
+
+        private String normalizeInstagramUrl(String value) {
+                String candidate = trimToNull(value);
+                if (candidate != null && candidate.matches("@?[A-Za-z0-9._]{1,30}")) {
+                        candidate = "https://instagram.com/" + candidate.replaceFirst("^@", "");
+                }
+                return normalizeSocialUrl(candidate, "Instagram", Set.of("instagram.com"));
+        }
+
+        private String normalizeFacebookUrl(String value) {
+                String candidate = trimToNull(value);
+                if (candidate != null && candidate.matches("@?[A-Za-z0-9.]{5,50}")) {
+                        candidate = "https://facebook.com/" + candidate.replaceFirst("^@", "");
+                }
+                return normalizeSocialUrl(candidate, "Facebook", Set.of("facebook.com", "fb.com"));
+        }
+
+        private String normalizeWhatsAppUrl(String value) {
+                String candidate = trimToNull(value);
+                if (candidate != null && candidate.matches("[+\\d()\\s-]{10,24}")) {
+                        String digits = candidate.replaceAll("\\D", "");
+                        if (digits.length() == 10) {
+                                digits = "91" + digits;
+                        }
+                        if (digits.length() >= 10 && digits.length() <= 15) {
+                                candidate = "https://wa.me/" + digits;
+                        }
+                }
+                return normalizeSocialUrl(candidate, "WhatsApp", Set.of("wa.me", "whatsapp.com"));
+        }
+
+        private String normalizeSocialUrl(String value, String label, Set<String> allowedHosts) {
+                if (value == null) {
+                        return null;
+                }
+
+                String candidate = value.matches("(?i)^https?://.*") ? value : "https://" + value;
+                candidate = candidate.replaceFirst("(?i)^http://", "https://");
+                try {
+                        URI uri = URI.create(candidate);
+                        String scheme = uri.getScheme();
+                        String host = uri.getHost();
+                        boolean allowedHost = host != null && allowedHosts.stream()
+                                        .anyMatch(allowed -> host.equalsIgnoreCase(allowed)
+                                                        || host.toLowerCase(Locale.ROOT).endsWith("." + allowed));
+                        boolean hasProfilePath = uri.getPath() != null
+                                        && !uri.getPath().isBlank()
+                                        && !"/".equals(uri.getPath());
+                        if (!"https".equalsIgnoreCase(scheme)
+                                        || !allowedHost
+                                        || !hasProfilePath) {
+                                throw new IllegalArgumentException();
+                        }
+                        return uri.toASCIIString();
+                } catch (IllegalArgumentException exception) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Enter a valid " + label + " profile link");
+                }
         }
 
         private boolean isBlank(String value) {

@@ -20,6 +20,9 @@ public record PublicVendorResponse(
         int completedEvents,
         List<String> services,
         String description,
+        String instagramUrl,
+        String facebookUrl,
+        String whatsAppUrl,
         List<PublicVendorPackageResponse> packages,
         List<PublicVendorReviewResponse> reviews,
         String status) {

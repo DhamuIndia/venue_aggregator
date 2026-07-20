@@ -282,6 +282,9 @@ public class AdminVendorModerationService {
         response.setPincode(vendor.getPincode());
         response.setContactNumber(vendor.getContactNumber());
         response.setWhatsAppNumber(vendor.getWhatsAppNumber());
+        response.setInstagramUrl(vendor.getInstagramUrl());
+        response.setFacebookUrl(vendor.getFacebookUrl());
+        response.setWhatsAppUrl(vendor.getWhatsAppUrl());
         response.setYearsInBusiness(vendor.getYearsInBusiness());
         response.setServiceRadius(vendor.getServiceRadius());
         response.setPackageName(vendor.getPackageName());

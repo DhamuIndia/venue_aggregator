@@ -16,6 +16,9 @@ export type VendorProfileDraft = {
   serviceRadius: number;
   yearsInBusiness: number;
   description: string;
+  instagramUrl: string;
+  facebookUrl: string;
+  whatsAppUrl: string;
   services: string[];
   packageName: string;
   startingPrice: number;
@@ -34,6 +37,9 @@ export const fallbackVendorProfile: VendorProfileDraft = {
   serviceRadius: 25,
   yearsInBusiness: 5,
   description: workspaceVendor.description,
+  instagramUrl: "",
+  facebookUrl: "",
+  whatsAppUrl: "",
   services: [],
   packageName: workspaceVendor.packages[0]?.name ?? "",
   startingPrice: workspaceVendor.packages[0]?.price ?? workspaceVendor.startingPrice,
@@ -124,6 +130,9 @@ function toRequestPayload(profile: VendorProfileDraft) {
     serviceRadius: profile.serviceRadius,
     yearsInBusiness: profile.yearsInBusiness,
     description: profile.description,
+    instagramUrl: profile.instagramUrl,
+    facebookUrl: profile.facebookUrl,
+    whatsAppUrl: profile.whatsAppUrl,
     services: profile.services,
     packageName: profile.packageName,
     startingPrice: profile.startingPrice,
@@ -148,6 +157,9 @@ function toVendorProfile(value: unknown): VendorProfileDraft | undefined {
     serviceRadius: numberValue(record, ["serviceRadius", "service_radius"]) ?? fallbackVendorProfile.serviceRadius,
     yearsInBusiness: numberValue(record, ["yearsInBusiness", "years_in_business", "experienceYears"]) ?? fallbackVendorProfile.yearsInBusiness,
     description: stringValue(record, ["description", "summary", "about"]) ?? "",
+    instagramUrl: stringValue(record, ["instagramUrl", "instagram_url"]) ?? "",
+    facebookUrl: stringValue(record, ["facebookUrl", "facebook_url"]) ?? "",
+    whatsAppUrl: stringValue(record, ["whatsAppUrl", "whatsappUrl", "whatsapp_url"]) ?? "",
     services: arrayOfStrings(record.services) ?? [],
     packageName: stringValue(record, ["packageName", "package_name"]) ?? firstPackageValue(record, "name") ?? "",
     startingPrice: numberValue(record, ["startingPrice", "starting_price"]) ?? firstPackageNumber(record, "price") ?? fallbackVendorProfile.startingPrice,

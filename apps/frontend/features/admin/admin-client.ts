@@ -415,6 +415,12 @@ function toVendorApplication(value: unknown): VendorApplication | undefined {
 
     whatsAppNumber: stringValue(value, ["whatsAppNumber", "whatsappNumber", "whats_app_number", "whatsapp_number"]),
 
+    instagramUrl: stringValue(value, ["instagramUrl", "instagram_url"]),
+
+    facebookUrl: stringValue(value, ["facebookUrl", "facebook_url"]),
+
+    whatsAppUrl: stringValue(value, ["whatsAppUrl", "whatsappUrl", "whatsapp_url"]),
+
     email: stringValue(value, ["email"]),
 
     yearsInBusiness: numberValue(value, ["yearsInBusiness"]),

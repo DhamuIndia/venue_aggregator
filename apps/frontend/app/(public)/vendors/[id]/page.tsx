@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShareButton } from "@/components/common/ShareButton";
+import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/icons/SocialBrandIcons";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { VendorQuotePanel } from "@/components/vendors/VendorQuotePanel";
 import { categoryLabels } from "@/features/vendors/mock-data";
@@ -16,6 +17,11 @@ export default async function VendorDetailPage({ params }: VendorDetailPageProps
   const { id } = await params;
   const vendor = await getPublicVendor(id);
   if (!vendor) notFound();
+  const socialProfiles = [
+    { label: "Instagram", url: vendor.instagramUrl, Icon: InstagramIcon, color: "text-[#FF0069]" },
+    { label: "Facebook", url: vendor.facebookUrl, Icon: FacebookIcon, color: "text-[#0866FF]" },
+    { label: "WhatsApp", url: vendor.whatsAppUrl, Icon: WhatsAppIcon, color: "text-[#25D366]" }
+  ].filter((profile) => Boolean(profile.url));
 
   return (
     <div className="min-h-screen bg-background">
@@ -26,6 +32,7 @@ export default async function VendorDetailPage({ params }: VendorDetailPageProps
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div>
             <div className="flex flex-wrap items-start justify-between gap-5 border-b border-border pb-7"><div><div className="flex items-center gap-2 text-sm font-medium text-primary">{categoryLabels[vendor.category]}{vendor.verified && <BadgeCheck aria-label="Verified vendor" size={17} />}</div><h1 className="mt-2 text-3xl font-semibold sm:text-4xl">{vendor.businessName}</h1><p className="mt-3 flex items-center gap-2 text-muted-foreground"><MapPin size={17} /> {vendor.area}, {vendor.city}</p></div><div className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold"><Star className="fill-amber-400 text-amber-400" size={17} /> {vendor.rating} <span className="font-normal text-muted-foreground">({vendor.reviewCount})</span></div></div>
+            {socialProfiles.length > 0 && <section aria-label="Vendor social profiles" className="flex flex-wrap gap-3 border-b border-border py-5">{socialProfiles.map(({ label, url, Icon, color }) => <a aria-label={`Open ${vendor.businessName} on ${label}`} className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-semibold transition hover:border-foreground/30 hover:bg-muted" href={url!} key={label} rel="noopener noreferrer" target="_blank" title={`Open ${label}`}><Icon className={`size-5 ${color}`} />{label}</a>)}</section>}
             <section className="border-b border-border py-7"><h2 className="text-xl font-semibold">About this vendor</h2><p className="mt-3 max-w-3xl leading-7 text-muted-foreground">{vendor.description}</p><div className="mt-6 grid gap-4 sm:grid-cols-3"><div className="flex items-center gap-3"><Trophy className="text-primary" size={21} /><span className="text-sm"><strong className="block">{vendor.completedEvents}+</strong>Completed events</span></div><div className="flex items-center gap-3"><Clock3 className="text-primary" size={21} /><span className="text-sm"><strong className="block">{vendor.responseTime}</strong>Typical response</span></div><div className="flex items-center gap-3"><BadgeCheck className={vendor.verified ? "text-primary" : "text-muted-foreground"} size={21} /><span className="text-sm"><strong className="block">{vendor.verified ? "Identity checked" : "Not yet verified"}</strong>Marketplace verification</span></div></div></section>
             <section className="border-b border-border py-7"><h2 className="text-xl font-semibold">Services</h2><div className="mt-5 grid gap-3 sm:grid-cols-2">{vendor.services.map((service) => <p className="flex items-center gap-2 text-sm" key={service}><span className="grid size-6 place-items-center rounded-full bg-emerald-50 text-emerald-700"><Check size={14} /></span>{service}</p>)}</div></section>
             <section className="border-b border-border py-7"><div><h2 className="text-xl font-semibold">Packages</h2><p className="mt-1 text-sm text-muted-foreground">Starting packages can be customized after discussion.</p></div>{vendor.packages.length > 0 ? <div className="mt-5 grid gap-4">{vendor.packages.map((item) => <article className="rounded-lg border border-border bg-white p-5" key={item.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="font-semibold">{item.name}</h3><p className="mt-1 text-sm text-muted-foreground">{item.description}</p></div><p className="font-semibold">INR {new Intl.NumberFormat("en-IN").format(item.price)}{vendor.category === "CATERING" ? " / plate" : ""}</p></div><div className="mt-4 flex flex-wrap gap-2">{item.includes.map((included) => <span className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground" key={included}>{included}</span>)}</div></article>)}</div> : <p className="mt-5 rounded-md border border-dashed border-border bg-white px-4 py-5 text-sm text-muted-foreground">Packages are not published yet. Send an enquiry to request current pricing.</p>}</section>

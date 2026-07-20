@@ -34,6 +34,12 @@ public class CreateVendorRequest {
 
     private String whatsAppNumber;
 
+    private String instagramUrl;
+
+    private String facebookUrl;
+
+    private String whatsAppUrl;
+
     private Set<Long> categoryIds;
 
     private Integer yearsInBusiness;
@@ -216,6 +222,30 @@ public class CreateVendorRequest {
 
     public void setWhatsAppNumber(String whatsAppNumber) {
         this.whatsAppNumber = whatsAppNumber;
+    }
+
+    public String getInstagramUrl() {
+        return instagramUrl;
+    }
+
+    public void setInstagramUrl(String instagramUrl) {
+        this.instagramUrl = instagramUrl;
+    }
+
+    public String getFacebookUrl() {
+        return facebookUrl;
+    }
+
+    public void setFacebookUrl(String facebookUrl) {
+        this.facebookUrl = facebookUrl;
+    }
+
+    public String getWhatsAppUrl() {
+        return whatsAppUrl;
+    }
+
+    public void setWhatsAppUrl(String whatsAppUrl) {
+        this.whatsAppUrl = whatsAppUrl;
     }
 
 }

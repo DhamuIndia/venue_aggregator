@@ -131,6 +131,9 @@ public class PublicVendorService {
                 reviews.size(),
                 vendor.getServices() == null ? List.of() : vendor.getServices(),
                 firstText(vendor.getDescription(), ""),
+                vendor.getInstagramUrl(),
+                vendor.getFacebookUrl(),
+                vendor.getWhatsAppUrl(),
                 packages(vendor),
                 reviews,
                 "APPROVED");
