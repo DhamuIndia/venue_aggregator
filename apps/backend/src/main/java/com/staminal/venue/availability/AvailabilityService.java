@@ -46,7 +46,7 @@ public class AvailabilityService {
 
                 List<HallBlockedDate> blockedDates = hallBlockedDateRepository.findByHallId_Id(hall.getId());
 
-                List<Booking> bookings = bookingRepository.findByHall_IdAndStatus(
+                List<Booking> bookings = bookingRepository.findByHallIdAndStatusWithEnquiry(
                                 hall.getId(),
                                 BookingStatus.CONFIRMED);
 
@@ -71,7 +71,7 @@ public class AvailabilityService {
 
                 List<HallBlockedDate> blockedDates = hallBlockedDateRepository.findByHallId_Id(hall.getId());
 
-                List<Booking> bookings = bookingRepository.findByHall_IdAndStatus(
+                List<Booking> bookings = bookingRepository.findByHallIdAndStatusWithEnquiry(
                                 hall.getId(),
                                 BookingStatus.CONFIRMED);
 
