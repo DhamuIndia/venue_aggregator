@@ -112,7 +112,7 @@ function toHallSummary(value: unknown): HallSummary | undefined {
   const fallback = getMockHallById(id) ?? mockHalls[0];
   const city = stringValue(value, ["city"]) ?? fallback.city;
   const area = stringValue(value, ["area", "locality", "location"]) ?? fallback.area;
-  const imageUrl = stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl"])
+  const imageUrl = stringValue(value, ["coverImageUrl", "cover_image_url", "imageUrl", "primaryImageUrl"])
     ?? fallback.imageUrl;
 
   return {
@@ -138,7 +138,7 @@ function toHallSummary(value: unknown): HallSummary | undefined {
 
 function galleryUrls(record: ApiHallRecord, coverImageUrl: string, fallback: string[]) {
   const direct = arrayOfStrings(record.galleryUrls) ?? arrayOfStrings(record.gallery);
-  if (direct?.length) return direct;
+  if (direct?.length) return uniqueUrls([coverImageUrl, ...direct]);
 
   const media = Array.isArray(record.media) ? record.media : [];
   const urls = media
@@ -146,8 +146,12 @@ function galleryUrls(record: ApiHallRecord, coverImageUrl: string, fallback: str
     .map((item) => stringValue(item, ["url", "mediaUrl", "imageUrl"]))
     .filter(Boolean) as string[];
 
-  if (urls.length) return urls;
-  return fallback.length ? fallback : [coverImageUrl];
+  if (urls.length) return uniqueUrls([coverImageUrl, ...urls]);
+  return uniqueUrls([coverImageUrl, ...fallback]);
+}
+
+function uniqueUrls(urls: string[]) {
+  return urls.filter((url, index) => Boolean(url) && urls.indexOf(url) === index);
 }
 
 function venueType(record: ApiHallRecord): VenueType | undefined {

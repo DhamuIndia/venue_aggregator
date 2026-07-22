@@ -34,6 +34,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
   const hall = await getPublicHall(id);
 
   if (!hall) notFound();
+  const galleryImages = hall.galleryUrls.filter((image) => image !== hall.imageUrl);
 
   return (
     <div className="min-h-screen bg-background">
@@ -49,17 +50,19 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 overflow-hidden rounded-lg md:grid-cols-[1.6fr_1fr]">
-          <div className="relative aspect-[16/10] overflow-hidden bg-muted md:aspect-auto md:min-h-[440px]">
-            <Image alt={`${hall.name} main hall`} className="object-cover" fill priority sizes="(max-width: 768px) 100vw, 65vw" src={hall.imageUrl} />
+        <div className="mt-5 overflow-hidden rounded-lg">
+          <div className="relative aspect-[16/9] overflow-hidden bg-muted sm:aspect-[2/1]">
+            <Image alt={`${hall.name} main hall`} className="object-cover" fill priority sizes="(max-width: 1280px) 100vw, 1280px" src={hall.imageUrl} />
           </div>
-          <div className="hidden gap-3 md:grid">
-            {hall.galleryUrls.map((image, index) => (
-              <div className="relative overflow-hidden bg-muted" key={image}>
-                <Image alt={`${hall.name} gallery view ${index + 1}`} className="object-cover" fill sizes="35vw" src={image} />
-              </div>
-            ))}
-          </div>
+          {galleryImages.length > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {galleryImages.map((image, index) => (
+                <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted" key={image}>
+                  <Image alt={`${hall.name} gallery view ${index + 1}`} className="object-cover" fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" src={image} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">

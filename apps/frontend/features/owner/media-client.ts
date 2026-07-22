@@ -52,7 +52,8 @@ export async function getOwnerMedia(hallId: string, accessToken: string | null |
     const response = await apiRequest<unknown>(`/owner/halls/${encodeURIComponent(hallId)}/media`, {
       token: accessToken
     });
-    const media = toMediaList(response);
+    const selectedCoverUrl = fallback.find((item) => item.isCover)?.url;
+    const media = toMediaList(response, selectedCoverUrl);
     if (media.length > 0) {
       saveLocalMedia(hallId, media);
       return media;
@@ -192,9 +193,9 @@ function readMediaStore(): Record<string, OwnerMediaItem[]> {
   }
 }
 
-function toMediaList(value: unknown) {
+function toMediaList(value: unknown, selectedCoverUrl?: string) {
   const list = extractList(value);
-  return normalizeCover(list.map((item) => toMediaItem(item)).filter(Boolean) as OwnerMediaItem[]);
+  return normalizeCover(list.map((item) => toMediaItem(item)).filter(Boolean) as OwnerMediaItem[], selectedCoverUrl);
 }
 
 function extractList(value: unknown) {
@@ -205,9 +206,14 @@ function extractList(value: unknown) {
   return Array.isArray(list) ? list : [];
 }
 
-function normalizeCover(media: OwnerMediaItem[]) {
+function normalizeCover(media: OwnerMediaItem[], selectedCoverUrl?: string) {
   if (media.length === 0) return media;
-  const coverIndex = media.findIndex((item) => item.isCover);
+  const selectedCoverIndex = selectedCoverUrl
+    ? media.findIndex((item) => item.url === selectedCoverUrl)
+    : -1;
+  const coverIndex = selectedCoverIndex >= 0
+    ? selectedCoverIndex
+    : media.findIndex((item) => item.isCover);
   return media.map((item, index) => ({
     ...item,
     sortOrder: index,
@@ -226,6 +232,7 @@ function toMediaRequest(payload: OwnerMediaPayload | OwnerMediaPatch) {
     fileName: "fileName" in payload ? payload.fileName : undefined,
     caption: payload.caption,
     isCover,
+    isPrimary: isCover,
     primary: isCover,
     sortOrder: payload.sortOrder,
     mediaType: "IMAGE",

@@ -1,10 +1,13 @@
 package com.staminal.venue.halls.Dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 public class CreateHallMediaRequest {
 
     private String mediaType;
     private String url;
     private String publicId;
+    @JsonAlias({"isCover", "primary"})
     private Boolean isPrimary;
     private Integer sortOrder;
 
