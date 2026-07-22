@@ -7,6 +7,8 @@ import { useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
 import { APP_NAME } from "@/lib/constants";
+import { getOwnerHalls } from "@/features/owner/listing-client";
+import { getVendorProfile } from "@/features/vendors/profile-client";
 
 function routeForRole(role: AuthRole): Route {
   return role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "VENDOR" ? "/vendor" : role === "HALL_OWNER" ? "/owner" : "/customer";
@@ -21,7 +23,7 @@ function isSafeNextPathForRole(nextPath: string | null, role: AuthRole) {
 }
 
 export function LoginForm() {
-  const { login, loginDemo } = useAuth();
+  const { login, loginDemo, getValidAccessToken } = useAuth();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -40,9 +42,37 @@ export function LoginForm() {
       setIsSubmitting(true);
       const user = await login({ phone, password });
       const nextPath = new URLSearchParams(window.location.search).get("next");
+
+      if (user.role === "HALL_OWNER") {
+        const token = await getValidAccessToken();
+        const halls = await getOwnerHalls(token);
+
+        if (halls.length === 0) {
+          window.location.assign("/owner/onboarding");
+          return;
+        }
+
+        window.location.assign("/owner");
+        return;
+      }
+
+      if (user.role === "VENDOR") {
+        const token = await getValidAccessToken();
+        const profile = await getVendorProfile(token);
+
+        if (!profile.id) {
+          window.location.assign("/vendor/onboarding");
+          return;
+        }
+
+        window.location.assign("/vendor");
+        return;
+      }
+
       const destination: Route = isSafeNextPathForRole(nextPath, user.role)
-        ? nextPath as Route
+        ? (nextPath as Route)
         : routeForRole(user.role);
+
       window.location.assign(destination);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "We could not sign you in. Please check your details.");

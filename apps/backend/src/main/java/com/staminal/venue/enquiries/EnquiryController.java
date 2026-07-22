@@ -63,4 +63,9 @@ public class EnquiryController {
             Authentication authentication) {
         return enquiryService.updateOwnerEnquiryStatus(enquiryId, request, authentication);
     }
+
+    @GetMapping("/admin/enquiries")
+    public List<EnquiryResponse> getAllEnquiries(Authentication authentication) {
+        return enquiryService.getAllEnquiries(authentication);
+    }
 }

@@ -165,8 +165,8 @@ public class EnquiryService {
         if (nextStatus == EnquiryStatus.COMPLETED) {
             Booking booking = bookingRepository.findByEnquiry_Id(enquiry.getId())
                     .orElseThrow(() -> new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Confirmed booking is required before completion"));
+                            HttpStatus.CONFLICT,
+                            "Confirmed booking is required before completion"));
             booking.setStatus(Booking.STATUS_COMPLETED);
             booking.setCompletedAt(Instant.now());
             bookingRepository.save(booking);
@@ -330,7 +330,8 @@ public class EnquiryService {
             String eventType = trimToNull(requestedSlot.eventType()) != null
                     ? requestedSlot.eventType()
                     : request.eventType();
-            for (EnquirySlotRequestDto expandedSlot : expandSlotRequest(requestedSlot.date(), requestedSlot.slot(), eventType)) {
+            for (EnquirySlotRequestDto expandedSlot : expandSlotRequest(requestedSlot.date(), requestedSlot.slot(),
+                    eventType)) {
                 uniqueRequests.put(expandedSlot.date() + "|" + expandedSlot.slot(), expandedSlot);
             }
         }
@@ -429,14 +430,6 @@ public class EnquiryService {
     private Enquiry findEnquiry(String enquiryId) {
         return enquiryRepository.findById(EnquiryIds.parse(enquiryId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Enquiry not found"));
-    }
-
-    private long parseNumericId(String value, String resourceName) {
-        try {
-            return Long.parseLong(value.trim());
-        } catch (RuntimeException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid " + resourceName + " id", exception);
-        }
     }
 
     private Long tryParseLong(String value) {
@@ -575,17 +568,14 @@ public class EnquiryService {
         return value.trim();
     }
 
-    private String normalizePhone(String value) {
-        if (value == null) {
-            return null;
-        }
-        String digits = value.replaceAll("\\D", "");
-        if (digits.length() == 12 && digits.startsWith("91")) {
-            digits = digits.substring(2);
-        }
-        if (digits.length() == 11 && digits.startsWith("0")) {
-            digits = digits.substring(1);
-        }
-        return digits.isBlank() ? null : digits;
+    @Transactional(readOnly = true)
+    public List<EnquiryResponse> getAllEnquiries(Authentication authentication) {
+
+        currentUser(authentication, UserRole.ADMIN);
+
+        return enquiryRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 }

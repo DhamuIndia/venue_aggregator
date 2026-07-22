@@ -86,4 +86,6 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
                         """)
         List<Review> findPublishedReviewsByVendorId(@Param("vendorId") Long vendorId);
 
+        boolean existsByCustomer_IdAndHall_Id(Long customerId, Long hallId);
+
 }

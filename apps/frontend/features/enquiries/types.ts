@@ -25,4 +25,13 @@ export type StoredEnquiry = CreateEnquiryPayload & {
   id: string;
   status: EnquiryStatus;
   submittedAt: string;
+
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+
+  createdAt?:string;
+  updatedAt?: string;
+  ownerResponseMessage?: string;
+  version?: number;
 };

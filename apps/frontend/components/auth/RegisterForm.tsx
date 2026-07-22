@@ -28,6 +28,13 @@ export function RegisterForm() {
       setError("Enter a valid 10-digit mobile number.");
       return;
     }
+    if (
+      form.email.trim() &&
+      !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.com$/i.test(form.email.trim())
+    ) {
+      setError("Enter a valid email address.");
+      return;
+    }
     if (form.password.length < 8) {
       setError("Use a password with at least 8 characters.");
       return;

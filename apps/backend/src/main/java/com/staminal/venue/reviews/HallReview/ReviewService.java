@@ -23,7 +23,6 @@ import com.staminal.venue.reviews.HallReview.Dto.CreateReviewRequest;
 import com.staminal.venue.reviews.HallReview.Dto.ReviewEligibilityResponse;
 import com.staminal.venue.reviews.HallReview.Dto.ReviewResponse;
 import com.staminal.venue.reviews.HallReview.Dto.UpdateReviewRequest;
-import com.staminal.venue.reviews.VendorReview.VendorRatingAggregateService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -68,10 +67,13 @@ public class ReviewService {
                                         "Booking is not completed");
                 }
 
-                if (reviewRepository.existsByEnquiry_Id(enquiryId)) {
+                if (reviewRepository.existsByCustomer_IdAndHall_Id(
+                                customer.getId(),
+                                booking.getHall().getId())) {
+
                         throw new ResponseStatusException(
                                         HttpStatus.CONFLICT,
-                                        "Review already exists");
+                                        "You have already reviewed this hall.");
                 }
 
                 Review review = new Review();
@@ -186,10 +188,13 @@ public class ReviewService {
                                         "Booking is not completed");
                 }
 
-                if (reviewRepository.existsByEnquiry_Id(enquiryId)) {
+                if (reviewRepository.existsByCustomer_IdAndHall_Id(
+                                customer.getId(),
+                                booking.getHall().getId())) {
+
                         return new ReviewEligibilityResponse(
                                         false,
-                                        "Review already submitted");
+                                        "You have already reviewed this hall.");
                 }
 
                 return new ReviewEligibilityResponse(

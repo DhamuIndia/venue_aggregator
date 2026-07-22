@@ -442,6 +442,7 @@ export function OwnerDashboard() {
   const [availabilityError, setAvailabilityError] = useState("");
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [selectedBlockDate, setSelectedBlockDate] = useState("");
   const [notice, setNotice] = useState("");
   const [media, setMedia] = useState<OwnerMediaItem[]>(() => mediaFromListing(fallbackListingForHall(preferredOwnerHallId())));
   const [mediaError, setMediaError] = useState("");
@@ -455,6 +456,13 @@ export function OwnerDashboard() {
   const [analytics, setAnalytics] = useState<OwnerAnalytics>(() => useOwnerDemoFallbacks ? fallbackOwnerAnalytics : emptyOwnerAnalytics());
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
+  const [expandedEnquiryId, setExpandedEnquiryId] = useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  }); const monthKey = `${currentMonth.getFullYear()}-${String(
+    currentMonth.getMonth() + 1
+  ).padStart(2, "0")}`;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -701,8 +709,13 @@ export function OwnerDashboard() {
       });
     return Array.from(bookingMap.values()).sort((first, second) => first.eventDate.localeCompare(second.eventDate));
   }, [availabilityBookings, bookings, enquiries]);
-  const confirmedDays = useMemo(() => new Set(confirmedBookings.filter((booking) => booking.eventDate.startsWith("2026-07")).map((booking) => Number(booking.eventDate.slice(-2)))), [confirmedBookings]);
-  const blockedDays = new Set(blockedDates.filter((date) => date.date.startsWith("2026-07")).map((date) => Number(date.date.slice(-2))));
+  const confirmedDays = useMemo(() => new Set(confirmedBookings.filter((booking) => booking.eventDate.startsWith(monthKey)).map((booking) => Number(booking.eventDate.slice(-2)))), [confirmedBookings, monthKey]);
+  const blockedDays = new Set(blockedDates.filter((date) => date.date.startsWith(monthKey)).map((date) => Number(date.date.slice(-2))));
+  const daysInMonth = new Date(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth() + 1,
+    0
+  ).getDate();
 
   async function respondToEnquiry(id: string, status: EnquiryStatus) {
     const currentEnquiry = enquiries.find((enquiry) => enquiry.id === id);
@@ -1129,8 +1142,6 @@ export function OwnerDashboard() {
                             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span>
                           </div>
                           <p className="mt-2 text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {formatSlot(enquiry.slot)} | {enquiry.guestCount} guests</p>
-                          {enquiry.notes && <p className="mt-2 text-sm leading-6 text-muted-foreground">“{enquiry.notes}”</p>}
-                          <p className="mt-2 text-xs text-muted-foreground">{enquiry.id}</p>
                         </div>
                         {isPending ? (
                           <div className="flex flex-wrap gap-2">
@@ -1142,11 +1153,136 @@ export function OwnerDashboard() {
                             </button>
                           </div>
                         ) : (
-                          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium">
-                            <MessageSquareText size={16} /> View details
+                          <button
+                            className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium"
+                            onClick={() =>
+                              setExpandedEnquiryId(
+                                expandedEnquiryId === enquiry.id
+                                  ? null
+                                  : enquiry.id
+                              )
+                            }
+                          >
+                            <>
+                              {expandedEnquiryId === enquiry.id ? (
+                                <>
+                                  <ChevronDown size={16} />
+                                  Hide Details
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronRight size={16} />
+                                  View Details
+                                </>
+                              )}
+                            </>
                           </button>
                         )}
                       </div>
+                      {expandedEnquiryId === enquiry.id && (
+                        <div className="mt-6 border-t pt-6">
+
+                          <div className="grid gap-6 md:grid-cols-2">
+
+                            {/* Customer Information */}
+                            <div className="rounded-lg border p-4">
+                              <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                                Customer Information
+                              </h4>
+
+                              <div className="space-y-2 text-sm">
+                                <p>
+                                  <span className="font-medium">Name:</span>{" "}
+                                  {enquiry.customerName ?? "Not Available"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Phone:</span>{" "}
+                                  {enquiry.customerPhone ?? "Not Available"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Email:</span>{" "}
+                                  {enquiry.customerEmail ?? "Not Available"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Event Information */}
+                            <div className="rounded-lg border p-4">
+                              <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                                Event Information
+                              </h4>
+
+                              <div className="space-y-2 text-sm">
+                                <p>
+                                  <span className="font-medium">Event:</span>{" "}
+                                  {enquiry.eventType}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Guests:</span>{" "}
+                                  {enquiry.guestCount}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Date:</span>{" "}
+                                  {formatDate(enquiry.eventDate)}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Slot:</span>{" "}
+                                  {formatSlot(enquiry.slot)}
+                                </p>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Notes */}
+                          <div className="mt-6 rounded-lg border p-4">
+                            <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                              Customer Notes
+                            </h4>
+
+                            <p className="text-sm text-muted-foreground">
+                              {enquiry.notes || "No notes provided."}
+                            </p>
+                          </div>
+
+                          {/* Status */}
+                          <div className="mt-6 flex flex-wrap gap-6 text-sm">
+
+                            <div>
+                              <span className="font-medium">Status:</span>{" "}
+                              <span
+                                className={`rounded-full px-2 py-1 text-xs ${statusStyle[enquiry.status]}`}
+                              >
+                                {formatStatus(enquiry.status)}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Enquiry ID:</span>{" "}
+                              {enquiry.id}
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Created:</span>{" "}
+                              {new Date(enquiry.submittedAt).toLocaleString()}
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Updated:</span>{" "}
+                              {enquiry.updatedAt
+                                ? new Date(enquiry.updatedAt).toLocaleString()
+                                : "Not Available"}
+                            </div>
+
+                          </div>
+
+                        </div>
+                      )}
                     </article>
                   );
                 })}
@@ -1251,21 +1387,74 @@ export function OwnerDashboard() {
               <>
                 <div className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-6">
                   <div className="flex items-center justify-between">
-                    <button aria-label="Previous month" className="grid size-9 place-items-center rounded-md border border-border">‹</button>
-                    <h3 className="font-semibold">July 2026</h3>
-                    <button aria-label="Next month" className="grid size-9 place-items-center rounded-md border border-border">›</button>
+                    <button
+                      aria-label="Previous month"
+                      className="grid size-9 place-items-center rounded-md border border-border"
+                      onClick={() =>
+                        setCurrentMonth(
+                          new Date(
+                            currentMonth.getFullYear(),
+                            currentMonth.getMonth() - 1,
+                            1
+                          )
+                        )
+                      }
+                    >
+                      ‹
+                    </button>                    <h3 className="font-semibold">
+                      {currentMonth.toLocaleDateString("en-IN", {
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </h3>
+                    <button
+                      aria-label="Next month"
+                      className="grid size-9 place-items-center rounded-md border border-border"
+                      onClick={() =>
+                        setCurrentMonth(
+                          new Date(
+                            currentMonth.getFullYear(),
+                            currentMonth.getMonth() + 1,
+                            1
+                          )
+                        )
+                      }
+                    >
+                      ›
+                    </button>
                   </div>
                   <div className="mt-5 grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span className="py-2" key={day}>{day}</span>)}
                   </div>
                   <div className="grid grid-cols-7 gap-1">
                     {[0, 0, 0].map((_, index) => <span key={`blank-${index}`} />)}
-                    {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => {
+                    {Array.from({ length: daysInMonth }, (_, index) => index + 1).map((day) => {
                       const confirmed = confirmedDays.has(day);
                       const blocked = blockedDays.has(day);
 
                       return (
-                        <button aria-label={`July ${day}${confirmed ? ", confirmed" : blocked ? ", blocked" : ", available"}`} className={`aspect-square min-h-10 rounded-md border text-sm ${confirmed ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-800" : blocked ? "border-rose-200 bg-rose-50 font-semibold text-rose-700" : "border-transparent hover:border-primary"}`} key={day}>
+                        <button
+                          key={day}
+                          aria-label={`${monthKey}-${String(day).padStart(2, "0")}${confirmed ? ", confirmed" : blocked ? ", blocked" : ", available"
+                            }`}
+                          className={`aspect-square min-h-10 rounded-md border text-sm ${confirmed
+                            ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-800"
+                            : blocked
+                              ? "border-rose-200 bg-rose-50 font-semibold text-rose-700"
+                              : "border-transparent hover:border-primary"
+                            }`}
+                          onClick={() => {
+                            if (confirmedDays.has(day) || blockedDays.has(day)) {
+                              return;
+                            }
+
+                            setSelectedBlockDate(
+                              `${monthKey}-${String(day).padStart(2, "0")}`
+                            );
+
+                            setBlockDialogOpen(true);
+                          }}
+                        >
                           {day}
                         </button>
                       );
@@ -1547,10 +1736,32 @@ export function OwnerDashboard() {
             )}
           </section>
         )}
+
+
       </main>
 
-      <BlockDateDialog onAdd={addBlockedDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
+      <BlockDateDialog onAdd={addBlockedDate} initialDate={selectedBlockDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
     </>
+  );
+}
+
+function Row({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex justify-between border-b pb-2">
+      <span className="font-medium text-gray-500">
+        {label}
+      </span>
+
+      <span className="font-semibold text-right">
+        {value}
+      </span>
+    </div>
   );
 }
 

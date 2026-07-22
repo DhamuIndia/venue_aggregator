@@ -34,6 +34,7 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(new Date()));
   const [selectedSlot, setSelectedSlot] = useState<HallSlotCombinationId>("FULL_DAY");
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
 
   useEffect(() => {
     let isCurrent = true;
@@ -166,13 +167,19 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
               </div>
               <div className="mt-3 grid grid-cols-7 gap-2">
                 {Array.from({ length: firstDayOffset(visibleMonth) }, (_, index) => <span aria-hidden="true" className="block" key={`blank-${index}`} />)}
-                {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlotRequests={selectedSlotRequests} unavailableSlots={unavailableSlots} />)}
+                {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlotRequests={selectedSlotRequests} unavailableSlots={unavailableSlots} onDateClick={(date) => {
+                  setSelectedDate(date);
+                  setShowBlockDialog(true);
+                }} />)}
               </div>
             </div>
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlotRequests={selectedSlotRequests} unavailableSlots={unavailableSlots} />)}
+            {visibleDates.map((date) => <AvailabilityDayCard date={date} hallId={hallId} key={date} selectedDate={selectedDate} selectedSlotRequests={selectedSlotRequests} unavailableSlots={unavailableSlots} onDateClick={(date) => {
+              setSelectedDate(date);
+              setShowBlockDialog(true);
+            }} />)}
           </div>
         )}
       </div>
@@ -180,8 +187,12 @@ export function HallAvailabilityCalendar({ hallId }: HallAvailabilityCalendarPro
   );
 }
 
-function AvailabilityDayCard({ date, hallId, selectedDate, selectedSlotRequests, unavailableSlots }: { date: string; hallId: string; selectedDate: string; selectedSlotRequests: HallSlotRequest[]; unavailableSlots: PublicHallUnavailableSlot[] }) {
+function AvailabilityDayCard({ date, hallId, selectedDate, selectedSlotRequests, unavailableSlots, onDateClick }: { date: string; hallId: string; selectedDate: string; selectedSlotRequests: HallSlotRequest[]; unavailableSlots: PublicHallUnavailableSlot[]; onDateClick: (date: string) => void }) {
   const statuses = slotStatusForDate(date, unavailableSlots);
+  console.log(date, statuses);
+  const hasUnavailableSlot = statuses.some(
+    status => status.status !== "AVAILABLE"
+  );
   const isToday = date === toDateInputValue(new Date());
   const hasSelectedSlot = selectedSlotRequests.some((request) => request.date === date);
   const isSelectedDay = selectedDate === date;
@@ -191,8 +202,17 @@ function AvailabilityDayCard({ date, hallId, selectedDate, selectedSlotRequests,
   }
 
   return (
-    <article className={`rounded-md border p-3 ${isSelectedDay || hasSelectedSlot ? "border-primary ring-2 ring-primary/15" : "border-border"}`}>
-      <div className="flex items-center justify-between gap-2">
+    <article
+      className={`rounded-md border p-3 ${isSelectedDay || hasSelectedSlot
+        ? "border-primary ring-2 ring-primary/15"
+        : "border-border"
+        } ${hasUnavailableSlot ? "cursor-not-allowed" : "cursor-pointer"}`}
+      onClick={() => {
+        if (!hasUnavailableSlot) {
+          onDateClick(date);
+        }
+      }}
+    >      <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">{formatDisplayDate(date)}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">{new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(new Date(`${date}T00:00:00`))}</p>
