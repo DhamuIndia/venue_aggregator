@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.staminal.venue.enums.BookingStatus;
 import com.staminal.venue.enums.SlotType;
@@ -30,7 +32,19 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                         BookingStatus status,
                         Long id);
 
-        List<Booking> findByHall_IdAndStatus(
-                        Long hallId,
-                        BookingStatus status);
+     List<Booking> findByHall_IdAndStatus(
+        Long hallId,
+        BookingStatus status);
+
+@Query("""
+    SELECT DISTINCT b
+    FROM Booking b
+    LEFT JOIN FETCH b.enquiry e
+    LEFT JOIN FETCH e.slotRequests
+    WHERE b.hall.id = :hallId
+      AND b.status = :status
+""")
+List<Booking> findByHallIdAndStatusWithEnquiry(
+        @Param("hallId") Long hallId,
+        @Param("status") BookingStatus status);
 }

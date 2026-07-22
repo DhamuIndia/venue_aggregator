@@ -52,6 +52,7 @@ import {
   getOwnerHallListing,
   submitOwnerHallListing,
   updateOwnerHallListing,
+  getOwnerHalls,
   type OwnerHallListing,
   type OwnerHallUpdatePayload,
   type OwnerListingStatus
@@ -648,6 +649,20 @@ export function OwnerDashboard() {
       isCurrent = false;
     };
   }, [accessToken, activeHallId]);
+
+  useEffect(() => {
+    async function loadOwnerHall() {
+      if (!accessToken) return;
+
+      const halls = await getOwnerHalls(accessToken);
+
+      if (halls.length > 0) {
+        setActiveHallId(String(halls[0].id));
+      }
+    }
+
+    loadOwnerHall();
+  }, [accessToken]);
 
   const pendingCount = enquiries.filter((enquiry) => enquiry.status === "NEW" || enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const activeBookingCount = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED").length;

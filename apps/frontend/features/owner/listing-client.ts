@@ -51,6 +51,16 @@ export async function getOwnerHallListing(hallId: string, accessToken: string | 
   }
 }
 
+export async function getOwnerHalls(
+  accessToken: string | null | undefined
+) {
+  if (!accessToken) return [];
+
+  return apiRequest<OwnerHallListing[]>("/owner/halls", {
+    token: accessToken,
+  });
+}
+
 export async function updateOwnerHallListing(
   hallId: string,
   payload: OwnerHallUpdatePayload,
