@@ -3,6 +3,7 @@ package com.staminal.venue.vendors.Entity;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.staminal.venue.admin.Admin;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.users.Entity.User;
@@ -104,6 +105,7 @@ public class Vendors {
     private String whatsAppUrl;
 
     @Column(name = "password_hash", nullable = false)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
