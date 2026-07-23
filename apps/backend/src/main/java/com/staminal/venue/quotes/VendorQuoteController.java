@@ -7,11 +7,13 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.staminal.venue.quotes.dto.QuoteAcceptanceResponse;
 import com.staminal.venue.quotes.dto.UpsertVendorQuoteRequest;
 import com.staminal.venue.quotes.dto.UpdateQuoteShortlistRequest;
 import com.staminal.venue.quotes.dto.VendorQuoteResponse;
@@ -26,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 public class VendorQuoteController {
 
     private final VendorQuoteService vendorQuoteService;
+    private final VendorQuoteAcceptanceService vendorQuoteAcceptanceService;
 
     @PutMapping("/vendor/leads/{leadId}/quote")
     public VendorQuoteResponse saveQuote(
@@ -51,5 +54,12 @@ public class VendorQuoteController {
             @Valid @RequestBody UpdateQuoteShortlistRequest request,
             Authentication authentication) {
         return vendorQuoteService.updateShortlist(quoteId, request, authentication);
+    }
+
+    @PostMapping("/customer/quotes/{quoteId}/accept")
+    public QuoteAcceptanceResponse acceptQuote(
+            @PathVariable Long quoteId,
+            Authentication authentication) {
+        return vendorQuoteAcceptanceService.accept(quoteId, authentication);
     }
 }

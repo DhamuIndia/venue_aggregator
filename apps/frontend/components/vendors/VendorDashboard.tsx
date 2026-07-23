@@ -57,6 +57,7 @@ const statusStyle: Record<VendorLeadStatus, string> = {
   CONTACTED: "bg-amber-50 text-amber-700",
   QUOTE_SENT: "bg-violet-50 text-violet-700",
   BOOKED: "bg-emerald-50 text-emerald-700",
+  NOT_SELECTED: "bg-slate-100 text-slate-700",
   DECLINED: "bg-rose-50 text-rose-700",
   COMPLETED: "bg-muted text-muted-foreground"
 };

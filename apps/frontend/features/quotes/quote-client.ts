@@ -1,6 +1,8 @@
 import { apiRequest } from "@/lib/api-client";
+import { cacheVendorServiceBooking, normalizeVendorServiceBooking } from "@/features/bookings/vendor-service-booking-client";
+import { getLocalVendorLeads, updateLocalVendorLeadStatus } from "@/features/vendors/lead-client";
 import type { VendorLead } from "@/features/vendors/types";
-import type { UpsertVendorQuoteInput, VendorQuote, VendorQuoteStatus } from "./types";
+import type { QuoteAcceptanceResult, UpsertVendorQuoteInput, VendorQuote, VendorQuoteStatus } from "./types";
 
 const useMockQuotes = process.env.NEXT_PUBLIC_VENDOR_LEADS_MODE === "mock";
 const storageKey = "venuemart-vendor-quotes";
@@ -43,6 +45,25 @@ export async function updateCustomerQuoteShortlist(
   }));
   if (!quote.id || !quote.leadId) throw new Error("The shortlist service returned an invalid response.");
   return quote;
+}
+
+export async function acceptCustomerQuote(
+  quoteId: string,
+  accessToken?: string | null
+): Promise<QuoteAcceptanceResult> {
+  if (useMockQuotes || !accessToken) return acceptMockQuote(quoteId);
+  const record = asRecord(await apiRequest<unknown>(`/customer/quotes/${encodeURIComponent(quoteId)}/accept`, {
+    method: "POST",
+    token: accessToken
+  }));
+  const acceptedQuote = normalizeQuote(record.acceptedQuote);
+  const requirementQuotes = normalizeQuoteList(record.requirementQuotes);
+  const booking = normalizeVendorServiceBooking(record.booking);
+  if (!acceptedQuote.id || !booking.id) {
+    throw new Error("The booking service returned an invalid response.");
+  }
+  cacheVendorServiceBooking(booking);
+  return { acceptedQuote, requirementQuotes, booking };
 }
 
 function saveMockQuote(lead: VendorLead, payload: UpsertVendorQuoteInput) {
@@ -88,6 +109,60 @@ function updateMockQuoteShortlist(quoteId: string, shortlisted: boolean) {
   };
   writeMockQuotes(quotes.map((quote) => quote.id === quoteId ? updated : quote));
   return updated;
+}
+
+function acceptMockQuote(quoteId: string): QuoteAcceptanceResult {
+  const quotes = readMockQuotes();
+  const selected = quotes.find((quote) => quote.id === quoteId);
+  if (!selected) throw new Error("Quote not found.");
+  if (selected.status !== "SENT" || isExpired(selected.validUntil)) {
+    throw new Error("Only an active quote can be accepted.");
+  }
+  const updatedAt = new Date().toISOString();
+  const requirementQuotes = quotes
+    .filter((quote) => selected.requirementId && quote.requirementId === selected.requirementId)
+    .map((quote): VendorQuote => quote.id === quoteId
+      ? { ...quote, status: "ACCEPTED", shortlisted: false, shortlistedAt: undefined, updatedAt }
+      : quote.status === "SENT"
+        ? { ...quote, status: "NOT_SELECTED", shortlisted: false, shortlistedAt: undefined, updatedAt }
+        : quote);
+  const acceptedQuote = requirementQuotes.find((quote) => quote.id === quoteId)
+    ?? { ...selected, status: "ACCEPTED", shortlisted: false, shortlistedAt: undefined, updatedAt };
+  const changedById = new Map(requirementQuotes.map((quote) => [quote.id, quote]));
+  changedById.set(acceptedQuote.id, acceptedQuote);
+  writeMockQuotes(quotes.map((quote) => changedById.get(quote.id) ?? quote));
+  const selectedLead = getLocalVendorLeads().find((lead) => lead.id === selected.leadId);
+  updateLocalVendorLeadStatus(selected.leadId, "BOOKED");
+  requirementQuotes
+    .filter((quote) => quote.id !== quoteId)
+    .forEach((quote) => updateLocalVendorLeadStatus(quote.leadId, "NOT_SELECTED"));
+  const booking = normalizeVendorServiceBooking({
+    id: `VBOOK-${Date.now().toString().slice(-6)}`,
+    quoteId: acceptedQuote.id,
+    leadId: acceptedQuote.leadId,
+    requirementId: acceptedQuote.requirementId,
+    vendorId: acceptedQuote.vendorId,
+    vendorName: acceptedQuote.vendorName,
+    customerId: selectedLead?.customerId ?? "customer",
+    customerName: selectedLead?.customerName ?? "Customer",
+    service: acceptedQuote.service,
+    packageName: acceptedQuote.packageName,
+    eventType: selectedLead?.eventType ?? "Event",
+    eventDate: selectedLead?.eventDate ?? acceptedQuote.validUntil,
+    location: selectedLead?.location ?? "",
+    amount: acceptedQuote.totalAmount,
+    status: "CONFIRMED",
+    paymentStatus: "NOT_STARTED",
+    confirmedAt: updatedAt,
+    createdAt: updatedAt,
+    updatedAt
+  });
+  cacheVendorServiceBooking(booking);
+  return {
+    acceptedQuote,
+    requirementQuotes: requirementQuotes.length ? requirementQuotes : [acceptedQuote],
+    booking
+  };
 }
 
 function normalizeQuoteList(value: unknown): VendorQuote[] {
@@ -142,7 +217,12 @@ function writeMockQuotes(quotes: VendorQuote[]) {
 }
 
 function quoteStatus(value: unknown): VendorQuoteStatus {
-  return value === "WITHDRAWN" || value === "EXPIRED" ? value : "SENT";
+  return value === "ACCEPTED"
+    || value === "NOT_SELECTED"
+    || value === "WITHDRAWN"
+    || value === "EXPIRED"
+    ? value
+    : "SENT";
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

@@ -211,7 +211,7 @@ function hasCompleteFallback(fallback?: Partial<CreateVendorLeadPayload>): fallb
 function statusValue(record: Record<string, unknown>): VendorLeadStatus | undefined {
   const value = stringValue(record, ["status"]);
   if (!value) return undefined;
-  if (value === "NEW" || value === "INTERESTED" || value === "CONTACTED" || value === "QUOTE_SENT" || value === "BOOKED" || value === "DECLINED") return value;
+  if (value === "NEW" || value === "INTERESTED" || value === "CONTACTED" || value === "QUOTE_SENT" || value === "BOOKED" || value === "NOT_SELECTED" || value === "DECLINED") return value;
   if (value === "IN_PROGRESS") return "CONTACTED";
   if (value === "QUOTED") return "QUOTE_SENT";
   if (value === "CONFIRMED") return "BOOKED";

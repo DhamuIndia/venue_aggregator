@@ -23,6 +23,7 @@ import com.staminal.venue.halls.Service.HallsService;
 import com.staminal.venue.requirements.CustomerRequirementController;
 import com.staminal.venue.requirements.CustomerRequirementService;
 import com.staminal.venue.quotes.VendorQuoteController;
+import com.staminal.venue.quotes.VendorQuoteAcceptanceService;
 import com.staminal.venue.quotes.VendorQuoteService;
 import com.staminal.venue.users.UserController;
 import com.staminal.venue.users.UserService;
@@ -63,6 +64,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private VendorQuoteService vendorQuoteService;
+
+    @MockitoBean
+    private VendorQuoteAcceptanceService vendorQuoteAcceptanceService;
 
     @Test
     void publicMarketplaceReadRemainsPublic() throws Exception {
@@ -209,6 +213,26 @@ class SecurityConfigTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void quotationAcceptanceRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/v1/customer/quotes/901/accept"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "VENDOR")
+    void vendorCannotAcceptCustomerQuotation() throws Exception {
+        mockMvc.perform(post("/v1/customer/quotes/901/accept"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void customerCanReachQuotationAcceptanceEndpoint() throws Exception {
+        mockMvc.perform(post("/v1/customer/quotes/901/accept"))
+                .andExpect(status().isOk());
     }
 
     @Test

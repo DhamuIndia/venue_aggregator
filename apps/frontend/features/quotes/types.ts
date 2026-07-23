@@ -1,4 +1,6 @@
-export type VendorQuoteStatus = "SENT" | "WITHDRAWN" | "EXPIRED";
+import type { VendorServiceBooking } from "@/features/bookings/vendor-service-booking-client";
+
+export type VendorQuoteStatus = "SENT" | "ACCEPTED" | "NOT_SELECTED" | "WITHDRAWN" | "EXPIRED";
 
 export type VendorQuote = {
   id: string;
@@ -32,4 +34,10 @@ export type UpsertVendorQuoteInput = {
   additionalChargesDescription?: string;
   notes?: string;
   validUntil: string;
+};
+
+export type QuoteAcceptanceResult = {
+  acceptedQuote: VendorQuote;
+  requirementQuotes: VendorQuote[];
+  booking: VendorServiceBooking;
 };

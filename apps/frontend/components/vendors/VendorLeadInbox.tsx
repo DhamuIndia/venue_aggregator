@@ -11,6 +11,7 @@ const statusStyle: Record<VendorLeadStatus, string> = {
   CONTACTED: "bg-amber-50 text-amber-700",
   QUOTE_SENT: "bg-violet-50 text-violet-700",
   BOOKED: "bg-emerald-50 text-emerald-700",
+  NOT_SELECTED: "bg-slate-100 text-slate-700",
   DECLINED: "bg-rose-50 text-rose-700",
   COMPLETED: "bg-muted text-muted-foreground"
 };
@@ -157,6 +158,7 @@ export function VendorLeadInbox({
             <option value="CONTACTED">Contacted</option>
             <option value="QUOTE_SENT">Quote sent</option>
             <option value="BOOKED">Booked</option>
+            <option value="NOT_SELECTED">Not selected</option>
             <option value="DECLINED">Declined</option>
           </select>
         </label>
@@ -202,7 +204,7 @@ export function VendorLeadInbox({
                 {quote && (
                   <div className="mt-4 rounded-md border border-violet-200 bg-violet-50/60 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div><p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Quotation sent</p><h4 className="mt-1 font-semibold">{quote.packageName}</h4><p className="mt-1 text-sm text-muted-foreground">Valid until {formatDate(quote.validUntil)}</p></div>
+                      <div><p className="text-xs font-semibold uppercase tracking-wide text-violet-700">{quote.status === "ACCEPTED" ? "Quotation accepted" : quote.status === "NOT_SELECTED" ? "Quotation not selected" : "Quotation sent"}</p><h4 className="mt-1 font-semibold">{quote.packageName}</h4><p className="mt-1 text-sm text-muted-foreground">Valid until {formatDate(quote.validUntil)}</p></div>
                       <div className="text-right"><p className="font-semibold">INR {formatMoney(quote.totalAmount)}</p><p className="text-xs text-muted-foreground">Total quoted</p></div>
                     </div>
                     <p className="mt-3 text-sm leading-6">{quote.serviceDescription}</p>
@@ -210,12 +212,13 @@ export function VendorLeadInbox({
                   </div>
                 )}
 
-                {lead.status !== "COMPLETED" && lead.status !== "DECLINED" && (
+                {lead.status !== "COMPLETED" && lead.status !== "DECLINED" && lead.status !== "NOT_SELECTED" && (
                   <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
                     {lead.status === "NEW" && <button className="inline-flex h-10 items-center gap-2 rounded-md border border-emerald-200 px-4 text-sm font-semibold text-emerald-700" onClick={() => startStatusChange(lead.id, "INTERESTED")} type="button"><Check size={17} /> Interested</button>}
                     {(lead.status === "INTERESTED" || lead.status === "NEW") && <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => startStatusChange(lead.id, "CONTACTED")} type="button"><MessageSquareText size={17} /> Mark contacted</button>}
                     {["NEW", "INTERESTED", "CONTACTED", "QUOTE_SENT"].includes(lead.status) && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => openQuote(lead)} type="button"><Send size={17} /> {quote ? "Edit quotation" : "Create quotation"}</button>}
-                    {(lead.status === "CONTACTED" || lead.status === "QUOTE_SENT") && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => startStatusChange(lead.id, "BOOKED")} type="button"><Check size={17} /> Mark booked</button>}
+                    {(lead.status === "CONTACTED" || lead.status === "QUOTE_SENT") && lead.source === "DIRECT_ENQUIRY" && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => startStatusChange(lead.id, "BOOKED")} type="button"><Check size={17} /> Mark booked</button>}
+                    {lead.status === "QUOTE_SENT" && lead.source === "MARKETPLACE_REQUIREMENT" && <p className="self-center text-sm font-medium text-muted-foreground">Waiting for the customer to choose a quote.</p>}
                     {lead.status === "BOOKED" && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white" onClick={() => startStatusChange(lead.id, "COMPLETED")} type="button"><Check size={17} /> Mark completed</button>}
                     <button className="h-10 px-3 text-sm font-medium text-rose-700" onClick={() => { setDeclineLead(lead); setDeclineReason(""); setDeclineError(""); }} type="button">Decline</button>
                   </div>

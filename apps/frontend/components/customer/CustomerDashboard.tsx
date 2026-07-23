@@ -26,6 +26,7 @@ import { VenueCompare } from "@/components/customer/VenueCompare";
 import { formatGuestCount } from "@/lib/display-format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
+import { getCustomerVendorServiceBookings, vendorServiceBookingToBookingItem } from "@/features/bookings/vendor-service-booking-client";
 import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
 import { getVendorReviewEligibility, submitVendorReview, getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
@@ -35,13 +36,14 @@ import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
 import { formatSlot } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
-import { getCustomerQuotes, updateCustomerQuoteShortlist } from "@/features/quotes/quote-client";
+import { acceptCustomerQuote, getCustomerQuotes, updateCustomerQuoteShortlist } from "@/features/quotes/quote-client";
 import type { VendorQuote } from "@/features/quotes/types";
 import { getCustomerRequirements } from "@/features/requirements/requirements-client";
 import type { CustomerRequirement, CustomerRequirementStatus, PreferredContactChannel } from "@/features/requirements/types";
 import { getCustomerVendorLeads } from "@/features/vendors/lead-client";
 import type { VendorLead } from "@/features/vendors/types";
 import { isQuoteExpired, QuoteComparisonDialog } from "./QuoteComparisonDialog";
+import { QuoteAcceptanceDialog } from "./QuoteAcceptanceDialog";
 import { ReviewDialog } from "./ReviewDialog";
 
 type DashboardTab = "overview" | "requirements" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
@@ -61,6 +63,7 @@ const statusStyles = {
   PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
   AWAITING_RESPONSE: "bg-amber-50 text-amber-700",
+  NOT_SELECTED: "bg-slate-100 text-slate-700",
   DECLINED: "bg-rose-50 text-rose-700",
   COMPLETED: "bg-muted text-muted-foreground"
 };
@@ -178,8 +181,12 @@ export function CustomerDashboard() {
   const [isLoadingQuotes, setIsLoadingQuotes] = useState(true);
   const [quotesError, setQuotesError] = useState("");
   const [quoteActionError, setQuoteActionError] = useState("");
+  const [quoteActionMessage, setQuoteActionMessage] = useState("");
   const [updatingShortlistQuoteId, setUpdatingShortlistQuoteId] = useState<string | null>(null);
+  const [acceptingQuoteId, setAcceptingQuoteId] = useState<string | null>(null);
+  const [acceptanceQuote, setAcceptanceQuote] = useState<VendorQuote | null>(null);
   const [comparisonRequirementId, setComparisonRequirementId] = useState<string | null>(null);
+  const [workflowRefresh, setWorkflowRefresh] = useState(0);
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -219,7 +226,7 @@ export function CustomerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, workflowRefresh]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -243,7 +250,7 @@ export function CustomerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, workflowRefresh]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -267,7 +274,7 @@ export function CustomerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, workflowRefresh]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -281,15 +288,13 @@ export function CustomerDashboard() {
           .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
           .map(toStoredCustomerEnquiry)
           .map(bookingFromEnquiry);
-        const [response, vendorResponse] = await Promise.all([
+        const [response, vendorBookingsResponse] = await Promise.all([
           getCustomerBookings(accessToken, fallbackBookings),
-          getCustomerVendorLeads(accessToken)
+          getCustomerVendorServiceBookings(accessToken)
         ]);
         if (!isCurrent) return;
         const hallBookings = response.source === "api" || useCustomerBookingDemoFallback ? response.bookings : [];
-        const vendorBookings = vendorResponse.leads
-          .filter((lead) => lead.status === "BOOKED" || lead.status === "COMPLETED")
-          .map(bookingFromVendorLead);
+        const vendorBookings = vendorBookingsResponse.map(vendorServiceBookingToBookingItem);
         setBookings(sortBookings([...hallBookings, ...vendorBookings]));
       } catch {
         if (!isCurrent) return;
@@ -305,7 +310,7 @@ export function CustomerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, workflowRefresh]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -552,6 +557,33 @@ export function CustomerDashboard() {
     }
   }
 
+  async function confirmQuoteAcceptance(quote: VendorQuote) {
+    try {
+      setAcceptingQuoteId(quote.id);
+      setQuoteActionError("");
+      setQuoteActionMessage("");
+      const result = await acceptCustomerQuote(quote.id, accessToken);
+      const changedQuotes = new Map(result.requirementQuotes.map((item) => [item.id, item]));
+      changedQuotes.set(result.acceptedQuote.id, result.acceptedQuote);
+      setQuotes((current) => current.map((item) => changedQuotes.get(item.id) ?? item));
+      if (quote.requirementId) {
+        setRequirements((current) => current.map((requirement) => (
+          requirement.id === quote.requirementId ? { ...requirement, status: "CLOSED" } : requirement
+        )));
+      }
+      const booking = vendorServiceBookingToBookingItem(result.booking);
+      setBookings((current) => sortBookings([booking, ...current.filter((item) => item.id !== booking.id)]));
+      setQuoteActionMessage(`Booking ${result.booking.id} confirmed with ${result.acceptedQuote.vendorName}.`);
+      setAcceptanceQuote(null);
+      setComparisonRequirementId(null);
+      setWorkflowRefresh((current) => current + 1);
+    } catch (exception) {
+      setQuoteActionError(exception instanceof Error ? exception.message : "Could not accept this quotation.");
+    } finally {
+      setAcceptingQuoteId(null);
+    }
+  }
+
   async function payAdvance(booking: BookingItem) {
     try {
       setPaymentBookingId(booking.id);
@@ -658,6 +690,7 @@ export function CustomerDashboard() {
             {requirementsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{requirementsError}</p>}
             {quotesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quotesError}</p>}
             {quoteActionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quoteActionError}</p>}
+            {quoteActionMessage && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">{quoteActionMessage}</p>}
             {isLoadingRequirements || isLoadingQuotes ? (
               <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-48 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
             ) : requirements.length > 0 ? (
@@ -679,10 +712,10 @@ export function CustomerDashboard() {
                             <div className="flex flex-wrap items-center gap-2"><h4 className="font-semibold">Vendor quotations</h4><span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">{requirementQuotes.length} received</span>{requirementQuotes.some((quote) => quote.shortlisted) && <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">{requirementQuotes.filter((quote) => quote.shortlisted).length} shortlisted</span>}</div>
                             {requirementQuotes.length > 1 && <button className="h-9 rounded-md border border-primary px-3 text-sm font-semibold text-primary hover:bg-primary/5" onClick={() => setComparisonRequirementId(requirement.id)} type="button">Compare quotes</button>}
                           </div>
-                          <div className="mt-3 grid gap-3">{requirementQuotes.map((quote) => <CustomerQuoteCard isUpdating={updatingShortlistQuoteId === quote.id} key={quote.id} onToggleShortlist={toggleQuoteShortlist} quote={quote} />)}</div>
+                          <div className="mt-3 grid gap-3">{requirementQuotes.map((quote) => <CustomerQuoteCard isAccepting={acceptingQuoteId === quote.id} isUpdating={updatingShortlistQuoteId === quote.id} key={quote.id} onAccept={setAcceptanceQuote} onToggleShortlist={toggleQuoteShortlist} quote={quote} />)}</div>
                         </div>
                       )}
-                      <p className="mt-4 border-t border-border pt-4 text-xs font-medium text-muted-foreground">{requirement.matchedVendorCount > 0 ? `Sent to ${requirement.matchedVendorCount} matching vendor${requirement.matchedVendorCount === 1 ? "" : "s"}. You can track their responses under Enquiries.` : "Your requirement is open. We will show vendor matches here as they become available."}</p>
+                      <p className="mt-4 border-t border-border pt-4 text-xs font-medium text-muted-foreground">{requirement.status === "CLOSED" ? "Vendor selected and booking confirmed. Only the selected vendor can view your contact details." : requirement.matchedVendorCount > 0 ? `Sent to ${requirement.matchedVendorCount} matching vendor${requirement.matchedVendorCount === 1 ? "" : "s"}. You can track their responses under Enquiries.` : "Your requirement is open. We will show vendor matches here as they become available."}</p>
                     </article>
                   );
                 })}
@@ -700,6 +733,7 @@ export function CustomerDashboard() {
             {enquiriesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{enquiriesError}</p>}
             {quotesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quotesError}</p>}
             {quoteActionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quoteActionError}</p>}
+            {quoteActionMessage && <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">{quoteActionMessage}</p>}
             {isLoadingEnquiries || isLoadingQuotes ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? (
               <div className="mt-5 grid gap-3">
                 {enquiries.map((enquiry) => {
@@ -727,7 +761,7 @@ export function CustomerDashboard() {
                           </div>
                           {enquiry.notes && <div className="mt-4 rounded-md bg-muted/50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</p><p className="mt-1 text-sm leading-6">{enquiry.notes}</p></div>}
                           {enquiry.declineReason && <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-rose-700">Vendor response</p><p className="mt-1 text-sm leading-6 text-rose-800">{enquiry.declineReason}</p></div>}
-                          {quote && <div className="mt-4"><CustomerQuoteCard isUpdating={updatingShortlistQuoteId === quote.id} onToggleShortlist={toggleQuoteShortlist} quote={quote} /></div>}
+                          {quote && <div className="mt-4"><CustomerQuoteCard isAccepting={acceptingQuoteId === quote.id} isUpdating={updatingShortlistQuoteId === quote.id} onAccept={setAcceptanceQuote} onToggleShortlist={toggleQuoteShortlist} quote={quote} /></div>}
                         </div>
                       )}
                     </article>
@@ -820,7 +854,8 @@ export function CustomerDashboard() {
         {activeTab === "activity" && <NotificationActivity />}
       </main>
 
-      {comparisonRequirementId && <QuoteComparisonDialog onClose={() => setComparisonRequirementId(null)} onToggleShortlist={toggleQuoteShortlist} quotes={comparisonQuotes} updatingQuoteId={updatingShortlistQuoteId} />}
+      {comparisonRequirementId && <QuoteComparisonDialog acceptingQuoteId={acceptingQuoteId} onAccept={setAcceptanceQuote} onClose={() => setComparisonRequirementId(null)} onToggleShortlist={toggleQuoteShortlist} quotes={comparisonQuotes} updatingQuoteId={updatingShortlistQuoteId} />}
+      <QuoteAcceptanceDialog isAccepting={Boolean(acceptingQuoteId)} onClose={() => setAcceptanceQuote(null)} onConfirm={confirmQuoteAcceptance} quote={acceptanceQuote} />
       <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={submitReview} open={reviewOpen} venueName={reviewVenueName} />
     </>
   );
@@ -866,29 +901,6 @@ function toCustomerVendorEnquiry(lead: VendorLead): CustomerEnquiry {
   };
 }
 
-function bookingFromVendorLead(lead: VendorLead): BookingItem {
-  return {
-    id: `VBOOK-${lead.id.replace(/^V?LEAD-/, "")}`,
-    enquiryId: vendorLeadReference(lead.id),
-    hallId: lead.vendorId || `vendor-${lead.id}`,
-    hallName: lead.vendorName || lead.service,
-    customerId: lead.customerId,
-    customerName: lead.customerName,
-    eventDate: lead.eventDate,
-    eventType: lead.service || lead.eventType,
-    guestCount: 0,
-    slot: "FULL_DAY",
-    status:
-      lead.status === "COMPLETED"
-        ? "COMPLETED"
-        : "CONFIRMED", amount: lead.budget ?? 0,
-    paymentStatus: "NOT_STARTED",
-    notes: lead.notes,
-    confirmedAt: lead.submittedAt,
-    updatedAt: lead.submittedAt
-  };
-}
-
 function vendorLeadCustomerStatus(lead: VendorLead): CustomerEnquiry["status"] {
   // if (lead.status === "BOOKED") return "CONFIRMED";
   // if (lead.status === "DECLINED") return "DECLINED";
@@ -902,6 +914,9 @@ function vendorLeadCustomerStatus(lead: VendorLead): CustomerEnquiry["status"] {
 
     case "DECLINED":
       return "DECLINED";
+
+    case "NOT_SELECTED":
+      return "NOT_SELECTED";
 
     default:
       return "AWAITING_RESPONSE";
@@ -928,21 +943,34 @@ function EnquiryDetail({ label, value }: { label: string; value: string }) {
 function CustomerQuoteCard({
   quote,
   isUpdating,
+  isAccepting,
+  onAccept,
   onToggleShortlist
 }: {
   quote: VendorQuote;
   isUpdating: boolean;
+  isAccepting: boolean;
+  onAccept: (quote: VendorQuote) => void;
   onToggleShortlist: (quote: VendorQuote) => void;
 }) {
   const expired = isQuoteExpired(quote);
   const unavailable = quote.status !== "SENT" || expired;
+  const accepted = quote.status === "ACCEPTED";
+  const notSelected = quote.status === "NOT_SELECTED";
+  const cardStyle = accepted
+    ? "border-emerald-200 bg-emerald-50/70"
+    : notSelected
+      ? "border-slate-200 bg-slate-50"
+      : quote.shortlisted
+        ? "border-rose-200 bg-rose-50/60"
+        : "border-violet-200 bg-violet-50/60";
   return (
-    <div className={`rounded-md border p-4 ${quote.shortlisted ? "border-rose-200 bg-rose-50/60" : "border-violet-200 bg-violet-50/60"}`}>
+    <div className={`rounded-md border p-4 ${cardStyle}`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold">{quote.vendorName}</p>
-            <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-violet-700">{quote.status.toLowerCase()}</span>
+            <span className={`rounded-full bg-white px-2 py-1 text-xs font-medium ${accepted ? "text-emerald-700" : notSelected ? "text-slate-700" : "text-violet-700"}`}>{quote.status.toLowerCase().replaceAll("_", " ")}</span>
             {quote.shortlisted && <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-rose-700">shortlisted</span>}
           </div>
           <h5 className="mt-2 text-sm font-semibold">{quote.packageName}</h5>
@@ -958,15 +986,32 @@ function CustomerQuoteCard({
       {quote.additionalCharges > 0 && <p className="mt-3 text-xs text-muted-foreground">Includes INR {formatMoney(quote.additionalCharges)} additional charges{quote.additionalChargesDescription ? ` for ${quote.additionalChargesDescription}` : ""}.</p>}
       {quote.notes && <p className="mt-3 border-t border-violet-200 pt-3 text-sm leading-6 text-muted-foreground">{quote.notes}</p>}
       <div className="mt-4 border-t border-current/10 pt-4">
-        <button
-          className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${quote.shortlisted ? "border border-rose-200 bg-white text-rose-700" : "border border-violet-200 bg-white text-violet-700"}`}
-          disabled={isUpdating || (unavailable && !quote.shortlisted)}
-          onClick={() => onToggleShortlist(quote)}
-          type="button"
-        >
-          {isUpdating ? <LoaderCircle className="animate-spin" size={16} /> : <Heart fill={quote.shortlisted ? "currentColor" : "none"} size={16} />}
-          {quote.shortlisted ? "Remove from shortlist" : expired ? "Quote expired" : quote.status !== "SENT" ? "Quote unavailable" : "Add to shortlist"}
-        </button>
+        {accepted ? (
+          <p className="inline-flex h-9 items-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-emerald-700"><BadgeCheck size={16} /> Booking confirmed with this vendor</p>
+        ) : notSelected ? (
+          <p className="inline-flex h-9 items-center rounded-md bg-white px-3 text-sm font-semibold text-slate-600">Another vendor was selected</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${quote.shortlisted ? "border border-rose-200 bg-white text-rose-700" : "border border-violet-200 bg-white text-violet-700"}`}
+              disabled={isUpdating || (unavailable && !quote.shortlisted)}
+              onClick={() => onToggleShortlist(quote)}
+              type="button"
+            >
+              {isUpdating ? <LoaderCircle className="animate-spin" size={16} /> : <Heart fill={quote.shortlisted ? "currentColor" : "none"} size={16} />}
+              {quote.shortlisted ? "Remove from shortlist" : expired ? "Quote expired" : quote.status !== "SENT" ? "Quote unavailable" : "Add to shortlist"}
+            </button>
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={unavailable || isAccepting}
+              onClick={() => onAccept(quote)}
+              type="button"
+            >
+              {isAccepting ? <LoaderCircle className="animate-spin" size={16} /> : <BadgeCheck size={16} />}
+              {expired ? "Quote expired" : quote.status !== "SENT" ? "Unavailable" : "Accept quote"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -988,7 +1033,11 @@ function toStoredCustomerEnquiry(enquiry: CustomerEnquiry): StoredEnquiry {
     eventType: enquiry.id === reviewEligibleBooking.enquiryId ? reviewEligibleBooking.serviceType : "Wedding",
     guestCount: enquiry.id === reviewEligibleBooking.enquiryId ? 120 : 450,
     slot: "FULL_DAY",
-    status: enquiry.status === "AWAITING_RESPONSE" ? "PENDING_OWNER_RESPONSE" : enquiry.status,
+    status: enquiry.status === "AWAITING_RESPONSE"
+      ? "PENDING_OWNER_RESPONSE"
+      : enquiry.status === "NOT_SELECTED"
+        ? "DECLINED"
+        : enquiry.status,
     submittedAt: toIsoDate(enquiry.submittedAt)
   };
 }

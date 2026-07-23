@@ -69,6 +69,9 @@ public class VendorLead {
     @Column(name = "decline_reason", length = 1000)
     private String declineReason;
 
+    @Column(name = "contact_details_released", nullable = false)
+    private boolean contactDetailsReleased;
+
     @Enumerated(EnumType.STRING)
     private VendorLeadStatus status;
 
@@ -204,6 +207,14 @@ public class VendorLead {
 
     public void setDeclineReason(String declineReason) {
         this.declineReason = declineReason;
+    }
+
+    public boolean isContactDetailsReleased() {
+        return contactDetailsReleased;
+    }
+
+    public void setContactDetailsReleased(boolean contactDetailsReleased) {
+        this.contactDetailsReleased = contactDetailsReleased;
     }
 
     public VendorLeadStatus getStatus() {

@@ -1,20 +1,24 @@
 "use client";
 
-import { Heart, LoaderCircle, X } from "lucide-react";
+import { BadgeCheck, Heart, LoaderCircle, X } from "lucide-react";
 import type { ReactNode } from "react";
 import type { VendorQuote } from "@/features/quotes/types";
 
 type Props = {
   quotes: VendorQuote[];
   updatingQuoteId: string | null;
+  acceptingQuoteId: string | null;
   onClose: () => void;
+  onAccept: (quote: VendorQuote) => void;
   onToggleShortlist: (quote: VendorQuote) => void;
 };
 
 export function QuoteComparisonDialog({
   quotes,
   updatingQuoteId,
+  acceptingQuoteId,
   onClose,
+  onAccept,
   onToggleShortlist
 }: Props) {
   if (quotes.length === 0) return null;
@@ -74,6 +78,32 @@ export function QuoteComparisonDialog({
                         {isUpdating ? <LoaderCircle className="animate-spin" size={17} /> : <Heart fill={quote.shortlisted ? "currentColor" : "none"} size={17} />}
                         {quote.shortlisted ? "Remove shortlist" : isExpired ? "Quote expired" : quote.status !== "SENT" ? "Quote unavailable" : "Shortlist"}
                       </button>
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr>
+                <th className="sticky left-0 z-10 border-r border-border bg-white p-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Choose vendor</th>
+                {quotes.map((quote) => {
+                  const isAccepting = acceptingQuoteId === quote.id;
+                  const isUnavailable = quote.status !== "SENT" || isQuoteExpired(quote);
+                  return (
+                    <td className={`p-4 ${quote.shortlisted ? "bg-rose-50/60" : "bg-white"}`} key={quote.id}>
+                      {quote.status === "ACCEPTED" ? (
+                        <span className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-50 px-4 text-sm font-semibold text-emerald-700"><BadgeCheck size={17} /> Accepted</span>
+                      ) : quote.status === "NOT_SELECTED" ? (
+                        <span className="inline-flex h-10 items-center rounded-md bg-slate-100 px-4 text-sm font-semibold text-slate-600">Not selected</span>
+                      ) : (
+                        <button
+                          className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={isUnavailable || Boolean(acceptingQuoteId)}
+                          onClick={() => onAccept(quote)}
+                          type="button"
+                        >
+                          {isAccepting ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />}
+                          {isQuoteExpired(quote) ? "Quote expired" : quote.status !== "SENT" ? "Unavailable" : "Choose this vendor"}
+                        </button>
+                      )}
                     </td>
                   );
                 })}

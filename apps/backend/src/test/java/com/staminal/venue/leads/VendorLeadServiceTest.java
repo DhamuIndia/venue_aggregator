@@ -37,6 +37,7 @@ import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.requirements.CustomerRequirement;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
+import com.staminal.venue.vendorbookings.VendorServiceBookingRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 
@@ -58,6 +59,9 @@ class VendorLeadServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private VendorServiceBookingRepository vendorServiceBookingRepository;
+
     private VendorLeadService vendorLeadService;
 
     @BeforeEach
@@ -67,7 +71,8 @@ class VendorLeadServiceTest {
                 vendorRepository,
                 userRepository,
                 auditService,
-                notificationService);
+                notificationService,
+                vendorServiceBookingRepository);
     }
 
     @Test
@@ -257,6 +262,59 @@ class VendorLeadServiceTest {
         assertThat(response.getCustomerName()).isEqualTo("VenueMart customer");
         assertThat(response.getCustomerPhone()).isNull();
         assertThat(response.getCustomerEmail()).isNull();
+    }
+
+    @Test
+    void acceptedMarketplaceLeadReleasesContactOnlyForSelectedVendor() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.BOOKED);
+        CustomerRequirement requirement = new CustomerRequirement();
+        requirement.setId(801L);
+        requirement.setPreferredContactChannel(PreferredContactChannel.IN_APP);
+        requirement.setShareContactDetails(false);
+        lead.setRequirement(requirement);
+        lead.setCustomerName("VenueMart customer");
+        lead.setCustomerPhone(null);
+        lead.setCustomerEmail(null);
+        lead.setContactDetailsReleased(true);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByVendor_IdOrderByCreatedAtDesc(501L)).thenReturn(List.of(lead));
+
+        VendorLeadResponse response = vendorLeadService.getMyLeads(vendorAuth()).getFirst();
+
+        assertThat(response.isContactDetailsShared()).isTrue();
+        assertThat(response.getCustomerName()).isEqualTo("Priya Raman");
+        assertThat(response.getCustomerPhone()).isEqualTo("9000000001");
+        assertThat(response.getCustomerEmail()).isEqualTo("priya@example.com");
+    }
+
+    @Test
+    void vendorCannotManuallyBookMarketplaceLead() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.QUOTE_SENT);
+        CustomerRequirement requirement = new CustomerRequirement();
+        requirement.setId(801L);
+        lead.setRequirement(requirement);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.BOOKED);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+
+        assertThatThrownBy(() -> vendorLeadService.updateStatus(901L, request, vendorAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason())
+                            .isEqualTo("Marketplace bookings are confirmed when the customer accepts a quote");
+                });
+        verify(vendorLeadRepository, never()).save(any());
     }
 
     private CreateVendorLeadRequest createRequest(String vendorId) {

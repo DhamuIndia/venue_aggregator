@@ -200,8 +200,14 @@ public class VendorQuoteService {
     private void validateLeadCanReceiveQuote(VendorLead lead) {
         if (lead.getStatus() == VendorLeadStatus.DECLINED
                 || lead.getStatus() == VendorLeadStatus.BOOKED
+                || lead.getStatus() == VendorLeadStatus.NOT_SELECTED
                 || lead.getStatus() == VendorLeadStatus.COMPLETED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This lead cannot receive a quote");
+        }
+        if (lead.getRequirement() != null
+                && lead.getRequirement().getStatus() != null
+                && lead.getRequirement().getStatus() != com.staminal.venue.enums.CustomerRequirementStatus.OPEN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This requirement is closed");
         }
         if (lead.getEventDate() != null && lead.getEventDate().isBefore(LocalDate.now())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The event date has passed");
@@ -272,6 +278,10 @@ public class VendorQuoteService {
                 includeCustomerDecision ? quote.getShortlistedAt() : null,
                 quote.getCreatedAt(),
                 quote.getUpdatedAt());
+    }
+
+    VendorQuoteResponse toCustomerResponse(VendorQuote quote) {
+        return toResponse(quote, true);
     }
 
     private Map<String, Object> quoteValues(VendorQuote quote) {
