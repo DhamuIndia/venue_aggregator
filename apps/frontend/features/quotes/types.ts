@@ -17,6 +17,8 @@ export type VendorQuote = {
   notes?: string;
   validUntil: string;
   status: VendorQuoteStatus;
+  shortlisted: boolean;
+  shortlistedAt?: string;
   createdAt: string;
   updatedAt: string;
 };

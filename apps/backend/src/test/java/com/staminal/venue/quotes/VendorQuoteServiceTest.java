@@ -26,6 +26,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.audit.AuditCommand;
+import com.staminal.venue.audit.AuditAction;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorLeadStatus;
 import com.staminal.venue.enums.VendorQuoteStatus;
@@ -35,6 +36,7 @@ import com.staminal.venue.leads.VendorLeadRepository;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.quotes.dto.UpsertVendorQuoteRequest;
+import com.staminal.venue.quotes.dto.UpdateQuoteShortlistRequest;
 import com.staminal.venue.quotes.dto.VendorQuoteResponse;
 import com.staminal.venue.requirements.CustomerRequirement;
 import com.staminal.venue.users.Entity.User;
@@ -118,6 +120,8 @@ class VendorQuoteServiceTest {
         Vendors vendor = vendor(VendorStatus.APPROVED);
         VendorLead lead = lead(vendor, VendorLeadStatus.QUOTE_SENT, false);
         VendorQuote existing = quote(lead, vendor);
+        existing.setShortlisted(true);
+        existing.setShortlistedAt(java.time.Instant.now());
         when(userRepository.findById(301L)).thenReturn(Optional.of(vendor.getUser()));
         when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
         when(vendorLeadRepository.findByIdAndVendor_Id(701L, 501L)).thenReturn(Optional.of(lead));
@@ -129,6 +133,8 @@ class VendorQuoteServiceTest {
 
         assertThat(response.id()).isEqualTo(901L);
         assertThat(existing.getAmount()).isEqualByComparingTo("100000");
+        assertThat(existing.isShortlisted()).isFalse();
+        assertThat(existing.getShortlistedAt()).isNull();
         verify(vendorQuoteRepository).save(existing);
         verify(notificationService).notifyUser(
                 eq(lead.getCustomer()),
@@ -195,6 +201,8 @@ class VendorQuoteServiceTest {
         Vendors vendor = vendor(VendorStatus.APPROVED);
         VendorLead lead = lead(vendor, VendorLeadStatus.QUOTE_SENT, true);
         VendorQuote quote = quote(lead, vendor);
+        quote.setShortlisted(true);
+        quote.setShortlistedAt(java.time.Instant.now());
         when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
         when(vendorQuoteRepository.findByLead_Customer_IdOrderByUpdatedAtDesc(101L)).thenReturn(List.of(quote));
 
@@ -202,7 +210,125 @@ class VendorQuoteServiceTest {
 
         assertThat(response).hasSize(1);
         assertThat(response.getFirst().vendorName()).isEqualTo("Framecraft Weddings");
+        assertThat(response.getFirst().shortlisted()).isTrue();
+        assertThat(response.getFirst().shortlistedAt()).isNotNull();
         verify(vendorQuoteRepository).findByLead_Customer_IdOrderByUpdatedAtDesc(101L);
+    }
+
+    @Test
+    void customerCanShortlistOwnedActiveQuote() {
+        User customer = customer();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        VendorQuote quote = quote(lead(vendor, VendorLeadStatus.QUOTE_SENT, true), vendor);
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
+        when(vendorQuoteRepository.findByIdAndLead_Customer_Id(901L, 101L)).thenReturn(Optional.of(quote));
+        when(vendorQuoteRepository.save(quote)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VendorQuoteResponse response = service.updateShortlist(
+                901L,
+                new UpdateQuoteShortlistRequest(true),
+                customerAuth());
+
+        assertThat(response.shortlisted()).isTrue();
+        assertThat(response.shortlistedAt()).isNotNull();
+        assertThat(quote.isShortlisted()).isTrue();
+        ArgumentCaptor<AuditCommand> auditCaptor = ArgumentCaptor.forClass(AuditCommand.class);
+        verify(auditService).record(auditCaptor.capture());
+        assertThat(auditCaptor.getValue().action()).isEqualTo(AuditAction.QUOTE_SHORTLISTED);
+        assertThat(auditCaptor.getValue().actorUserId()).isEqualTo(101L);
+    }
+
+    @Test
+    void customerCannotShortlistExpiredQuote() {
+        User customer = customer();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        VendorQuote quote = quote(lead(vendor, VendorLeadStatus.QUOTE_SENT, true), vendor);
+        quote.setValidUntil(LocalDate.now().minusDays(1));
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
+        when(vendorQuoteRepository.findByIdAndLead_Customer_Id(901L, 101L)).thenReturn(Optional.of(quote));
+
+        assertThatThrownBy(() -> service.updateShortlist(
+                901L,
+                new UpdateQuoteShortlistRequest(true),
+                customerAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> {
+                            assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                            assertThat(exception.getReason()).isEqualTo("Expired quotes cannot be shortlisted");
+                        });
+        verify(vendorQuoteRepository, never()).save(any());
+    }
+
+    @Test
+    void customerCannotShortlistInactiveQuote() {
+        User customer = customer();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        VendorQuote quote = quote(lead(vendor, VendorLeadStatus.QUOTE_SENT, true), vendor);
+        quote.setStatus(VendorQuoteStatus.WITHDRAWN);
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
+        when(vendorQuoteRepository.findByIdAndLead_Customer_Id(901L, 101L)).thenReturn(Optional.of(quote));
+
+        assertThatThrownBy(() -> service.updateShortlist(
+                901L,
+                new UpdateQuoteShortlistRequest(true),
+                customerAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> {
+                            assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                            assertThat(exception.getReason()).isEqualTo("Only active quotes can be shortlisted");
+                        });
+        verify(vendorQuoteRepository, never()).save(any());
+    }
+
+    @Test
+    void customerCanRemoveExpiredQuoteFromShortlist() {
+        User customer = customer();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        VendorQuote quote = quote(lead(vendor, VendorLeadStatus.QUOTE_SENT, true), vendor);
+        quote.setValidUntil(LocalDate.now().minusDays(1));
+        quote.setShortlisted(true);
+        quote.setShortlistedAt(java.time.Instant.now());
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
+        when(vendorQuoteRepository.findByIdAndLead_Customer_Id(901L, 101L)).thenReturn(Optional.of(quote));
+        when(vendorQuoteRepository.save(quote)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VendorQuoteResponse response = service.updateShortlist(
+                901L,
+                new UpdateQuoteShortlistRequest(false),
+                customerAuth());
+
+        assertThat(response.shortlisted()).isFalse();
+        assertThat(response.shortlistedAt()).isNull();
+    }
+
+    @Test
+    void customerCannotReadOrShortlistAnotherCustomersQuote() {
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer()));
+        when(vendorQuoteRepository.findByIdAndLead_Customer_Id(901L, 101L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateShortlist(
+                901L,
+                new UpdateQuoteShortlistRequest(true),
+                customerAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        verify(vendorQuoteRepository, never()).save(any());
+    }
+
+    @Test
+    void vendorQuoteListDoesNotExposeCustomerShortlistDecision() {
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        VendorQuote quote = quote(lead(vendor, VendorLeadStatus.QUOTE_SENT, true), vendor);
+        quote.setShortlisted(true);
+        quote.setShortlistedAt(java.time.Instant.now());
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendor.getUser()));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorQuoteRepository.findByVendor_IdOrderByUpdatedAtDesc(501L)).thenReturn(List.of(quote));
+
+        VendorQuoteResponse response = service.getMyVendorQuotes(vendorAuth()).getFirst();
+
+        assertThat(response.shortlisted()).isFalse();
+        assertThat(response.shortlistedAt()).isNull();
     }
 
     private UpsertVendorQuoteRequest request() {

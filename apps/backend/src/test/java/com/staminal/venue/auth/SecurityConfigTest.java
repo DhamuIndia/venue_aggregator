@@ -1,6 +1,7 @@
 package com.staminal.venue.auth;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -173,6 +174,41 @@ class SecurityConfigTest {
     void customerCanReadCustomerQuotationList() throws Exception {
         mockMvc.perform(get("/v1/customer/quotes"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void quotationShortlistRequiresAuthentication() throws Exception {
+        mockMvc.perform(patch("/v1/customer/quotes/901/shortlist")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"shortlisted\":true}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "VENDOR")
+    void vendorCannotChangeCustomerShortlist() throws Exception {
+        mockMvc.perform(patch("/v1/customer/quotes/901/shortlist")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"shortlisted\":true}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void customerCanReachQuotationShortlistEndpoint() throws Exception {
+        mockMvc.perform(patch("/v1/customer/quotes/901/shortlist")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"shortlisted\":true}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void quotationShortlistRequiresExplicitSelection() throws Exception {
+        mockMvc.perform(patch("/v1/customer/quotes/901/shortlist")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

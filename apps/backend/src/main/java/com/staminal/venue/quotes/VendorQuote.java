@@ -71,6 +71,12 @@ public class VendorQuote {
     @Column(name = "valid_until", nullable = false)
     private LocalDate validUntil;
 
+    @Column(nullable = false)
+    private boolean shortlisted;
+
+    @Column(name = "shortlisted_at")
+    private Instant shortlistedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private VendorQuoteStatus status;
@@ -185,6 +191,22 @@ public class VendorQuote {
 
     public void setValidUntil(LocalDate validUntil) {
         this.validUntil = validUntil;
+    }
+
+    public boolean isShortlisted() {
+        return shortlisted;
+    }
+
+    public void setShortlisted(boolean shortlisted) {
+        this.shortlisted = shortlisted;
+    }
+
+    public Instant getShortlistedAt() {
+        return shortlistedAt;
+    }
+
+    public void setShortlistedAt(Instant shortlistedAt) {
+        this.shortlistedAt = shortlistedAt;
     }
 
     public VendorQuoteStatus getStatus() {

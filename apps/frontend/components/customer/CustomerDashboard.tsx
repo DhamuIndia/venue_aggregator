@@ -35,12 +35,13 @@ import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
 import { formatSlot } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
-import { getCustomerQuotes } from "@/features/quotes/quote-client";
+import { getCustomerQuotes, updateCustomerQuoteShortlist } from "@/features/quotes/quote-client";
 import type { VendorQuote } from "@/features/quotes/types";
 import { getCustomerRequirements } from "@/features/requirements/requirements-client";
 import type { CustomerRequirement, CustomerRequirementStatus, PreferredContactChannel } from "@/features/requirements/types";
 import { getCustomerVendorLeads } from "@/features/vendors/lead-client";
 import type { VendorLead } from "@/features/vendors/types";
+import { isQuoteExpired, QuoteComparisonDialog } from "./QuoteComparisonDialog";
 import { ReviewDialog } from "./ReviewDialog";
 
 type DashboardTab = "overview" | "requirements" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
@@ -176,6 +177,9 @@ export function CustomerDashboard() {
   const [quotes, setQuotes] = useState<VendorQuote[]>([]);
   const [isLoadingQuotes, setIsLoadingQuotes] = useState(true);
   const [quotesError, setQuotesError] = useState("");
+  const [quoteActionError, setQuoteActionError] = useState("");
+  const [updatingShortlistQuoteId, setUpdatingShortlistQuoteId] = useState<string | null>(null);
+  const [comparisonRequirementId, setComparisonRequirementId] = useState<string | null>(null);
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -535,6 +539,19 @@ export function CustomerDashboard() {
     setSavedHalls((current) => current.filter((hall) => hall.id !== hallId));
   }
 
+  async function toggleQuoteShortlist(quote: VendorQuote) {
+    try {
+      setUpdatingShortlistQuoteId(quote.id);
+      setQuoteActionError("");
+      const updated = await updateCustomerQuoteShortlist(quote.id, !quote.shortlisted, accessToken);
+      setQuotes((current) => current.map((item) => item.id === quote.id ? updated : item));
+    } catch (exception) {
+      setQuoteActionError(exception instanceof Error ? exception.message : "Could not update your shortlist.");
+    } finally {
+      setUpdatingShortlistQuoteId(null);
+    }
+  }
+
   async function payAdvance(booking: BookingItem) {
     try {
       setPaymentBookingId(booking.id);
@@ -577,6 +594,9 @@ export function CustomerDashboard() {
     : reviewEligibility.eligible
       ? "Your completed event is eligible for a verified review."
       : "Completed bookings will appear here for review.";
+  const comparisonQuotes = comparisonRequirementId
+    ? quotes.filter((quote) => quote.requirementId === comparisonRequirementId)
+    : [];
 
   return (
     <>
@@ -637,6 +657,7 @@ export function CustomerDashboard() {
             </div>
             {requirementsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{requirementsError}</p>}
             {quotesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quotesError}</p>}
+            {quoteActionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quoteActionError}</p>}
             {isLoadingRequirements || isLoadingQuotes ? (
               <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-48 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
             ) : requirements.length > 0 ? (
@@ -654,8 +675,11 @@ export function CustomerDashboard() {
                       {requirement.details && <p className="mt-4 text-sm leading-6 text-muted-foreground">{requirement.details}</p>}
                       {requirementQuotes.length > 0 && (
                         <div className="mt-5 border-t border-border pt-5">
-                          <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">Vendor quotations</h4><span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">{requirementQuotes.length} received</span></div>
-                          <div className="mt-3 grid gap-3">{requirementQuotes.map((quote) => <CustomerQuoteCard key={quote.id} quote={quote} />)}</div>
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-2"><h4 className="font-semibold">Vendor quotations</h4><span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">{requirementQuotes.length} received</span>{requirementQuotes.some((quote) => quote.shortlisted) && <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">{requirementQuotes.filter((quote) => quote.shortlisted).length} shortlisted</span>}</div>
+                            {requirementQuotes.length > 1 && <button className="h-9 rounded-md border border-primary px-3 text-sm font-semibold text-primary hover:bg-primary/5" onClick={() => setComparisonRequirementId(requirement.id)} type="button">Compare quotes</button>}
+                          </div>
+                          <div className="mt-3 grid gap-3">{requirementQuotes.map((quote) => <CustomerQuoteCard isUpdating={updatingShortlistQuoteId === quote.id} key={quote.id} onToggleShortlist={toggleQuoteShortlist} quote={quote} />)}</div>
                         </div>
                       )}
                       <p className="mt-4 border-t border-border pt-4 text-xs font-medium text-muted-foreground">{requirement.matchedVendorCount > 0 ? `Sent to ${requirement.matchedVendorCount} matching vendor${requirement.matchedVendorCount === 1 ? "" : "s"}. You can track their responses under Enquiries.` : "Your requirement is open. We will show vendor matches here as they become available."}</p>
@@ -675,6 +699,7 @@ export function CustomerDashboard() {
             <p className="mt-1 text-sm text-muted-foreground">Track responses and confirmed event details.</p>
             {enquiriesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{enquiriesError}</p>}
             {quotesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quotesError}</p>}
+            {quoteActionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quoteActionError}</p>}
             {isLoadingEnquiries || isLoadingQuotes ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? (
               <div className="mt-5 grid gap-3">
                 {enquiries.map((enquiry) => {
@@ -702,7 +727,7 @@ export function CustomerDashboard() {
                           </div>
                           {enquiry.notes && <div className="mt-4 rounded-md bg-muted/50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</p><p className="mt-1 text-sm leading-6">{enquiry.notes}</p></div>}
                           {enquiry.declineReason && <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-rose-700">Vendor response</p><p className="mt-1 text-sm leading-6 text-rose-800">{enquiry.declineReason}</p></div>}
-                          {quote && <div className="mt-4"><CustomerQuoteCard quote={quote} /></div>}
+                          {quote && <div className="mt-4"><CustomerQuoteCard isUpdating={updatingShortlistQuoteId === quote.id} onToggleShortlist={toggleQuoteShortlist} quote={quote} /></div>}
                         </div>
                       )}
                     </article>
@@ -795,6 +820,7 @@ export function CustomerDashboard() {
         {activeTab === "activity" && <NotificationActivity />}
       </main>
 
+      {comparisonRequirementId && <QuoteComparisonDialog onClose={() => setComparisonRequirementId(null)} onToggleShortlist={toggleQuoteShortlist} quotes={comparisonQuotes} updatingQuoteId={updatingShortlistQuoteId} />}
       <ReviewDialog onClose={() => setReviewOpen(false)} onSubmitted={submitReview} open={reviewOpen} venueName={reviewVenueName} />
     </>
   );
@@ -899,17 +925,28 @@ function EnquiryDetail({ label, value }: { label: string; value: string }) {
   return <div className="rounded-md bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>;
 }
 
-function CustomerQuoteCard({ quote }: { quote: VendorQuote }) {
+function CustomerQuoteCard({
+  quote,
+  isUpdating,
+  onToggleShortlist
+}: {
+  quote: VendorQuote;
+  isUpdating: boolean;
+  onToggleShortlist: (quote: VendorQuote) => void;
+}) {
+  const expired = isQuoteExpired(quote);
+  const unavailable = quote.status !== "SENT" || expired;
   return (
-    <div className="rounded-md border border-violet-200 bg-violet-50/60 p-4">
+    <div className={`rounded-md border p-4 ${quote.shortlisted ? "border-rose-200 bg-rose-50/60" : "border-violet-200 bg-violet-50/60"}`}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold">{quote.vendorName}</p>
             <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-violet-700">{quote.status.toLowerCase()}</span>
+            {quote.shortlisted && <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-rose-700">shortlisted</span>}
           </div>
           <h5 className="mt-2 text-sm font-semibold">{quote.packageName}</h5>
-          <p className="mt-1 text-xs text-muted-foreground">{quote.service} | Valid until {formatDate(quote.validUntil)}</p>
+          <p className={`mt-1 text-xs ${expired ? "font-medium text-rose-700" : "text-muted-foreground"}`}>{quote.service} | {expired ? "Expired" : `Valid until ${formatDate(quote.validUntil)}`}</p>
         </div>
         <div className="text-right">
           <p className="font-semibold">INR {formatMoney(quote.totalAmount)}</p>
@@ -920,6 +957,17 @@ function CustomerQuoteCard({ quote }: { quote: VendorQuote }) {
       {quote.inclusions.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{quote.inclusions.map((item) => <span className="rounded-full bg-white px-2.5 py-1 text-xs text-violet-800" key={item}>{item}</span>)}</div>}
       {quote.additionalCharges > 0 && <p className="mt-3 text-xs text-muted-foreground">Includes INR {formatMoney(quote.additionalCharges)} additional charges{quote.additionalChargesDescription ? ` for ${quote.additionalChargesDescription}` : ""}.</p>}
       {quote.notes && <p className="mt-3 border-t border-violet-200 pt-3 text-sm leading-6 text-muted-foreground">{quote.notes}</p>}
+      <div className="mt-4 border-t border-current/10 pt-4">
+        <button
+          className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${quote.shortlisted ? "border border-rose-200 bg-white text-rose-700" : "border border-violet-200 bg-white text-violet-700"}`}
+          disabled={isUpdating || (unavailable && !quote.shortlisted)}
+          onClick={() => onToggleShortlist(quote)}
+          type="button"
+        >
+          {isUpdating ? <LoaderCircle className="animate-spin" size={16} /> : <Heart fill={quote.shortlisted ? "currentColor" : "none"} size={16} />}
+          {quote.shortlisted ? "Remove from shortlist" : expired ? "Quote expired" : quote.status !== "SENT" ? "Quote unavailable" : "Add to shortlist"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -30,6 +30,21 @@ export async function saveVendorQuote(
   return quote;
 }
 
+export async function updateCustomerQuoteShortlist(
+  quoteId: string,
+  shortlisted: boolean,
+  accessToken?: string | null
+): Promise<VendorQuote> {
+  if (useMockQuotes || !accessToken) return updateMockQuoteShortlist(quoteId, shortlisted);
+  const quote = normalizeQuote(await apiRequest<unknown>(`/customer/quotes/${encodeURIComponent(quoteId)}/shortlist`, {
+    method: "PATCH",
+    token: accessToken,
+    body: JSON.stringify({ shortlisted })
+  }));
+  if (!quote.id || !quote.leadId) throw new Error("The shortlist service returned an invalid response.");
+  return quote;
+}
+
 function saveMockQuote(lead: VendorLead, payload: UpsertVendorQuoteInput) {
   const quotes = readMockQuotes();
   const existing = quotes.find((quote) => quote.leadId === lead.id);
@@ -46,11 +61,33 @@ function saveMockQuote(lead: VendorLead, payload: UpsertVendorQuoteInput) {
     additionalCharges: payload.additionalCharges ?? 0,
     totalAmount: payload.amount + (payload.additionalCharges ?? 0),
     status: "SENT",
+    shortlisted: false,
+    shortlistedAt: undefined,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now
   };
   writeMockQuotes([quote, ...quotes.filter((item) => item.leadId !== lead.id)]);
   return quote;
+}
+
+function updateMockQuoteShortlist(quoteId: string, shortlisted: boolean) {
+  const quotes = readMockQuotes();
+  const existing = quotes.find((quote) => quote.id === quoteId);
+  if (!existing) throw new Error("Quote not found.");
+  if (shortlisted && existing.status !== "SENT") {
+    throw new Error("Only active quotes can be shortlisted.");
+  }
+  if (shortlisted && isExpired(existing.validUntil)) {
+    throw new Error("Expired quotes cannot be shortlisted.");
+  }
+  const updated: VendorQuote = {
+    ...existing,
+    shortlisted,
+    shortlistedAt: shortlisted ? new Date().toISOString() : undefined,
+    updatedAt: new Date().toISOString()
+  };
+  writeMockQuotes(quotes.map((quote) => quote.id === quoteId ? updated : quote));
+  return updated;
 }
 
 function normalizeQuoteList(value: unknown): VendorQuote[] {
@@ -81,6 +118,8 @@ function normalizeQuote(value: unknown): VendorQuote {
     notes: stringValue(record.notes),
     validUntil: stringValue(record.validUntil) ?? "",
     status: quoteStatus(record.status),
+    shortlisted: record.shortlisted === true,
+    shortlistedAt: stringValue(record.shortlistedAt),
     createdAt: stringValue(record.createdAt) ?? new Date().toISOString(),
     updatedAt: stringValue(record.updatedAt) ?? new Date().toISOString()
   };
@@ -120,4 +159,10 @@ function numberValue(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return undefined;
+}
+
+function isExpired(validUntil: string) {
+  const today = new Date();
+  const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  return Boolean(validUntil && validUntil < localToday);
 }

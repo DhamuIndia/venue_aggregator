@@ -24,6 +24,8 @@ public record VendorQuoteResponse(
         String notes,
         LocalDate validUntil,
         VendorQuoteStatus status,
+        boolean shortlisted,
+        Instant shortlistedAt,
         Instant createdAt,
         Instant updatedAt) {
 }

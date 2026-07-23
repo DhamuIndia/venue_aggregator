@@ -1,6 +1,7 @@
 package com.staminal.venue.quotes;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,6 +26,7 @@ import com.staminal.venue.leads.VendorLeadRepository;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.quotes.dto.UpsertVendorQuoteRequest;
+import com.staminal.venue.quotes.dto.UpdateQuoteShortlistRequest;
 import com.staminal.venue.quotes.dto.VendorQuoteResponse;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -57,11 +59,15 @@ public class VendorQuoteService {
 
         VendorQuote quote = vendorQuoteRepository.findByLead_Id(leadId).orElse(null);
         boolean created = quote == null;
+        boolean shortlistCleared = !created && quote.isShortlisted();
         Map<String, Object> oldValues = created ? null : quoteValues(quote);
         if (created) {
             quote = new VendorQuote();
             quote.setLead(lead);
             quote.setVendor(vendor);
+        } else {
+            quote.setShortlisted(false);
+            quote.setShortlistedAt(null);
         }
 
         quote.setAmount(request.amount());
@@ -93,9 +99,10 @@ public class VendorQuoteService {
                 Map.of(
                         "leadId", lead.getId(),
                         "previousLeadStatus", previousLeadStatus.name(),
-                        "leadStatus", lead.getStatus().name())));
+                        "leadStatus", lead.getStatus().name(),
+                        "shortlistCleared", shortlistCleared)));
 
-        return toResponse(saved);
+        return toResponse(saved, false);
     }
 
     @Transactional(readOnly = true)
@@ -103,7 +110,7 @@ public class VendorQuoteService {
         Vendors vendor = currentVendor(authentication);
         return vendorQuoteRepository.findByVendor_IdOrderByUpdatedAtDesc(vendor.getId())
                 .stream()
-                .map(this::toResponse)
+                .map(quote -> toResponse(quote, false))
                 .toList();
     }
 
@@ -112,8 +119,44 @@ public class VendorQuoteService {
         User customer = currentUser(authentication, UserRole.CUSTOMER);
         return vendorQuoteRepository.findByLead_Customer_IdOrderByUpdatedAtDesc(customer.getId())
                 .stream()
-                .map(this::toResponse)
+                .map(quote -> toResponse(quote, true))
                 .toList();
+    }
+
+    public VendorQuoteResponse updateShortlist(
+            Long quoteId,
+            UpdateQuoteShortlistRequest request,
+            Authentication authentication) {
+        User customer = currentUser(authentication, UserRole.CUSTOMER);
+        VendorQuote quote = vendorQuoteRepository.findByIdAndLead_Customer_Id(quoteId, customer.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Quote not found"));
+        boolean shortlisted = request.shortlisted();
+        if (shortlisted) {
+            validateQuoteCanBeShortlisted(quote);
+        }
+        if (quote.isShortlisted() == shortlisted) {
+            return toResponse(quote, true);
+        }
+
+        boolean previousValue = quote.isShortlisted();
+        quote.setShortlisted(shortlisted);
+        quote.setShortlistedAt(shortlisted ? Instant.now() : null);
+        VendorQuote saved = vendorQuoteRepository.save(quote);
+
+        auditService.record(new AuditCommand(
+                customer.getId(),
+                UserRole.CUSTOMER.name(),
+                shortlisted ? AuditAction.QUOTE_SHORTLISTED : AuditAction.QUOTE_UNSHORTLISTED,
+                "VENDOR_QUOTE",
+                String.valueOf(saved.getId()),
+                shortlisted ? "Customer shortlisted vendor quote" : "Customer removed vendor quote from shortlist",
+                Map.of("shortlisted", previousValue),
+                Map.of("shortlisted", shortlisted),
+                Map.of(
+                        "leadId", saved.getLead().getId(),
+                        "vendorId", saved.getVendor().getId())));
+
+        return toResponse(saved, true);
     }
 
     private Vendors currentVendor(Authentication authentication) {
@@ -173,6 +216,15 @@ public class VendorQuoteService {
         }
     }
 
+    private void validateQuoteCanBeShortlisted(VendorQuote quote) {
+        if (quote.getStatus() != VendorQuoteStatus.SENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only active quotes can be shortlisted");
+        }
+        if (quote.getValidUntil().isBefore(LocalDate.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expired quotes cannot be shortlisted");
+        }
+    }
+
     private List<String> normalizeInclusions(List<String> inclusions) {
         return inclusions.stream()
                 .map(String::trim)
@@ -196,7 +248,7 @@ public class VendorQuoteService {
                 actionHref);
     }
 
-    private VendorQuoteResponse toResponse(VendorQuote quote) {
+    private VendorQuoteResponse toResponse(VendorQuote quote, boolean includeCustomerDecision) {
         VendorLead lead = quote.getLead();
         BigDecimal additionalCharges = defaultZero(quote.getAdditionalCharges());
         return new VendorQuoteResponse(
@@ -216,6 +268,8 @@ public class VendorQuoteService {
                 quote.getNotes(),
                 quote.getValidUntil(),
                 quote.getStatus(),
+                includeCustomerDecision && quote.isShortlisted(),
+                includeCustomerDecision ? quote.getShortlistedAt() : null,
                 quote.getCreatedAt(),
                 quote.getUpdatedAt());
     }

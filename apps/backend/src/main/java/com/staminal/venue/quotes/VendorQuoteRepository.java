@@ -9,6 +9,8 @@ public interface VendorQuoteRepository extends JpaRepository<VendorQuote, Long> 
 
     Optional<VendorQuote> findByLead_Id(Long leadId);
 
+    Optional<VendorQuote> findByIdAndLead_Customer_Id(Long quoteId, Long customerId);
+
     List<VendorQuote> findByVendor_IdOrderByUpdatedAtDesc(Long vendorId);
 
     List<VendorQuote> findByLead_Customer_IdOrderByUpdatedAtDesc(Long customerId);
