@@ -16,7 +16,6 @@ import {
   MessageSquareText,
   Pencil,
   Plus,
-  Send,
   Sparkles,
   Store,
   Trash2,
@@ -28,6 +27,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { emptyVendorAnalytics, fallbackVendorAnalytics, getVendorAnalytics, type VendorAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { getVendorQuotes, saveVendorQuote } from "@/features/quotes/quote-client";
+import type { UpsertVendorQuoteInput, VendorQuote } from "@/features/quotes/types";
 import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-client";
 import { deleteVendorMedia, getVendorMedia, mediaFromVendor, setVendorMediaCover, type VendorMediaItem, uploadAndCreateVendorMedia } from "@/features/vendors/media-client";
 import { createVendorPackage, deleteVendorPackage, getVendorPackages, updateVendorPackage, type VendorPackagePayload } from "@/features/vendors/package-client";
@@ -35,6 +36,7 @@ import { fallbackVendorProfile, getVendorProfile, type VendorProfileDraft } from
 import { createSubscriptionOrder, fallbackSubscriptionPlans, fallbackVendorSubscription, getSubscriptionPlans, getVendorSubscription, type SubscriptionPlan, type VendorSubscription } from "@/features/vendors/subscription-client";
 import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/vendors/types";
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
+import { VendorLeadInbox } from "./VendorLeadInbox";
 
 type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "subscription";
 
@@ -48,6 +50,16 @@ const tabs: { id: VendorTab; label: string }[] = [
 ];
 
 const useVendorDemoFallbacks = process.env.NEXT_PUBLIC_AUTH_MODE !== "api";
+
+const statusStyle: Record<VendorLeadStatus, string> = {
+  NEW: "bg-blue-50 text-blue-700",
+  INTERESTED: "bg-emerald-50 text-emerald-700",
+  CONTACTED: "bg-amber-50 text-amber-700",
+  QUOTE_SENT: "bg-violet-50 text-violet-700",
+  BOOKED: "bg-emerald-50 text-emerald-700",
+  DECLINED: "bg-rose-50 text-rose-700",
+  COMPLETED: "bg-muted text-muted-foreground"
+};
 
 const emptyLiveVendorProfile: VendorProfileDraft = {
   businessName: "Vendor workspace",
@@ -65,15 +77,6 @@ const emptyLiveVendorProfile: VendorProfileDraft = {
   startingPrice: 0,
   packageDescription: "",
   status: "DRAFT"
-};
-
-const statusStyle: Record<VendorLeadStatus, string> = {
-  NEW: "bg-blue-50 text-blue-700",
-  CONTACTED: "bg-amber-50 text-amber-800",
-  QUOTE_SENT: "bg-violet-50 text-violet-700",
-  BOOKED: "bg-emerald-50 text-emerald-800",
-  COMPLETED: "bg-green-100 text-green-800",
-  DECLINED: "bg-rose-50 text-rose-700"
 };
 
 function readableStatus(status: string) {
@@ -121,6 +124,7 @@ export function VendorDashboard() {
   const [activeTab, setActiveTab] = useState<VendorTab>("overview");
   const [vendorProfile, setVendorProfile] = useState<VendorProfileDraft>(useVendorDemoFallbacks ? fallbackVendorProfile : emptyLiveVendorProfile);
   const [leads, setLeads] = useState<VendorLead[]>(useVendorDemoFallbacks ? fallbackVendorLeads : []);
+  const [quotes, setQuotes] = useState<VendorQuote[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(true);
   const [leadsError, setLeadsError] = useState("");
   const [leadFilter, setLeadFilter] = useState<"ALL" | VendorLeadStatus>("ALL");
@@ -203,17 +207,30 @@ export function VendorDashboard() {
       setIsLoadingLeads(true);
       setLeadsError("");
 
-      try {
-        const response = await getVendorLeads(activeVendorId || workspaceVendor.id, accessToken);
-        if (!isCurrent) return;
+      const [leadResult, quoteResult] = await Promise.allSettled([
+        getVendorLeads(activeVendorId || workspaceVendor.id, accessToken),
+        getVendorQuotes(accessToken)
+      ]);
+      if (!isCurrent) return;
+
+      const errors: string[] = [];
+      if (leadResult.status === "fulfilled") {
+        const response = leadResult.value;
         setLeads(response.source === "api" || !useVendorDemoFallbacks ? response.leads : [...response.leads, ...fallbackVendorLeads]);
-      } catch {
-        if (!isCurrent) return;
+      } else {
         setLeads(useVendorDemoFallbacks ? fallbackVendorLeads : []);
-        setLeadsError("Could not load latest leads.");
-      } finally {
-        if (isCurrent) setIsLoadingLeads(false);
+        errors.push("Could not load latest leads.");
       }
+
+      if (quoteResult.status === "fulfilled") {
+        setQuotes(quoteResult.value);
+      } else {
+        setQuotes([]);
+        errors.push("Could not load saved quotations.");
+      }
+
+      setLeadsError(errors.join(" "));
+      setIsLoadingLeads(false);
     }
 
     loadLeads();
@@ -312,7 +329,6 @@ export function VendorDashboard() {
   const newCount = leads.filter((lead) => lead.status === "NEW").length;
   const bookedCount = leads.filter((lead) => lead.status === "BOOKED").length;
   const bookedValue = leads.filter((lead) => lead.status === "BOOKED").reduce((total, lead) => total + (lead.budget ?? 0), 0);
-  const filteredLeads = useMemo(() => leadFilter === "ALL" ? leads : leads.filter((lead) => lead.status === leadFilter), [leadFilter, leads]);
   const vendorName = vendorProfile.businessName.trim() || "Vendor workspace";
   const vendorLocation = [vendorProfile.area, vendorProfile.city].filter(Boolean).join(", ");
   const publicVendorHref = (activeVendorId ? `/vendors/${activeVendorId}` : "/vendors") as Route;
@@ -322,23 +338,23 @@ export function VendorDashboard() {
   const profileStrength = Math.round(([hasBusinessProfile, hasPackageInfo, hasPortfolioPhotos].filter(Boolean).length / 3) * 100);
   const profileStatusClass = vendorProfile.status === "APPROVED" ? "text-emerald-700" : vendorProfile.status === "REJECTED" ? "text-rose-700" : "text-amber-700";
 
-  async function updateLead(id: string, status: VendorLeadStatus) {
+  async function updateLead(id: string, status: VendorLeadStatus, reason?: string) {
     try {
-      const updatedLead = await updateVendorLeadStatus(id, status, accessToken);
+      const updatedLead = await updateVendorLeadStatus(id, status, accessToken, reason);
       setLeads((current) => current.map((lead) => lead.id === id ? { ...lead, ...updatedLead, status } : lead));
       setNotice(`Lead ${id} updated to ${readableStatus(status)}.`);
     } catch (exception) {
-      setNotice(exception instanceof Error ? exception.message : "Could not update lead status.");
+      const message = exception instanceof Error ? exception.message : "Could not update lead status.";
+      setNotice(message);
+      throw exception instanceof Error ? exception : new Error(message);
     }
   }
 
-  function canMoveLeadTo(current: VendorLeadStatus, next: VendorLeadStatus) {
-    if (current === "COMPLETED" || current === "DECLINED") return false;
-    if (current === "NEW") return next === "CONTACTED" || next === "QUOTE_SENT" || next === "DECLINED";
-    if (current === "CONTACTED") return next === "QUOTE_SENT" || next === "BOOKED" || next === "DECLINED";
-    if (current === "QUOTE_SENT") return next === "BOOKED" || next === "DECLINED";
-    if (current === "BOOKED") return next === "COMPLETED";
-    return false;
+  async function submitQuote(lead: VendorLead, payload: UpsertVendorQuoteInput) {
+    const quote = await saveVendorQuote(lead, payload, accessToken);
+    setQuotes((current) => [quote, ...current.filter((item) => item.leadId !== lead.id)]);
+    setLeads((current) => current.map((item) => item.id === lead.id ? { ...item, status: "QUOTE_SENT" } : item));
+    setNotice(`Quotation sent for lead ${lead.id}.`);
   }
 
   async function addPortfolioImages(files: FileList | null) {
@@ -618,15 +634,18 @@ export function VendorDashboard() {
           </section>
         )}
 
-        {activeTab === "leads" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Lead inbox</h2><p className="mt-1 text-sm text-muted-foreground">Qualify requests and keep the customer status current.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setLeadFilter(event.target.value as "ALL" | VendorLeadStatus)} value={leadFilter}><option value="ALL">All leads</option><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="QUOTE_SENT">Quote sent</option><option value="BOOKED">Booked</option><option value="DECLINED">Declined</option></select></label></div>{leadsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{leadsError}</p>}{isLoadingLeads ? <div className="mt-5 grid gap-4">{[1, 2, 3].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : filteredLeads.length > 0 ? <div className="mt-5 grid gap-4">{filteredLeads.map((lead) => <article className="rounded-lg border border-border bg-white p-5" key={lead.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{lead.eventType} | {lead.service}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span>{lead.source === "MARKETPLACE_REQUIREMENT" && <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">Marketplace match</span>}</div><p className="mt-2 text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</p></div><div className="text-right"><p className="font-semibold">{lead.budget !== undefined ? `INR ${formatMoney(lead.budget)}` : "Not specified"}</p><p className="mt-1 text-xs text-muted-foreground">Expected budget</p></div></div><div className="mt-4 grid gap-3 rounded-md bg-muted/60 p-4 text-sm sm:grid-cols-2"><p><span className="text-muted-foreground">Customer:</span> {lead.customerName}</p><p><span className="text-muted-foreground">Reference:</span> {lead.requirementId ? `Requirement ${lead.requirementId}` : lead.id}</p>{lead.contactDetailsShared && (lead.customerPhone || lead.customerEmail) ? <p className="sm:col-span-2"><span className="text-muted-foreground">Contact:</span> {[lead.customerPhone, lead.customerEmail].filter(Boolean).join(" | ")}</p> : lead.source === "MARKETPLACE_REQUIREMENT" ? <p className="sm:col-span-2 text-muted-foreground">Customer contact details are private. Respond through VenueMart.</p> : null}{lead.notes && <p className="leading-6 sm:col-span-2"><span className="text-muted-foreground">Notes:</span> {lead.notes}</p>}</div>{lead.status !== "COMPLETED" && lead.status !== "DECLINED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">{canMoveLeadTo(lead.status, "CONTACTED") && <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => updateLead(lead.id, "CONTACTED")}><MessageSquareText size={17} /> Mark contacted</button>}{canMoveLeadTo(lead.status, "QUOTE_SENT") && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "QUOTE_SENT")}><Send size={17} /> Mark quote sent</button>}{canMoveLeadTo(lead.status, "BOOKED") && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "BOOKED")}><Check size={17} /> Mark booked</button>}{canMoveLeadTo(lead.status, "COMPLETED") && (
-          <button
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white"
-            onClick={() => updateLead(lead.id, "COMPLETED")}
-          >
-            <Check size={17} />
-            Mark completed
-          </button>
-        )}{canMoveLeadTo(lead.status, "DECLINED") && <button className="h-10 px-3 text-sm font-medium text-rose-700" onClick={() => updateLead(lead.id, "DECLINED")}>Decline</button>}</div>}</article>)}</div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No leads yet</h3><p className="mt-2 text-sm text-muted-foreground">New quote requests will appear here.</p></div>}</section>}
+        {activeTab === "leads" && (
+          <VendorLeadInbox
+            error={leadsError}
+            filter={leadFilter}
+            isLoading={isLoadingLeads}
+            leads={leads}
+            onFilterChange={setLeadFilter}
+            onSaveQuote={submitQuote}
+            onStatusChange={updateLead}
+            quotes={quotes}
+          />
+        )}
 
         {activeTab === "services" && (
           <section className="py-7">

@@ -48,7 +48,7 @@ export type VendorSummary = {
   reviews: VendorReview[];
 };
 
-export type VendorLeadStatus = "NEW" | "CONTACTED" | "QUOTE_SENT" | "BOOKED" | "DECLINED" | "COMPLETED";
+export type VendorLeadStatus = "NEW" | "INTERESTED" | "CONTACTED" | "QUOTE_SENT" | "BOOKED" | "DECLINED" | "COMPLETED";
 
 export type VendorLead = {
   id: string;
@@ -68,6 +68,7 @@ export type VendorLead = {
   service: string;
   budget?: number;
   notes?: string;
+  declineReason?: string;
   status: VendorLeadStatus;
   submittedAt: string;
 };

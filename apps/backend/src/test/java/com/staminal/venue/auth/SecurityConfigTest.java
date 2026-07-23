@@ -2,6 +2,7 @@ package com.staminal.venue.auth;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,8 @@ import com.staminal.venue.halls.Controller.HallController;
 import com.staminal.venue.halls.Service.HallsService;
 import com.staminal.venue.requirements.CustomerRequirementController;
 import com.staminal.venue.requirements.CustomerRequirementService;
+import com.staminal.venue.quotes.VendorQuoteController;
+import com.staminal.venue.quotes.VendorQuoteService;
 import com.staminal.venue.users.UserController;
 import com.staminal.venue.users.UserService;
 import com.staminal.venue.vendors.Hall.VendorHallController;
@@ -30,7 +33,8 @@ import com.staminal.venue.vendors.Hall.VendorHallService;
         UserController.class,
         VendorHallController.class,
         HallController.class,
-        CustomerRequirementController.class
+        CustomerRequirementController.class,
+        VendorQuoteController.class
 })
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class})
 class SecurityConfigTest {
@@ -55,6 +59,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private CustomerRequirementService customerRequirementService;
+
+    @MockitoBean
+    private VendorQuoteService vendorQuoteService;
 
     @Test
     void publicMarketplaceReadRemainsPublic() throws Exception {
@@ -129,6 +136,46 @@ class SecurityConfigTest {
     }
 
     @Test
+    void quotationCreationRequiresAuthentication() throws Exception {
+        mockMvc.perform(put("/v1/vendor/leads/901/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validQuoteRequest()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void customerCannotCreateVendorQuotation() throws Exception {
+        mockMvc.perform(put("/v1/vendor/leads/901/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validQuoteRequest()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "VENDOR")
+    void vendorCanReachQuotationEndpoint() throws Exception {
+        mockMvc.perform(put("/v1/vendor/leads/901/quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validQuoteRequest()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "VENDOR")
+    void vendorCannotReadCustomerQuotationList() throws Exception {
+        mockMvc.perform(get("/v1/customer/quotes"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void customerCanReadCustomerQuotationList() throws Exception {
+        mockMvc.perform(get("/v1/customer/quotes"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void legacyAdminListRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/admin"))
                 .andExpect(status().isUnauthorized());
@@ -171,5 +218,20 @@ class SecurityConfigTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk());
+    }
+
+    private String validQuoteRequest() {
+        return """
+                {
+                  "amount": 100000,
+                  "packageName": "Wedding stories",
+                  "serviceDescription": "Eight hours of wedding photography.",
+                  "inclusions": ["Candid photography", "Edited album"],
+                  "additionalCharges": 5000,
+                  "additionalChargesDescription": "Travel outside Chennai.",
+                  "notes": "Delivery in six weeks.",
+                  "validUntil": "2099-08-01"
+                }
+                """;
     }
 }

@@ -3,6 +3,8 @@ package com.staminal.venue.leads;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +33,7 @@ import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
 import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.requirements.CustomerRequirement;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -130,6 +133,82 @@ class VendorLeadServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(VendorLeadStatus.QUOTE_SENT);
         verify(auditService).record(any());
+    }
+
+    @Test
+    void updateStatusAllowsVendorToShowInterest() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.INTERESTED);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VendorLeadResponse response = vendorLeadService.updateStatus(901L, request, vendorAuth());
+
+        assertThat(response.getStatus()).isEqualTo(VendorLeadStatus.INTERESTED);
+        verify(notificationService).notifyUser(
+                eq(lead.getCustomer()),
+                eq(NotificationType.ENQUIRY),
+                eq("Vendor is interested"),
+                eq("Saffron Leaf Catering is interested in your requirement."),
+                eq("/customer?tab=enquiries"));
+    }
+
+    @Test
+    void decliningLeadRequiresCustomerVisibleReason() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.DECLINED);
+        request.setReason(" ");
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+
+        assertThatThrownBy(() -> vendorLeadService.updateStatus(901L, request, vendorAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> {
+                            assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                            assertThat(exception.getReason()).isEqualTo("Decline reason is required");
+                        });
+        verify(vendorLeadRepository, never()).save(any());
+        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void decliningLeadStoresAndReturnsCustomerVisibleReason() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.DECLINED);
+        request.setReason("  Already booked for the event date.  ");
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VendorLeadResponse response = vendorLeadService.updateStatus(901L, request, vendorAuth());
+
+        assertThat(response.getStatus()).isEqualTo(VendorLeadStatus.DECLINED);
+        assertThat(response.getDeclineReason()).isEqualTo("Already booked for the event date.");
+        verify(notificationService).notifyUser(
+                eq(lead.getCustomer()),
+                eq(NotificationType.ENQUIRY),
+                eq("Lead declined"),
+                eq("Saffron Leaf Catering declined your enquiry. Reason: Already booked for the event date."),
+                eq("/customer?tab=enquiries"));
     }
 
     @Test

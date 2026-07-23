@@ -43,6 +43,8 @@ public class VendorLeadResponse {
 
     private String notes;
 
+    private String declineReason;
+
     private VendorLeadStatus status;
 
     private Instant createdAt;
@@ -183,6 +185,14 @@ public class VendorLeadResponse {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public String getDeclineReason() {
+        return declineReason;
+    }
+
+    public void setDeclineReason(String declineReason) {
+        this.declineReason = declineReason;
     }
 
     public VendorLeadStatus getStatus() {

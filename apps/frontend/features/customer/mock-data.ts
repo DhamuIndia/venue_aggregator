@@ -12,6 +12,7 @@ export type CustomerEnquiry = {
   location?: string;
   budget?: number;
   notes?: string;
+  declineReason?: string;
 };
 
 export const customerEnquiries: CustomerEnquiry[] = [

@@ -66,6 +66,9 @@ public class VendorLead {
 
     private String notes;
 
+    @Column(name = "decline_reason", length = 1000)
+    private String declineReason;
+
     @Enumerated(EnumType.STRING)
     private VendorLeadStatus status;
 
@@ -193,6 +196,14 @@ public class VendorLead {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public String getDeclineReason() {
+        return declineReason;
+    }
+
+    public void setDeclineReason(String declineReason) {
+        this.declineReason = declineReason;
     }
 
     public VendorLeadStatus getStatus() {

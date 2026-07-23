@@ -35,6 +35,8 @@ import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
 import { formatSlot } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
+import { getCustomerQuotes } from "@/features/quotes/quote-client";
+import type { VendorQuote } from "@/features/quotes/types";
 import { getCustomerRequirements } from "@/features/requirements/requirements-client";
 import type { CustomerRequirement, CustomerRequirementStatus, PreferredContactChannel } from "@/features/requirements/types";
 import { getCustomerVendorLeads } from "@/features/vendors/lead-client";
@@ -171,6 +173,9 @@ export function CustomerDashboard() {
   const [requirements, setRequirements] = useState<CustomerRequirement[]>([]);
   const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
   const [requirementsError, setRequirementsError] = useState("");
+  const [quotes, setQuotes] = useState<VendorQuote[]>([]);
+  const [isLoadingQuotes, setIsLoadingQuotes] = useState(true);
+  const [quotesError, setQuotesError] = useState("");
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -207,6 +212,30 @@ export function CustomerDashboard() {
 
     loadEnquiries();
 
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadQuotes() {
+      setIsLoadingQuotes(true);
+      setQuotesError("");
+      try {
+        const response = await getCustomerQuotes(accessToken);
+        if (isCurrent) setQuotes(response);
+      } catch {
+        if (!isCurrent) return;
+        setQuotes([]);
+        setQuotesError("Could not load the latest vendor quotations.");
+      } finally {
+        if (isCurrent) setIsLoadingQuotes(false);
+      }
+    }
+
+    loadQuotes();
     return () => {
       isCurrent = false;
     };
@@ -607,22 +636,32 @@ export function CustomerDashboard() {
               <Link className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" href={"/requirements/new" as Route}><Plus size={17} /> Post requirement</Link>
             </div>
             {requirementsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{requirementsError}</p>}
-            {isLoadingRequirements ? (
+            {quotesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quotesError}</p>}
+            {isLoadingRequirements || isLoadingQuotes ? (
               <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-48 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
             ) : requirements.length > 0 ? (
               <div className="mt-5 grid gap-4">
-                {requirements.map((requirement) => (
-                  <article className="rounded-lg border border-border bg-white p-5" key={requirement.id}>
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{requirement.eventType}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${requirementStatusStyles[requirement.status]}`}>{requirement.status.toLowerCase()}</span></div><p className="mt-2 text-sm text-muted-foreground">{formatDate(requirement.eventDate)} | {[requirement.location, requirement.city].filter(Boolean).join(", ")}</p></div>
-                      <div className="text-right"><p className="text-sm font-semibold">Reference {requirement.id}</p><p className="mt-1 text-xs text-muted-foreground">Submitted {formatSubmittedDate(requirement.createdAt)}</p></div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">{requirement.services.map((service) => <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800" key={service.id}>{service.name.toLowerCase() === "makeup" ? "Bridal makeup" : service.name}</span>)}</div>
-                    <div className="mt-4 grid gap-3 rounded-md bg-muted/50 p-4 text-sm sm:grid-cols-3"><p><span className="text-muted-foreground">Budget:</span> {requirementBudget(requirement)}</p><p><span className="text-muted-foreground">Guests:</span> {requirement.guestCount ? formatGuestCount(requirement.guestCount) : "Not specified"}</p><p><span className="text-muted-foreground">Contact:</span> {contactChannelLabel(requirement.preferredContactChannel)}</p></div>
-                    {requirement.details && <p className="mt-4 text-sm leading-6 text-muted-foreground">{requirement.details}</p>}
-                    <p className="mt-4 border-t border-border pt-4 text-xs font-medium text-muted-foreground">{requirement.matchedVendorCount > 0 ? `Sent to ${requirement.matchedVendorCount} matching vendor${requirement.matchedVendorCount === 1 ? "" : "s"}. You can track their responses under Enquiries.` : "Your requirement is open. We will show vendor matches here as they become available."}</p>
-                  </article>
-                ))}
+                {requirements.map((requirement) => {
+                  const requirementQuotes = quotes.filter((quote) => quote.requirementId === requirement.id);
+                  return (
+                    <article className="rounded-lg border border-border bg-white p-5" key={requirement.id}>
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{requirement.eventType}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${requirementStatusStyles[requirement.status]}`}>{requirement.status.toLowerCase()}</span></div><p className="mt-2 text-sm text-muted-foreground">{formatDate(requirement.eventDate)} | {[requirement.location, requirement.city].filter(Boolean).join(", ")}</p></div>
+                        <div className="text-right"><p className="text-sm font-semibold">Reference {requirement.id}</p><p className="mt-1 text-xs text-muted-foreground">Submitted {formatSubmittedDate(requirement.createdAt)}</p></div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">{requirement.services.map((service) => <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800" key={service.id}>{service.name.toLowerCase() === "makeup" ? "Bridal makeup" : service.name}</span>)}</div>
+                      <div className="mt-4 grid gap-3 rounded-md bg-muted/50 p-4 text-sm sm:grid-cols-3"><p><span className="text-muted-foreground">Budget:</span> {requirementBudget(requirement)}</p><p><span className="text-muted-foreground">Guests:</span> {requirement.guestCount ? formatGuestCount(requirement.guestCount) : "Not specified"}</p><p><span className="text-muted-foreground">Contact:</span> {contactChannelLabel(requirement.preferredContactChannel)}</p></div>
+                      {requirement.details && <p className="mt-4 text-sm leading-6 text-muted-foreground">{requirement.details}</p>}
+                      {requirementQuotes.length > 0 && (
+                        <div className="mt-5 border-t border-border pt-5">
+                          <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">Vendor quotations</h4><span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">{requirementQuotes.length} received</span></div>
+                          <div className="mt-3 grid gap-3">{requirementQuotes.map((quote) => <CustomerQuoteCard key={quote.id} quote={quote} />)}</div>
+                        </div>
+                      )}
+                      <p className="mt-4 border-t border-border pt-4 text-xs font-medium text-muted-foreground">{requirement.matchedVendorCount > 0 ? `Sent to ${requirement.matchedVendorCount} matching vendor${requirement.matchedVendorCount === 1 ? "" : "s"}. You can track their responses under Enquiries.` : "Your requirement is open. We will show vendor matches here as they become available."}</p>
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><ClipboardList className="mx-auto text-muted-foreground" size={30} /><h3 className="mt-4 font-semibold">No requirements yet</h3><p className="mt-2 text-sm text-muted-foreground">Post the services you need for your event in one place.</p><Link className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" href={"/requirements/new" as Route}><Plus size={16} /> Post your first requirement</Link></div>
@@ -635,10 +674,12 @@ export function CustomerDashboard() {
             <h2 className="text-xl font-semibold">Your enquiries</h2>
             <p className="mt-1 text-sm text-muted-foreground">Track responses and confirmed event details.</p>
             {enquiriesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{enquiriesError}</p>}
-            {isLoadingEnquiries ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? (
+            {quotesError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{quotesError}</p>}
+            {isLoadingEnquiries || isLoadingQuotes ? <div className="mt-5 grid gap-3">{[1, 2, 3].map((item) => <div className="h-24 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : enquiries.length > 0 ? (
               <div className="mt-5 grid gap-3">
                 {enquiries.map((enquiry) => {
                   const isExpanded = expandedEnquiryId === enquiry.id;
+                  const quote = quotes.find((item) => vendorLeadReference(item.leadId) === enquiry.id);
                   return (
                     <article className="rounded-lg border border-border bg-white p-5" key={enquiry.id}>
                       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -660,6 +701,8 @@ export function CustomerDashboard() {
                             {enquiry.budget !== undefined && <EnquiryDetail label="Budget" value={`INR ${new Intl.NumberFormat("en-IN").format(enquiry.budget)}`} />}
                           </div>
                           {enquiry.notes && <div className="mt-4 rounded-md bg-muted/50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</p><p className="mt-1 text-sm leading-6">{enquiry.notes}</p></div>}
+                          {enquiry.declineReason && <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-rose-700">Vendor response</p><p className="mt-1 text-sm leading-6 text-rose-800">{enquiry.declineReason}</p></div>}
+                          {quote && <div className="mt-4"><CustomerQuoteCard quote={quote} /></div>}
                         </div>
                       )}
                     </article>
@@ -792,7 +835,8 @@ function toCustomerVendorEnquiry(lead: VendorLead): CustomerEnquiry {
     eventType: lead.eventType,
     location: lead.location,
     budget: lead.budget,
-    notes: lead.notes
+    notes: lead.notes,
+    declineReason: lead.declineReason
   };
 }
 
@@ -853,6 +897,31 @@ function sortCustomerEnquiries(items: CustomerEnquiry[]) {
 
 function EnquiryDetail({ label, value }: { label: string; value: string }) {
   return <div className="rounded-md bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-sm font-medium">{value}</p></div>;
+}
+
+function CustomerQuoteCard({ quote }: { quote: VendorQuote }) {
+  return (
+    <div className="rounded-md border border-violet-200 bg-violet-50/60 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold">{quote.vendorName}</p>
+            <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-violet-700">{quote.status.toLowerCase()}</span>
+          </div>
+          <h5 className="mt-2 text-sm font-semibold">{quote.packageName}</h5>
+          <p className="mt-1 text-xs text-muted-foreground">{quote.service} | Valid until {formatDate(quote.validUntil)}</p>
+        </div>
+        <div className="text-right">
+          <p className="font-semibold">INR {formatMoney(quote.totalAmount)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Total quotation</p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm leading-6">{quote.serviceDescription}</p>
+      {quote.inclusions.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{quote.inclusions.map((item) => <span className="rounded-full bg-white px-2.5 py-1 text-xs text-violet-800" key={item}>{item}</span>)}</div>}
+      {quote.additionalCharges > 0 && <p className="mt-3 text-xs text-muted-foreground">Includes INR {formatMoney(quote.additionalCharges)} additional charges{quote.additionalChargesDescription ? ` for ${quote.additionalChargesDescription}` : ""}.</p>}
+      {quote.notes && <p className="mt-3 border-t border-violet-200 pt-3 text-sm leading-6 text-muted-foreground">{quote.notes}</p>}
+    </div>
+  );
 }
 
 function sortBookings(items: BookingItem[]) {

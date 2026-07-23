@@ -94,24 +94,18 @@ export async function getCustomerVendorLeads(accessToken?: string | null): Promi
   }
 }
 
-export async function updateVendorLeadStatus(id: string, status: VendorLeadStatus, accessToken?: string | null) {
-  if (useMockVendorLeads || !accessToken) return updateLocalVendorLeadStatus(id, status);
+export async function updateVendorLeadStatus(id: string, status: VendorLeadStatus, accessToken?: string | null, reason?: string) {
+  if (useMockVendorLeads || !accessToken) return updateLocalVendorLeadStatus(id, status, reason);
 
-  try {
-    const response = await apiRequest<unknown>(`/vendor/leads/${encodeURIComponent(id)}/status`, {
-      method: "PATCH",
-      token: accessToken,
-      body: JSON.stringify({ status })
-    });
-    const lead = toVendorLead(response) ?? updateLocalVendorLeadStatus(id, status);
-    if (lead) cacheLocalVendorLead(lead);
-    return lead;
-  } catch (exception) {
-    if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
-      throw exception;
-    }
-    return updateLocalVendorLeadStatus(id, status);
-  }
+  const response = await apiRequest<unknown>(`/vendor/leads/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    token: accessToken,
+    body: JSON.stringify({ status, reason })
+  });
+  const lead = toVendorLead(response);
+  if (!lead) throw new Error("The lead update returned an invalid response.");
+  cacheLocalVendorLead(lead);
+  return lead;
 }
 
 export function createLocalVendorLead(payload: CreateVendorLeadPayload): VendorLead {
@@ -120,8 +114,12 @@ export function createLocalVendorLead(payload: CreateVendorLeadPayload): VendorL
   return lead;
 }
 
-export function updateLocalVendorLeadStatus(id: string, status: VendorLeadStatus) {
-  const updated = getLocalVendorLeads().map((lead) => lead.id === id ? { ...lead, status } : lead);
+export function updateLocalVendorLeadStatus(id: string, status: VendorLeadStatus, reason?: string) {
+  const updated = getLocalVendorLeads().map((lead) => lead.id === id ? {
+    ...lead,
+    status,
+    declineReason: status === "DECLINED" ? reason : lead.declineReason
+  } : lead);
   if (typeof window !== "undefined") window.localStorage.setItem(storageKey, JSON.stringify(updated));
   return updated.find((lead) => lead.id === id);
 }
@@ -179,6 +177,7 @@ function toVendorLead(value: unknown, fallback?: Partial<CreateVendorLeadPayload
     service,
     budget,
     notes: stringValue(value, ["notes", "message"]) ?? fallback?.notes,
+    declineReason: stringValue(value, ["declineReason", "decline_reason"]),
     status: statusValue(value) ?? "NEW",
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at"]) ?? new Date().toISOString()
   };
@@ -212,7 +211,7 @@ function hasCompleteFallback(fallback?: Partial<CreateVendorLeadPayload>): fallb
 function statusValue(record: Record<string, unknown>): VendorLeadStatus | undefined {
   const value = stringValue(record, ["status"]);
   if (!value) return undefined;
-  if (value === "NEW" || value === "CONTACTED" || value === "QUOTE_SENT" || value === "BOOKED" || value === "DECLINED") return value;
+  if (value === "NEW" || value === "INTERESTED" || value === "CONTACTED" || value === "QUOTE_SENT" || value === "BOOKED" || value === "DECLINED") return value;
   if (value === "IN_PROGRESS") return "CONTACTED";
   if (value === "QUOTED") return "QUOTE_SENT";
   if (value === "CONFIRMED") return "BOOKED";
