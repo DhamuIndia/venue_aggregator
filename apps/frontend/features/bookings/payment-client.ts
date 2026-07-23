@@ -142,14 +142,14 @@ function orderStatus(record: Record<string, unknown>): BookingPaymentOrder["stat
 function bookingStatus(record: Record<string, unknown>): BookingItem["status"] {
   const value = stringValue(record, ["status", "bookingStatus", "booking_status"]);
   const normalized = value?.trim().toUpperCase();
-  if (normalized === "REQUESTED" || normalized === "CONFIRMED" || normalized === "IN_PROGRESS" || normalized === "CANCELLED" || normalized === "COMPLETED") return normalized;
+  if (normalized === "REQUESTED" || normalized === "CONFIRMED" || normalized === "CANCELLED" || normalized === "COMPLETED") return normalized;
   return "CONFIRMED";
 }
 
 function paymentStatus(record: Record<string, unknown>): BookingItem["paymentStatus"] {
   const value = stringValue(record, ["paymentStatus", "payment_status"]);
   const normalized = value?.trim().toUpperCase();
-  if (normalized === "NOT_STARTED" || normalized === "ADVANCE_PENDING" || normalized === "ADVANCE_PAID" || normalized === "REFUND_PENDING" || normalized === "PARTIALLY_REFUNDED" || normalized === "REFUNDED") return normalized;
+  if (normalized === "NOT_STARTED" || normalized === "ADVANCE_PENDING" || normalized === "ADVANCE_PAID" || normalized === "REFUNDED") return normalized;
   if (normalized === "PAID") return "ADVANCE_PAID";
   return "ADVANCE_PAID";
 }

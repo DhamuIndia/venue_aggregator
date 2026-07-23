@@ -14,10 +14,7 @@ import {
   LoaderCircle,
   MapPin,
   MessageSquareText,
-  Mail,
   Pencil,
-  Phone,
-  Play,
   Plus,
   Sparkles,
   Store,
@@ -30,11 +27,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { emptyVendorAnalytics, fallbackVendorAnalytics, getVendorAnalytics, type VendorAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
-import {
-  getVendorServiceBookings,
-  updateVendorServiceBookingStatus,
-  type VendorServiceBooking
-} from "@/features/bookings/vendor-service-booking-client";
 import { getVendorQuotes, saveVendorQuote } from "@/features/quotes/quote-client";
 import type { UpsertVendorQuoteInput, VendorQuote } from "@/features/quotes/types";
 import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-client";
@@ -46,12 +38,11 @@ import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/ven
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
 import { VendorLeadInbox } from "./VendorLeadInbox";
 
-type VendorTab = "overview" | "leads" | "bookings" | "reports" | "services" | "portfolio" | "subscription";
+type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "subscription";
 
 const tabs: { id: VendorTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "leads", label: "Leads" },
-  { id: "bookings", label: "Bookings" },
   { id: "reports", label: "Reports" },
   { id: "services", label: "Services" },
   { id: "portfolio", label: "Portfolio" },
@@ -68,14 +59,6 @@ const statusStyle: Record<VendorLeadStatus, string> = {
   BOOKED: "bg-emerald-50 text-emerald-700",
   NOT_SELECTED: "bg-slate-100 text-slate-700",
   DECLINED: "bg-rose-50 text-rose-700",
-  COMPLETED: "bg-muted text-muted-foreground"
-};
-
-const bookingStatusStyle: Record<VendorServiceBooking["status"], string> = {
-  REQUESTED: "bg-blue-50 text-blue-700",
-  CONFIRMED: "bg-emerald-50 text-emerald-700",
-  IN_PROGRESS: "bg-violet-50 text-violet-700",
-  CANCELLED: "bg-rose-50 text-rose-700",
   COMPLETED: "bg-muted text-muted-foreground"
 };
 
@@ -143,10 +126,6 @@ export function VendorDashboard() {
   const [vendorProfile, setVendorProfile] = useState<VendorProfileDraft>(useVendorDemoFallbacks ? fallbackVendorProfile : emptyLiveVendorProfile);
   const [leads, setLeads] = useState<VendorLead[]>(useVendorDemoFallbacks ? fallbackVendorLeads : []);
   const [quotes, setQuotes] = useState<VendorQuote[]>([]);
-  const [bookings, setBookings] = useState<VendorServiceBooking[]>([]);
-  const [isLoadingBookings, setIsLoadingBookings] = useState(true);
-  const [bookingsError, setBookingsError] = useState("");
-  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
   const [isLoadingLeads, setIsLoadingLeads] = useState(true);
   const [leadsError, setLeadsError] = useState("");
   const [leadFilter, setLeadFilter] = useState<"ALL" | VendorLeadStatus>("ALL");
@@ -173,13 +152,6 @@ export function VendorDashboard() {
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
   const activeVendorId = vendorProfile.id ?? "";
-
-  useEffect(() => {
-    const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    if (requestedTab && tabs.some((tab) => tab.id === requestedTab)) {
-      setActiveTab(requestedTab as VendorTab);
-    }
-  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -228,26 +200,6 @@ export function VendorDashboard() {
       isCurrent = false;
     };
   }, [accessToken, activeVendorId]);
-
-  useEffect(() => {
-    let isCurrent = true;
-    async function loadBookings() {
-      setIsLoadingBookings(true);
-      setBookingsError("");
-      try {
-        const response = await getVendorServiceBookings(accessToken);
-        if (isCurrent) setBookings(response);
-      } catch (exception) {
-        if (!isCurrent) return;
-        setBookings([]);
-        setBookingsError(exception instanceof Error ? exception.message : "Could not load bookings.");
-      } finally {
-        if (isCurrent) setIsLoadingBookings(false);
-      }
-    }
-    loadBookings();
-    return () => { isCurrent = false; };
-  }, [accessToken]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -406,31 +358,6 @@ export function VendorDashboard() {
     setNotice(`Quotation sent for lead ${lead.id}.`);
   }
 
-  async function updateBooking(
-    booking: VendorServiceBooking,
-    status: "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
-  ) {
-    let reason: string | undefined;
-    if (status === "CANCELLED") {
-      reason = window.prompt("Please enter the cancellation reason.")?.trim();
-      if (!reason) return;
-    }
-    try {
-      setUpdatingBookingId(booking.id);
-      setBookingsError("");
-      const updated = await updateVendorServiceBookingStatus(booking.id, status, accessToken, reason);
-      setBookings((current) => current.map((item) => item.id === updated.id ? updated : item));
-      setLeads((current) => current.map((lead) => lead.id.replace(/^VLEAD-/, "") === updated.leadId.replace(/^VLEAD-/, "")
-        ? { ...lead, status: status === "COMPLETED" ? "COMPLETED" : status === "CANCELLED" ? "DECLINED" : lead.status }
-        : lead));
-      setNotice(`Booking ${booking.id} updated to ${readableStatus(status)}.`);
-    } catch (exception) {
-      setBookingsError(exception instanceof Error ? exception.message : "Could not update booking.");
-    } finally {
-      setUpdatingBookingId(null);
-    }
-  }
-
   async function addPortfolioImages(files: FileList | null) {
     if (!files?.length) return;
     try {
@@ -549,8 +476,7 @@ export function VendorDashboard() {
     }
   }
 
-  const activeBookingCount = bookings.filter((booking) => booking.status === "CONFIRMED" || booking.status === "IN_PROGRESS").length;
-  const tabBadge: Partial<Record<VendorTab, number>> = { leads: newCount, bookings: activeBookingCount };
+  const tabBadge: Partial<Record<VendorTab, number>> = { leads: newCount };
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-[#f7f8fa]">
@@ -720,51 +646,6 @@ export function VendorDashboard() {
             onStatusChange={updateLead}
             quotes={quotes}
           />
-        )}
-
-        {activeTab === "bookings" && (
-          <section className="py-7">
-            <div><h2 className="text-xl font-semibold">Service bookings</h2><p className="mt-1 text-sm text-muted-foreground">Manage customer contact, payment status, delivery, cancellation, and completion.</p></div>
-            {bookingsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{bookingsError}</p>}
-            {isLoadingBookings ? (
-              <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-56 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
-            ) : bookings.length > 0 ? (
-              <div className="mt-5 grid gap-4">
-                {bookings.map((booking) => (
-                  <article className="rounded-lg border border-border bg-white p-5" key={booking.id}>
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-                      <span className="grid size-12 shrink-0 place-items-center rounded-md bg-violet-50 text-violet-700"><CalendarDays size={22} /></span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{booking.eventType} · {booking.service}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${bookingStatusStyle[booking.status]}`}>{readableStatus(booking.status)}</span></div>
-                        <p className="mt-2 text-sm text-muted-foreground">{new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(`${booking.eventDate}T00:00:00`))} · {booking.location}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{booking.packageName} · INR {formatMoney(booking.amount)} · {booking.id}</p>
-                        <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                          {booking.customerPhone && <a className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 font-medium" href={`tel:${booking.customerPhone}`}><Phone size={15} /> {booking.customerPhone}</a>}
-                          {booking.customerEmail && <a className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 font-medium" href={`mailto:${booking.customerEmail}`}><Mail size={15} /> Email {booking.customerName}</a>}
-                        </div>
-                      </div>
-                      <div className="min-w-52 rounded-md bg-muted/50 p-4 text-sm">
-                        <p className="text-muted-foreground">Advance</p>
-                        <p className="mt-1 font-semibold">INR {formatMoney(booking.advanceAmount)} · {readableStatus(booking.paymentStatus)}</p>
-                        <p className="mt-3 text-muted-foreground">Balance due at event</p>
-                        <p className="mt-1 font-semibold">INR {formatMoney(booking.balanceAmount)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
-                      {booking.status === "CONFIRMED" && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={updatingBookingId === booking.id || booking.paymentStatus !== "ADVANCE_PAID"} onClick={() => updateBooking(booking, "IN_PROGRESS")} title={booking.paymentStatus !== "ADVANCE_PAID" ? "Advance payment is required" : undefined} type="button">{updatingBookingId === booking.id ? <LoaderCircle className="animate-spin" size={16} /> : <Play size={16} />} Start work</button>}
-                      {booking.status === "IN_PROGRESS" && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={updatingBookingId === booking.id} onClick={() => updateBooking(booking, "COMPLETED")} type="button"><Check size={16} /> Mark completed</button>}
-                      {booking.status !== "COMPLETED" && booking.status !== "CANCELLED" && <button className="h-10 rounded-md border border-rose-200 px-4 text-sm font-semibold text-rose-700 disabled:opacity-60" disabled={updatingBookingId === booking.id} onClick={() => updateBooking(booking, "CANCELLED")} type="button">Cancel booking</button>}
-                      {booking.refundableAmount > 0 && <span className="inline-flex h-10 items-center rounded-md bg-amber-50 px-3 text-sm font-medium text-amber-800">Refund pending: INR {formatMoney(booking.refundableAmount)}</span>}
-                    </div>
-                    {booking.cancellationReason && <p className="mt-4 rounded-md bg-rose-50 p-3 text-sm text-rose-800">Cancellation reason: {booking.cancellationReason}</p>}
-                    {booking.timeline.length > 0 && <details className="mt-4 border-t border-border pt-4"><summary className="cursor-pointer text-sm font-semibold text-primary">View booking history</summary><div className="mt-3 grid gap-2">{booking.timeline.map((item) => <div className="rounded-md bg-muted/50 p-3 text-sm" key={item.id}><p className="font-medium">{item.message}</p><p className="mt-1 text-xs text-muted-foreground">{item.actorRole} · {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.createdAt))}</p></div>)}</div></details>}
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><CalendarDays className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No confirmed bookings yet</h3><p className="mt-2 text-sm text-muted-foreground">Bookings appear here after a customer accepts your quotation.</p></div>
-            )}
-          </section>
         )}
 
         {activeTab === "services" && (

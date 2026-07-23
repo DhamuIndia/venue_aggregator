@@ -3,7 +3,6 @@ package com.staminal.venue.quotes;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -122,7 +121,6 @@ public class VendorQuoteAcceptanceService {
         }
 
         VendorServiceBooking booking = bookingRepository.save(toBooking(quote, acceptedAt));
-        bookingService.recordCreationTimeline(booking, customer);
         notifyParticipants(quote, notSelectedLeads);
         recordAudit(customer, quote, booking, notSelectedQuotes);
 
@@ -179,16 +177,7 @@ public class VendorQuoteAcceptanceService {
         booking.setLocation(lead.getLocation());
         booking.setAmount(quote.getAmount().add(defaultZero(quote.getAdditionalCharges())));
         booking.setStatus(VendorServiceBookingStatus.CONFIRMED);
-        BigDecimal advanceAmount = booking.getAmount()
-                .multiply(new BigDecimal("0.20"))
-                .setScale(2, RoundingMode.HALF_UP);
-        booking.setAdvanceAmount(advanceAmount);
-        booking.setBalanceAmount(booking.getAmount().subtract(advanceAmount));
-        booking.setAdvanceDueDate(lead.getEventDate().isBefore(LocalDate.now().plusDays(2))
-                ? lead.getEventDate()
-                : LocalDate.now().plusDays(2));
-        booking.setRefundableAmount(BigDecimal.ZERO);
-        booking.setPaymentStatus(PaymentStatus.ADVANCE_PENDING);
+        booking.setPaymentStatus(PaymentStatus.NOT_STARTED);
         booking.setConfirmedAt(acceptedAt);
         return booking;
     }
