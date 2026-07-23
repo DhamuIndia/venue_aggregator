@@ -225,7 +225,7 @@ public class CustomerRequirement {
     }
 
     public void setServiceCategories(Set<VendorCategory> serviceCategories) {
-        this.serviceCategories = serviceCategories == null ? new HashSet<>() : serviceCategories;
+        this.serviceCategories = serviceCategories == null ? new HashSet<>() : new HashSet<>(serviceCategories);
     }
 
     public Instant getCreatedAt() {

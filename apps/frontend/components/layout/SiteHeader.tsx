@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { NotificationBell } from "@/components/notifications/NotificationCenter";
 import { VenueMartLogo } from "@/components/brand/VenueMartLogo";
+import { MarketplaceRequirementNavLink } from "@/components/requirements/MarketplaceRequirementCta";
 
 export function SiteHeader() {
   const { isLoading, logout, user } = useAuth();
@@ -35,6 +36,7 @@ export function SiteHeader() {
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
           {navLinks.map((link) => <Link className="hover:text-foreground" href={link.href} key={link.href}>{link.label}</Link>)}
+          <MarketplaceRequirementNavLink />
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           {(!user || user.role === "CUSTOMER") && <Link aria-label="Saved venues" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" href={user ? "/customer" : "/auth/login"} title="Saved venues"><Heart aria-hidden="true" size={19} /></Link>}
@@ -61,6 +63,7 @@ export function SiteHeader() {
                 {link.label}
               </Link>
             ))}
+            <MarketplaceRequirementNavLink mobile />
             <Link className="mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" href={workspaceHref} onClick={() => setIsMenuOpen(false)}>
               {user?.role === "ADMIN" ? <ShieldCheck size={17} /> : user?.role === "VENDOR" ? <Store size={17} /> : user?.role === "HALL_OWNER" ? <LayoutDashboard size={17} /> : null}
               {workspaceLabel}

@@ -104,6 +104,7 @@ public class SecurityConfig {
                                                                 "/vendor-blocked-dates/**")
                                                 .hasRole("VENDOR")
                                                 .requestMatchers("/v1/owner/**").hasRole("HALL_OWNER")
+                                                .requestMatchers("/v1/customer/**").hasRole("CUSTOMER")
                                                 .anyRequest().authenticated())
                                 .formLogin(form -> form.disable())
                                 .httpBasic(httpBasic -> httpBasic.disable())

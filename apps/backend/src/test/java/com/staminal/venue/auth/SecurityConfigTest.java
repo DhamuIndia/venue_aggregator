@@ -18,6 +18,8 @@ import com.staminal.venue.admin.AdminService;
 import com.staminal.venue.auth.service.JwtService;
 import com.staminal.venue.halls.Controller.HallController;
 import com.staminal.venue.halls.Service.HallsService;
+import com.staminal.venue.requirements.CustomerRequirementController;
+import com.staminal.venue.requirements.CustomerRequirementService;
 import com.staminal.venue.users.UserController;
 import com.staminal.venue.users.UserService;
 import com.staminal.venue.vendors.Hall.VendorHallController;
@@ -27,7 +29,8 @@ import com.staminal.venue.vendors.Hall.VendorHallService;
         AdminController.class,
         UserController.class,
         VendorHallController.class,
-        HallController.class
+        HallController.class,
+        CustomerRequirementController.class
 })
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class})
 class SecurityConfigTest {
@@ -50,10 +53,79 @@ class SecurityConfigTest {
     @MockitoBean
     private HallsService hallsService;
 
+    @MockitoBean
+    private CustomerRequirementService customerRequirementService;
+
     @Test
     void publicMarketplaceReadRemainsPublic() throws Exception {
         mockMvc.perform(get("/v1/public/halls"))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/v1/public/requirements/options"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void requirementCreationRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/v1/customer/requirements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "VENDOR")
+    void vendorCannotCreateCustomerRequirement() throws Exception {
+        mockMvc.perform(post("/v1/customer/requirements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void customerCanReachRequirementValidation() throws Exception {
+        mockMvc.perform(post("/v1/customer/requirements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void customerRequirementRejectsPastEventDate() throws Exception {
+        mockMvc.perform(post("/v1/customer/requirements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "categoryIds": [1],
+                                  "eventType": "Wedding",
+                                  "eventDate": "2020-01-01",
+                                  "location": "Adyar",
+                                  "city": "Chennai",
+                                  "preferredContactChannel": "IN_APP",
+                                  "shareContactDetails": false
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "CUSTOMER")
+    void validCustomerRequirementReachesService() throws Exception {
+        mockMvc.perform(post("/v1/customer/requirements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "categoryIds": [1, 6],
+                                  "eventType": "Wedding",
+                                  "eventDate": "2099-09-12",
+                                  "location": "Adyar",
+                                  "city": "Chennai",
+                                  "preferredContactChannel": "IN_APP",
+                                  "shareContactDetails": false
+                                }
+                                """))
+                .andExpect(status().isCreated());
     }
 
     @Test

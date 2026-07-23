@@ -5,15 +5,19 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  ClipboardList,
   Clock3,
   X,
   CreditCard,
   Heart,
   LoaderCircle,
   MessageSquareText,
+  Plus,
   Star,
   UserRound
 } from "lucide-react";
+import Link from "next/link";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
@@ -31,14 +35,17 @@ import type { StoredEnquiry } from "@/features/enquiries/types";
 import { halls } from "@/features/halls/mock-data";
 import { formatSlot } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
+import { getCustomerRequirements } from "@/features/requirements/requirements-client";
+import type { CustomerRequirement, CustomerRequirementStatus, PreferredContactChannel } from "@/features/requirements/types";
 import { getCustomerVendorLeads } from "@/features/vendors/lead-client";
 import type { VendorLead } from "@/features/vendors/types";
 import { ReviewDialog } from "./ReviewDialog";
 
-type DashboardTab = "overview" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
+type DashboardTab = "overview" | "requirements" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
 
 const tabs: Array<{ id: DashboardTab; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "requirements", label: "Requirements" },
   { id: "enquiries", label: "Enquiries" },
   { id: "bookings", label: "Bookings" },
   { id: "saved", label: "Saved venues" },
@@ -62,6 +69,13 @@ const bookingStatusStyles: Record<BookingStatus, string> = {
   COMPLETED: "bg-muted text-muted-foreground"
 };
 
+const requirementStatusStyles: Record<CustomerRequirementStatus, string> = {
+  OPEN: "bg-blue-50 text-blue-700",
+  CLOSED: "bg-emerald-50 text-emerald-700",
+  CANCELLED: "bg-rose-50 text-rose-700",
+  EXPIRED: "bg-muted text-muted-foreground"
+};
+
 function statusLabel(status: keyof typeof statusStyles) {
   return status.toLowerCase().replace(/_/g, " ");
 }
@@ -76,6 +90,24 @@ function formatDate(value: string) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-IN").format(value);
+}
+
+function requirementBudget(requirement: CustomerRequirement) {
+  if (requirement.budgetMin !== undefined && requirement.budgetMax !== undefined) {
+    return `INR ${formatMoney(requirement.budgetMin)}–${formatMoney(requirement.budgetMax)}`;
+  }
+  if (requirement.budgetMin !== undefined) return `From INR ${formatMoney(requirement.budgetMin)}`;
+  if (requirement.budgetMax !== undefined) return `Up to INR ${formatMoney(requirement.budgetMax)}`;
+  return "Not specified";
+}
+
+function contactChannelLabel(channel: PreferredContactChannel) {
+  return channel === "IN_APP" ? "VenueMart" : channel === "WHATSAPP" ? "WhatsApp" : channel.toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function formatSubmittedDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(date);
 }
 
 function advanceAmount(booking: BookingItem) {
@@ -136,6 +168,9 @@ export function CustomerDashboard() {
   const [savedHalls, setSavedHalls] = useState<HallSummary[]>([]);
   const [isLoadingSavedHalls, setIsLoadingSavedHalls] = useState(true);
   const [savedHallsError, setSavedHallsError] = useState("");
+  const [requirements, setRequirements] = useState<CustomerRequirement[]>([]);
+  const [isLoadingRequirements, setIsLoadingRequirements] = useState(true);
+  const [requirementsError, setRequirementsError] = useState("");
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
@@ -172,6 +207,30 @@ export function CustomerDashboard() {
 
     loadEnquiries();
 
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadRequirements() {
+      setIsLoadingRequirements(true);
+      setRequirementsError("");
+      try {
+        const response = await getCustomerRequirements(accessToken);
+        if (isCurrent) setRequirements(response);
+      } catch {
+        if (!isCurrent) return;
+        setRequirements([]);
+        setRequirementsError("Could not load your marketplace requirements.");
+      } finally {
+        if (isCurrent) setIsLoadingRequirements(false);
+      }
+    }
+
+    loadRequirements();
     return () => {
       isCurrent = false;
     };
@@ -508,7 +567,8 @@ export function CustomerDashboard() {
 
         {activeTab === "overview" && (
           <div className="py-7">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" onClick={() => setActiveTab("requirements")} type="button"><ClipboardList className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{requirements.length}</p><p className="mt-1 text-sm text-muted-foreground">Requirements</p></button>
               <div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{enquiries.length}</p><p className="mt-1 text-sm text-muted-foreground">Total enquiries</p></div>
               <div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{activeBookings.length}</p><p className="mt-1 text-sm text-muted-foreground">Active bookings</p></div>
               <div className="rounded-lg border border-border bg-white p-5"><Heart className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{savedHalls.length}</p><p className="mt-1 text-sm text-muted-foreground">Saved venues</p></div>
@@ -538,6 +598,36 @@ export function CustomerDashboard() {
               </button>
             </section>
           </div>
+        )}
+
+        {activeTab === "requirements" && (
+          <section className="py-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div><h2 className="text-xl font-semibold">My requirements</h2><p className="mt-1 text-sm text-muted-foreground">Review the event service requirements saved to your account.</p></div>
+              <Link className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" href={"/requirements/new" as Route}><Plus size={17} /> Post requirement</Link>
+            </div>
+            {requirementsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{requirementsError}</p>}
+            {isLoadingRequirements ? (
+              <div className="mt-5 grid gap-4">{[1, 2].map((item) => <div className="h-48 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div>
+            ) : requirements.length > 0 ? (
+              <div className="mt-5 grid gap-4">
+                {requirements.map((requirement) => (
+                  <article className="rounded-lg border border-border bg-white p-5" key={requirement.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{requirement.eventType}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${requirementStatusStyles[requirement.status]}`}>{requirement.status.toLowerCase()}</span></div><p className="mt-2 text-sm text-muted-foreground">{formatDate(requirement.eventDate)} | {[requirement.location, requirement.city].filter(Boolean).join(", ")}</p></div>
+                      <div className="text-right"><p className="text-sm font-semibold">Reference {requirement.id}</p><p className="mt-1 text-xs text-muted-foreground">Submitted {formatSubmittedDate(requirement.createdAt)}</p></div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">{requirement.services.map((service) => <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800" key={service.id}>{service.name.toLowerCase() === "makeup" ? "Bridal makeup" : service.name}</span>)}</div>
+                    <div className="mt-4 grid gap-3 rounded-md bg-muted/50 p-4 text-sm sm:grid-cols-3"><p><span className="text-muted-foreground">Budget:</span> {requirementBudget(requirement)}</p><p><span className="text-muted-foreground">Guests:</span> {requirement.guestCount ? formatGuestCount(requirement.guestCount) : "Not specified"}</p><p><span className="text-muted-foreground">Contact:</span> {contactChannelLabel(requirement.preferredContactChannel)}</p></div>
+                    {requirement.details && <p className="mt-4 text-sm leading-6 text-muted-foreground">{requirement.details}</p>}
+                    <p className="mt-4 border-t border-border pt-4 text-xs text-muted-foreground">Saved successfully. Vendor matching has not started for this requirement yet.</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><ClipboardList className="mx-auto text-muted-foreground" size={30} /><h3 className="mt-4 font-semibold">No requirements yet</h3><p className="mt-2 text-sm text-muted-foreground">Post the services you need for your event in one place.</p><Link className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" href={"/requirements/new" as Route}><Plus size={16} /> Post your first requirement</Link></div>
+            )}
+          </section>
         )}
 
         {activeTab === "enquiries" && (
