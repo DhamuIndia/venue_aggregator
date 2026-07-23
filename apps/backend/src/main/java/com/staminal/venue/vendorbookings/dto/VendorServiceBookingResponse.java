@@ -3,6 +3,7 @@ package com.staminal.venue.vendorbookings.dto;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.VendorServiceBookingStatus;
@@ -26,6 +27,18 @@ public record VendorServiceBookingResponse(
         BigDecimal amount,
         VendorServiceBookingStatus status,
         PaymentStatus paymentStatus,
+        BigDecimal advanceAmount,
+        BigDecimal balanceAmount,
+        LocalDate advanceDueDate,
+        Instant startedAt,
+        Instant completedAt,
+        Instant cancelledAt,
+        String cancelledBy,
+        String cancellationReason,
+        BigDecimal refundableAmount,
+        List<VendorBookingPaymentResponse> payments,
+        List<VendorBookingTimelineResponse> timeline,
+        boolean reviewEligible,
         Instant confirmedAt,
         Instant createdAt,
         Instant updatedAt) {

@@ -18,7 +18,6 @@ import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.enums.VendorLeadStatus;
-import com.staminal.venue.enums.VendorServiceBookingStatus;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
@@ -406,6 +405,12 @@ public class VendorLeadService {
                     HttpStatus.CONFLICT,
                     "Marketplace bookings are confirmed when the customer accepts a quote");
         }
+        if (request.getStatus() == VendorLeadStatus.COMPLETED
+                && vendorServiceBookingRepository.findByLead_Id(lead.getId()).isPresent()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Complete this service from the booking workspace");
+        }
 
         validateTransition(
                 lead.getStatus(),
@@ -419,13 +424,6 @@ public class VendorLeadService {
         }
 
         VendorLead savedLead = vendorLeadRepository.save(lead);
-        if (savedLead.getStatus() == VendorLeadStatus.COMPLETED) {
-            vendorServiceBookingRepository.findByLead_Id(savedLead.getId()).ifPresent(booking -> {
-                booking.setStatus(VendorServiceBookingStatus.COMPLETED);
-                vendorServiceBookingRepository.save(booking);
-            });
-        }
-
         notifyCustomer(savedLead);
 
         auditService.record(

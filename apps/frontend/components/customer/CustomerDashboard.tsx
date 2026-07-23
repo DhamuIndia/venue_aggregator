@@ -13,6 +13,7 @@ import {
   LoaderCircle,
   MessageSquareText,
   Plus,
+  ReceiptText,
   Star,
   UserRound
 } from "lucide-react";
@@ -26,7 +27,13 @@ import { VenueCompare } from "@/components/customer/VenueCompare";
 import { formatGuestCount } from "@/lib/display-format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type BookingStatus } from "@/features/bookings/booking-client";
-import { getCustomerVendorServiceBookings, vendorServiceBookingToBookingItem } from "@/features/bookings/vendor-service-booking-client";
+import {
+  cancelCustomerVendorServiceBooking,
+  getCustomerVendorServiceBookings,
+  openVendorBookingCheckout,
+  vendorServiceBookingToBookingItem,
+  type VendorServiceBooking
+} from "@/features/bookings/vendor-service-booking-client";
 import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
 import { getVendorReviewEligibility, submitVendorReview, getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
@@ -62,6 +69,7 @@ const statusStyles = {
   NEW: "bg-blue-50 text-blue-700",
   PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
+  IN_PROGRESS: "bg-violet-50 text-violet-700",
   AWAITING_RESPONSE: "bg-amber-50 text-amber-700",
   NOT_SELECTED: "bg-slate-100 text-slate-700",
   DECLINED: "bg-rose-50 text-rose-700",
@@ -71,6 +79,7 @@ const statusStyles = {
 const bookingStatusStyles: Record<BookingStatus, string> = {
   REQUESTED: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
+  IN_PROGRESS: "bg-violet-50 text-violet-700",
   CANCELLED: "bg-rose-50 text-rose-700",
   COMPLETED: "bg-muted text-muted-foreground"
 };
@@ -117,6 +126,7 @@ function formatSubmittedDate(value: string) {
 }
 
 function advanceAmount(booking: BookingItem) {
+  if (booking.advanceAmount !== undefined) return booking.advanceAmount;
   if (booking.amount && booking.amount > 0) return Math.max(5000, Math.round(booking.amount * 0.2));
   return 25000;
 }
@@ -167,6 +177,7 @@ export function CustomerDashboard() {
   const [enquiriesError, setEnquiriesError] = useState("");
   const [expandedEnquiryId, setExpandedEnquiryId] = useState<string | null>(null);
   const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [vendorBookings, setVendorBookings] = useState<VendorServiceBooking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
   const [paymentMessage, setPaymentMessage] = useState("");
@@ -295,6 +306,7 @@ export function CustomerDashboard() {
         if (!isCurrent) return;
         const hallBookings = response.source === "api" || useCustomerBookingDemoFallback ? response.bookings : [];
         const vendorBookings = vendorBookingsResponse.map(vendorServiceBookingToBookingItem);
+        setVendorBookings(vendorBookingsResponse);
         setBookings(sortBookings([...hallBookings, ...vendorBookings]));
       } catch {
         if (!isCurrent) return;
@@ -590,6 +602,16 @@ export function CustomerDashboard() {
       setBookingsError("");
       setPaymentMessage("");
 
+      const vendorBooking = vendorBookings.find((item) => item.id === booking.id);
+      if (vendorBooking) {
+        const updatedVendorBooking = await openVendorBookingCheckout(vendorBooking, accessToken);
+        setVendorBookings((current) => current.map((item) => item.id === updatedVendorBooking.id ? updatedVendorBooking : item));
+        const updatedBooking = vendorServiceBookingToBookingItem(updatedVendorBooking);
+        setBookings((current) => current.map((item) => item.id === booking.id ? updatedBooking : item));
+        setPaymentMessage(`Advance received. Receipt ${updatedBooking.receiptNumber ?? "is ready"}.`);
+        return;
+      }
+
       const order = await createBookingAdvanceOrder(booking, accessToken);
       if (order.checkoutUrl) {
         window.open(order.checkoutUrl, "_blank", "noopener,noreferrer");
@@ -615,6 +637,34 @@ export function CustomerDashboard() {
     } finally {
       setPaymentBookingId(null);
     }
+  }
+
+  async function cancelVendorBooking(booking: VendorServiceBooking) {
+    const reason = window.prompt("Please tell the vendor why you are cancelling this booking.");
+    if (!reason?.trim()) return;
+    try {
+      setPaymentBookingId(booking.id);
+      setBookingsError("");
+      const updated = await cancelCustomerVendorServiceBooking(booking.id, reason.trim(), accessToken);
+      setVendorBookings((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setBookings((current) => current.map((item) => item.id === updated.id ? vendorServiceBookingToBookingItem(updated) : item));
+      setPaymentMessage(updated.refundableAmount > 0
+        ? `Booking cancelled. INR ${formatMoney(updated.refundableAmount)} refund is pending.`
+        : "Booking cancelled. No payment is refundable under the displayed policy.");
+    } catch (exception) {
+      setBookingsError(exception instanceof Error ? exception.message : "Could not cancel booking.");
+    } finally {
+      setPaymentBookingId(null);
+    }
+  }
+
+  function printReceipt(booking: VendorServiceBooking) {
+    const payment = booking.payments.find((item) => item.status === "PAID");
+    if (!payment?.receiptNumber) return;
+    const receiptWindow = window.open("", "_blank", "width=720,height=760");
+    if (!receiptWindow) return;
+    receiptWindow.document.write(`<html><head><title>${payment.receiptNumber}</title><style>body{font-family:Arial,sans-serif;color:#17213a;padding:40px}h1{margin:0 0 8px}.muted{color:#667085}.box{border:1px solid #d8dee9;border-radius:12px;padding:20px;margin-top:24px}.row{display:flex;justify-content:space-between;border-bottom:1px solid #eef1f5;padding:12px 0}.row:last-child{border:0}</style></head><body><h1>VenueMart receipt</h1><p class="muted">${payment.receiptNumber}</p><div class="box"><div class="row"><span>Vendor</span><strong>${booking.vendorName}</strong></div><div class="row"><span>Service</span><strong>${booking.service}</strong></div><div class="row"><span>Event date</span><strong>${formatDate(booking.eventDate)}</strong></div><div class="row"><span>Amount paid</span><strong>INR ${formatMoney(payment.amount)}</strong></div><div class="row"><span>Payment ID</span><strong>${payment.paymentId ?? "Verified online"}</strong></div><div class="row"><span>Paid on</span><strong>${payment.paidAt ? formatSubmittedDate(payment.paidAt) : ""}</strong></div></div><script>window.print()</script></body></html>`);
+    receiptWindow.document.close();
   }
 
   const activeBookings = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED");
@@ -801,8 +851,28 @@ export function CustomerDashboard() {
                             {paymentBookingId === booking.id ? <LoaderCircle className="animate-spin" size={16} /> : <CreditCard size={16} />} Pay INR {formatMoney(advanceAmount(booking))}
                           </button>
                         )}
+                        {booking.receiptNumber && (
+                          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold" onClick={() => {
+                            const item = vendorBookings.find((vendorBooking) => vendorBooking.id === booking.id);
+                            if (item) printReceipt(item);
+                          }} type="button"><ReceiptText size={16} /> Receipt</button>
+                        )}
+                        {booking.bookingKind === "VENDOR_SERVICE" && booking.status !== "COMPLETED" && booking.status !== "CANCELLED" && (
+                          <button className="h-10 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 disabled:opacity-60" disabled={paymentBookingId === booking.id} onClick={() => {
+                            const item = vendorBookings.find((vendorBooking) => vendorBooking.id === booking.id);
+                            if (item) cancelVendorBooking(item);
+                          }} type="button">Cancel</button>
+                        )}
                       </div>
                     </div>
+                    {booking.bookingKind === "VENDOR_SERVICE" && (
+                      <div className="mt-5 grid gap-3 border-t border-border pt-5 sm:grid-cols-3">
+                        <div className="rounded-md bg-muted/50 p-3"><p className="text-xs text-muted-foreground">Advance</p><p className="mt-1 font-semibold">INR {formatMoney(booking.advanceAmount ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Due {booking.advanceDueDate ? formatDate(booking.advanceDueDate) : "now"}</p></div>
+                        <div className="rounded-md bg-muted/50 p-3"><p className="text-xs text-muted-foreground">Balance</p><p className="mt-1 font-semibold">INR {formatMoney(booking.balanceAmount ?? 0)}</p><p className="mt-1 text-xs text-muted-foreground">Due by event date</p></div>
+                        <div className="rounded-md bg-muted/50 p-3"><p className="text-xs text-muted-foreground">Cancellation policy</p><p className="mt-1 text-sm font-medium">100% before 7 days · 50% at 3–6 days</p></div>
+                      </div>
+                    )}
+                    {booking.cancellationReason && <p className="mt-4 rounded-md bg-rose-50 p-3 text-sm text-rose-800">Cancellation reason: {booking.cancellationReason}</p>}
                   </article>
                 ))}
               </div>

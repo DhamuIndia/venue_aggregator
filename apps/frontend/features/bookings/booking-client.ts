@@ -5,12 +5,13 @@ import type { EnquirySlot, StoredEnquiry } from "@/features/enquiries/types";
 const STORAGE_KEY = "venue-aggregator-bookings";
 const useMockBookings = process.env.NEXT_PUBLIC_BOOKINGS_MODE === "mock";
 
-export type BookingStatus = "REQUESTED" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
+export type BookingStatus = "REQUESTED" | "CONFIRMED" | "IN_PROGRESS" | "CANCELLED" | "COMPLETED";
 
-export type BookingPaymentStatus = "NOT_STARTED" | "ADVANCE_PENDING" | "ADVANCE_PAID" | "REFUNDED";
+export type BookingPaymentStatus = "NOT_STARTED" | "ADVANCE_PENDING" | "ADVANCE_PAID" | "REFUND_PENDING" | "PARTIALLY_REFUNDED" | "REFUNDED";
 
 export type BookingItem = {
   id: string;
+  bookingKind?: "HALL" | "VENDOR_SERVICE";
   enquiryId?: string;
   hallId: string;
   hallName: string;
@@ -23,6 +24,12 @@ export type BookingItem = {
   status: BookingStatus;
   amount?: number;
   paymentStatus: BookingPaymentStatus;
+  advanceAmount?: number;
+  balanceAmount?: number;
+  advanceDueDate?: string;
+  cancellationReason?: string;
+  refundableAmount?: number;
+  receiptNumber?: string;
   notes?: string;
   confirmedAt?: string;
   updatedAt: string;
@@ -220,7 +227,7 @@ function bookingStatus(record: Record<string, unknown>): BookingStatus | undefin
   const value = stringValue(record, ["status", "bookingStatus", "booking_status"]);
   if (!value) return undefined;
   const normalized = value.trim().toUpperCase();
-  if (normalized === "REQUESTED" || normalized === "CONFIRMED" || normalized === "CANCELLED" || normalized === "COMPLETED") return normalized;
+  if (normalized === "REQUESTED" || normalized === "CONFIRMED" || normalized === "IN_PROGRESS" || normalized === "CANCELLED" || normalized === "COMPLETED") return normalized;
   if (normalized === "PENDING" || normalized === "PENDING_CONFIRMATION") return "REQUESTED";
   if (normalized === "CANCELED") return "CANCELLED";
   return undefined;
@@ -230,7 +237,7 @@ function paymentStatus(record: Record<string, unknown>): BookingPaymentStatus | 
   const value = stringValue(record, ["paymentStatus", "payment_status"]);
   if (!value) return undefined;
   const normalized = value.trim().toUpperCase();
-  if (normalized === "NOT_STARTED" || normalized === "ADVANCE_PENDING" || normalized === "ADVANCE_PAID" || normalized === "REFUNDED") return normalized;
+  if (normalized === "NOT_STARTED" || normalized === "ADVANCE_PENDING" || normalized === "ADVANCE_PAID" || normalized === "REFUND_PENDING" || normalized === "PARTIALLY_REFUNDED" || normalized === "REFUNDED") return normalized;
   if (normalized === "PENDING") return "ADVANCE_PENDING";
   if (normalized === "PAID") return "ADVANCE_PAID";
   return undefined;

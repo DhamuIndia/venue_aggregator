@@ -96,6 +96,7 @@ const statusStyle: Record<EnquiryStatus, string> = {
 const bookingStatusStyle: Record<BookingStatus, string> = {
   REQUESTED: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
+  IN_PROGRESS: "bg-violet-50 text-violet-700",
   CANCELLED: "bg-rose-50 text-rose-700",
   COMPLETED: "bg-muted text-muted-foreground"
 };
@@ -104,6 +105,8 @@ const paymentStatusStyle: Record<BookingPaymentStatus, string> = {
   NOT_STARTED: "bg-slate-100 text-slate-700",
   ADVANCE_PENDING: "bg-amber-50 text-amber-700",
   ADVANCE_PAID: "bg-emerald-50 text-emerald-700",
+  REFUND_PENDING: "bg-amber-50 text-amber-700",
+  PARTIALLY_REFUNDED: "bg-violet-50 text-violet-700",
   REFUNDED: "bg-violet-50 text-violet-700"
 };
 

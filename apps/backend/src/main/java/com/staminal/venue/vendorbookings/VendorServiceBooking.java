@@ -81,8 +81,41 @@ public class VendorServiceBooking {
     @Column(name = "payment_status", nullable = false, length = 30)
     private PaymentStatus paymentStatus;
 
+    @Column(name = "advance_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal advanceAmount;
+
+    @Column(name = "balance_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal balanceAmount;
+
+    @Column(name = "advance_due_date", nullable = false)
+    private LocalDate advanceDueDate;
+
     @Column(name = "confirmed_at", nullable = false)
     private Instant confirmedAt;
+
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancelled_by", length = 30)
+    private String cancelledBy;
+
+    @Column(name = "cancellation_reason", length = 1000)
+    private String cancellationReason;
+
+    @Column(name = "refundable_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal refundableAmount;
+
+    @Column(name = "reminder_7d_sent_at")
+    private Instant reminder7dSentAt;
+
+    @Column(name = "reminder_1d_sent_at")
+    private Instant reminder1dSentAt;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -102,7 +135,10 @@ public class VendorServiceBooking {
             status = VendorServiceBookingStatus.CONFIRMED;
         }
         if (paymentStatus == null) {
-            paymentStatus = PaymentStatus.NOT_STARTED;
+            paymentStatus = PaymentStatus.ADVANCE_PENDING;
+        }
+        if (refundableAmount == null) {
+            refundableAmount = BigDecimal.ZERO;
         }
     }
 
@@ -223,6 +259,12 @@ public class VendorServiceBooking {
         this.paymentStatus = paymentStatus;
     }
 
+    public BigDecimal getAdvanceAmount() { return advanceAmount; }
+    public void setAdvanceAmount(BigDecimal advanceAmount) { this.advanceAmount = advanceAmount; }
+    public BigDecimal getBalanceAmount() { return balanceAmount; }
+    public void setBalanceAmount(BigDecimal balanceAmount) { this.balanceAmount = balanceAmount; }
+    public LocalDate getAdvanceDueDate() { return advanceDueDate; }
+    public void setAdvanceDueDate(LocalDate advanceDueDate) { this.advanceDueDate = advanceDueDate; }
     public Instant getConfirmedAt() {
         return confirmedAt;
     }
@@ -231,6 +273,22 @@ public class VendorServiceBooking {
         this.confirmedAt = confirmedAt;
     }
 
+    public Instant getStartedAt() { return startedAt; }
+    public void setStartedAt(Instant startedAt) { this.startedAt = startedAt; }
+    public Instant getCompletedAt() { return completedAt; }
+    public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
+    public Instant getCancelledAt() { return cancelledAt; }
+    public void setCancelledAt(Instant cancelledAt) { this.cancelledAt = cancelledAt; }
+    public String getCancelledBy() { return cancelledBy; }
+    public void setCancelledBy(String cancelledBy) { this.cancelledBy = cancelledBy; }
+    public String getCancellationReason() { return cancellationReason; }
+    public void setCancellationReason(String cancellationReason) { this.cancellationReason = cancellationReason; }
+    public BigDecimal getRefundableAmount() { return refundableAmount; }
+    public void setRefundableAmount(BigDecimal refundableAmount) { this.refundableAmount = refundableAmount; }
+    public Instant getReminder7dSentAt() { return reminder7dSentAt; }
+    public void setReminder7dSentAt(Instant reminder7dSentAt) { this.reminder7dSentAt = reminder7dSentAt; }
+    public Instant getReminder1dSentAt() { return reminder1dSentAt; }
+    public void setReminder1dSentAt(Instant reminder1dSentAt) { this.reminder1dSentAt = reminder1dSentAt; }
     public Instant getCreatedAt() {
         return createdAt;
     }
