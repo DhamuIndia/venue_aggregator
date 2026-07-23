@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 import com.staminal.venue.enums.VendorLeadStatus;
+import com.staminal.venue.requirements.CustomerRequirement;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Entity.Vendors;
 
@@ -37,6 +38,10 @@ public class VendorLead {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_user_id", nullable = false)
     private User customer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requirement_id")
+    private CustomerRequirement requirement;
 
     @Column(name = "customer_name")
     private String customerName;
@@ -108,6 +113,14 @@ public class VendorLead {
 
     public void setCustomer(User customer) {
         this.customer = customer;
+    }
+
+    public CustomerRequirement getRequirement() {
+        return requirement;
+    }
+
+    public void setRequirement(CustomerRequirement requirement) {
+        this.requirement = requirement;
     }
 
     public String getCustomerName() {
