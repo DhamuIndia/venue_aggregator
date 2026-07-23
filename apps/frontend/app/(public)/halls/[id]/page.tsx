@@ -9,13 +9,13 @@ import {
   Star,
   UsersRound
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShareButton } from "@/components/common/ShareButton";
 import { EnquiryPanel } from "@/components/enquiries/EnquiryPanel";
 import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import { HallAvailabilityCalendar } from "@/components/halls/HallAvailabilityCalendar";
+import { HallPhotoGallery } from "@/components/halls/HallPhotoGallery";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { getPublicHall } from "@/features/halls/hall-client";
 import { halls } from "@/features/halls/mock-data";
@@ -34,7 +34,6 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
   const hall = await getPublicHall(id);
 
   if (!hall) notFound();
-  const galleryImages = hall.galleryUrls.filter((image) => image !== hall.imageUrl);
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,20 +49,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
           </div>
         </div>
 
-        <div className="mt-5 overflow-hidden rounded-lg">
-          <div className="relative aspect-[16/9] overflow-hidden bg-muted sm:aspect-[2/1]">
-            <Image alt={`${hall.name} main hall`} className="object-cover" fill priority sizes="(max-width: 1280px) 100vw, 1280px" src={hall.imageUrl} />
-          </div>
-          {galleryImages.length > 0 && (
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {galleryImages.map((image, index) => (
-                <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted" key={image}>
-                  <Image alt={`${hall.name} gallery view ${index + 1}`} className="object-cover" fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" src={image} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <HallPhotoGallery coverImage={hall.imageUrl} galleryImages={hall.galleryUrls} hallName={hall.name} />
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div>
