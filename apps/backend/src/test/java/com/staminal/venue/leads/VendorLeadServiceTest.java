@@ -26,10 +26,12 @@ import org.springframework.web.server.ResponseStatusException;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorLeadStatus;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.enums.PreferredContactChannel;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
 import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.requirements.CustomerRequirement;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
@@ -93,6 +95,9 @@ class VendorLeadServiceTest {
         assertThat(response.getVendorId()).isEqualTo("501");
         assertThat(response.getVendorName()).isEqualTo("Saffron Leaf Catering");
         assertThat(response.getCustomerId()).isEqualTo("101");
+        assertThat(response.getSource()).isEqualTo("DIRECT_ENQUIRY");
+        assertThat(response.isContactDetailsShared()).isTrue();
+        assertThat(response.getRequirementId()).isNull();
         assertThat(response.getStatus()).isEqualTo(VendorLeadStatus.NEW);
     }
 
@@ -143,6 +148,36 @@ class VendorLeadServiceTest {
         assertThat(response.get(0).getVendorName()).isEqualTo("Saffron Leaf Catering");
         assertThat(response.get(0).getCustomerId()).isEqualTo("101");
         assertThat(response.get(0).getStatus()).isEqualTo(VendorLeadStatus.BOOKED);
+    }
+
+    @Test
+    void vendorLeadResponseIdentifiesMarketplaceSourceAndContactPrivacy() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        CustomerRequirement requirement = new CustomerRequirement();
+        requirement.setId(801L);
+        requirement.setPreferredContactChannel(PreferredContactChannel.IN_APP);
+        requirement.setShareContactDetails(false);
+        lead.setRequirement(requirement);
+        lead.setCustomerName("VenueMart customer");
+        lead.setCustomerPhone(null);
+        lead.setCustomerEmail(null);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByVendor_IdOrderByCreatedAtDesc(501L)).thenReturn(List.of(lead));
+
+        VendorLeadResponse response = vendorLeadService.getMyLeads(vendorAuth()).getFirst();
+
+        assertThat(response.getRequirementId()).isEqualTo(801L);
+        assertThat(response.getSource()).isEqualTo("MARKETPLACE_REQUIREMENT");
+        assertThat(response.isContactDetailsShared()).isFalse();
+        assertThat(response.getPreferredContactChannel()).isEqualTo(PreferredContactChannel.IN_APP);
+        assertThat(response.getCustomerName()).isEqualTo("VenueMart customer");
+        assertThat(response.getCustomerPhone()).isNull();
+        assertThat(response.getCustomerEmail()).isNull();
     }
 
     private CreateVendorLeadRequest createRequest(String vendorId) {

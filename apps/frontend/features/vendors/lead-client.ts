@@ -149,13 +149,15 @@ function toVendorLead(value: unknown, fallback?: Partial<CreateVendorLeadPayload
   const vendorName = stringValue(value, ["vendorName", "vendor_name", "businessName", "business_name"]) ?? fallback?.vendorName ?? "";
   const customerId = stringValue(value, ["customerId", "customer_id"]) ?? fallback?.customerId ?? "";
   const customerName = stringValue(value, ["customerName", "customer_name", "name"]) ?? fallback?.customerName ?? "Customer";
+  const sourceValue = stringValue(value, ["source"]);
+  const source = sourceValue === "MARKETPLACE_REQUIREMENT" ? "MARKETPLACE_REQUIREMENT" : "DIRECT_ENQUIRY";
   const eventDate = stringValue(value, ["eventDate", "event_date"]) ?? fallback?.eventDate;
   const eventType = stringValue(value, ["eventType", "event_type"]) ?? fallback?.eventType;
   const location = stringValue(value, ["location", "eventLocation", "event_location"]) ?? fallback?.location;
   const service = stringValue(value, ["service", "serviceName", "service_name"]) ?? fallback?.service;
   const budget = numberValue(value, ["budget", "expectedBudget", "expected_budget"]) ?? fallback?.budget;
 
-  if (!id || !eventDate || !eventType || !location || !service || typeof budget !== "number") {
+  if (!id || !eventDate || !eventType || !location || !service) {
     return hasCompleteFallback(fallback) ? createStoredFromFallback(fallback) : undefined;
   }
 
@@ -165,6 +167,12 @@ function toVendorLead(value: unknown, fallback?: Partial<CreateVendorLeadPayload
     vendorName,
     customerId,
     customerName,
+    customerPhone: stringValue(value, ["customerPhone", "customer_phone"]),
+    customerEmail: stringValue(value, ["customerEmail", "customer_email"]),
+    requirementId: stringValue(value, ["requirementId", "requirement_id"]),
+    source,
+    contactDetailsShared: value.contactDetailsShared === true || source === "DIRECT_ENQUIRY",
+    preferredContactChannel: contactChannelValue(value.preferredContactChannel),
     eventDate,
     eventType,
     location,
@@ -180,6 +188,8 @@ function createStoredFromFallback(fallback: CreateVendorLeadPayload): VendorLead
   return {
     ...fallback,
     id: `LEAD-${Date.now().toString().slice(-6)}`,
+    source: "DIRECT_ENQUIRY",
+    contactDetailsShared: true,
     status: "NEW",
     submittedAt: new Date().toISOString()
   };
@@ -209,6 +219,12 @@ function statusValue(record: Record<string, unknown>): VendorLeadStatus | undefi
   if (value === "COMPLETED") return "COMPLETED";
   if (value === "REJECTED") return "DECLINED";
   return undefined;
+}
+
+function contactChannelValue(value: unknown): VendorLead["preferredContactChannel"] {
+  return value === "PHONE" || value === "WHATSAPP" || value === "EMAIL" || value === "IN_APP"
+    ? value
+    : undefined;
 }
 
 function stringValue(record: Record<string, unknown>, keys: string[]) {

@@ -140,8 +140,8 @@ export function CustomerRequirementForm() {
         <div className="rounded-xl border border-emerald-200 bg-white p-8 text-center shadow-sm">
           <CheckCircle2 className="mx-auto text-emerald-700" size={42} />
           <p className="mt-5 text-sm font-semibold text-emerald-700">Requirement submitted</p>
-          <h1 className="mt-2 text-2xl font-semibold">Your event requirement is saved</h1>
-          <p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">Reference {created.id}. You can review the information from your account. We will show vendor activity here once matching is enabled.</p>
+          <h1 className="mt-2 text-2xl font-semibold">Your event requirement is live</h1>
+          <p className="mx-auto mt-3 max-w-xl leading-7 text-muted-foreground">Reference {created.id}. {created.matchedVendorCount > 0 ? `We sent it to ${created.matchedVendorCount} matching vendor${created.matchedVendorCount === 1 ? "" : "s"}.` : "No matching vendor is available yet, so it will remain open."} Track vendor activity from your account.</p>
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <Link className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-5 text-sm font-semibold text-white" href="/customer?tab=requirements">View my requirements</Link>
             <button className="h-11 rounded-md border border-border px-5 text-sm font-semibold hover:border-primary" onClick={() => { setCreated(null); setForm(initialForm); }} type="button">Post another</button>
@@ -156,7 +156,7 @@ export function CustomerRequirementForm() {
       <div className="max-w-2xl">
         <p className="text-sm font-semibold text-primary">Marketplace requirement</p>
         <h1 className="mt-2 text-3xl font-semibold">Tell us what your event needs</h1>
-        <p className="mt-3 leading-7 text-muted-foreground">Create one requirement covering all the event services you are looking for and save it securely to your account.</p>
+        <p className="mt-3 leading-7 text-muted-foreground">Create one requirement covering all the event services you need. VenueMart will send it to approved matching vendors in your area.</p>
       </div>
 
       <form className="mt-8 grid gap-6" onSubmit={submit}>
@@ -203,7 +203,7 @@ export function CustomerRequirementForm() {
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {contactOptions.map((option) => <label className={`cursor-pointer rounded-md border p-4 ${form.preferredContactChannel === option.value ? "border-primary bg-emerald-50" : "border-border"}`} key={option.value}><span className="flex items-center gap-3"><input checked={form.preferredContactChannel === option.value} className="size-4 accent-[hsl(var(--primary))]" name="contact-channel" onChange={() => updateField("preferredContactChannel", option.value)} type="radio" /><strong className="text-sm">{option.label}</strong></span><span className="mt-1 block pl-7 text-xs leading-5 text-muted-foreground">{option.detail}</span></label>)}
           </div>
-          <label className="mt-5 flex items-start gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm"><input checked={form.shareContactDetails} className="mt-0.5 size-4 accent-[hsl(var(--primary))]" onChange={(event) => updateField("shareContactDetails", event.target.checked)} type="checkbox" /><span><strong className="block font-medium">Allow contact details to be shared with matched vendors</strong><span className="mt-1 block leading-5 text-muted-foreground">Your phone or email will remain private unless you give this permission. Saving the requirement does not contact vendors until matching is enabled.</span></span></label>
+          <label className="mt-5 flex items-start gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm"><input checked={form.shareContactDetails} className="mt-0.5 size-4 accent-[hsl(var(--primary))]" onChange={(event) => updateField("shareContactDetails", event.target.checked)} type="checkbox" /><span><strong className="block font-medium">Allow contact details to be shared with matched vendors</strong><span className="mt-1 block leading-5 text-muted-foreground">Your requirement is sent to approved matching vendors when you submit. Your phone and email remain private unless you give this permission.</span></span></label>
         </section>
 
         {error && <p className="rounded-md bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">{error}</p>}

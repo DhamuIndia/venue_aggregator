@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 import com.staminal.venue.enums.VendorLeadStatus;
+import com.staminal.venue.enums.PreferredContactChannel;
 
 public class VendorLeadResponse {
 
@@ -21,6 +22,14 @@ public class VendorLeadResponse {
     private String customerPhone;
 
     private String customerEmail;
+
+    private Long requirementId;
+
+    private String source;
+
+    private boolean contactDetailsShared;
+
+    private PreferredContactChannel preferredContactChannel;
 
     private String service;
 
@@ -94,6 +103,38 @@ public class VendorLeadResponse {
 
     public void setCustomerEmail(String customerEmail) {
         this.customerEmail = customerEmail;
+    }
+
+    public Long getRequirementId() {
+        return requirementId;
+    }
+
+    public void setRequirementId(Long requirementId) {
+        this.requirementId = requirementId;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public boolean isContactDetailsShared() {
+        return contactDetailsShared;
+    }
+
+    public void setContactDetailsShared(boolean contactDetailsShared) {
+        this.contactDetailsShared = contactDetailsShared;
+    }
+
+    public PreferredContactChannel getPreferredContactChannel() {
+        return preferredContactChannel;
+    }
+
+    public void setPreferredContactChannel(PreferredContactChannel preferredContactChannel) {
+        this.preferredContactChannel = preferredContactChannel;
     }
 
     public String getService() {

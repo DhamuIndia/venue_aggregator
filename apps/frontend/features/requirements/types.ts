@@ -41,6 +41,7 @@ export type CustomerRequirement = {
   shareContactDetails: boolean;
   status: CustomerRequirementStatus;
   services: RequirementCategory[];
+  matchedVendorCount: number;
   createdAt: string;
   updatedAt: string;
 };

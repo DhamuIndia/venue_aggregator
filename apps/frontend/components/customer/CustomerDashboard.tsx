@@ -620,7 +620,7 @@ export function CustomerDashboard() {
                     <div className="mt-4 flex flex-wrap gap-2">{requirement.services.map((service) => <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800" key={service.id}>{service.name.toLowerCase() === "makeup" ? "Bridal makeup" : service.name}</span>)}</div>
                     <div className="mt-4 grid gap-3 rounded-md bg-muted/50 p-4 text-sm sm:grid-cols-3"><p><span className="text-muted-foreground">Budget:</span> {requirementBudget(requirement)}</p><p><span className="text-muted-foreground">Guests:</span> {requirement.guestCount ? formatGuestCount(requirement.guestCount) : "Not specified"}</p><p><span className="text-muted-foreground">Contact:</span> {contactChannelLabel(requirement.preferredContactChannel)}</p></div>
                     {requirement.details && <p className="mt-4 text-sm leading-6 text-muted-foreground">{requirement.details}</p>}
-                    <p className="mt-4 border-t border-border pt-4 text-xs text-muted-foreground">Saved successfully. Vendor matching has not started for this requirement yet.</p>
+                    <p className="mt-4 border-t border-border pt-4 text-xs font-medium text-muted-foreground">{requirement.matchedVendorCount > 0 ? `Sent to ${requirement.matchedVendorCount} matching vendor${requirement.matchedVendorCount === 1 ? "" : "s"}. You can track their responses under Enquiries.` : "Your requirement is open. We will show vendor matches here as they become available."}</p>
                   </article>
                 ))}
               </div>
@@ -811,7 +811,7 @@ function bookingFromVendorLead(lead: VendorLead): BookingItem {
     status:
       lead.status === "COMPLETED"
         ? "COMPLETED"
-        : "CONFIRMED", amount: lead.budget,
+        : "CONFIRMED", amount: lead.budget ?? 0,
     paymentStatus: "NOT_STARTED",
     notes: lead.notes,
     confirmedAt: lead.submittedAt,

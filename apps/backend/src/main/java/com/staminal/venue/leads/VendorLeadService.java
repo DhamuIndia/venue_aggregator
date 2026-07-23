@@ -136,6 +136,15 @@ public class VendorLeadService {
         response.setCustomerName(lead.getCustomerName());
         response.setCustomerPhone(lead.getCustomerPhone());
         response.setCustomerEmail(lead.getCustomerEmail());
+        if (lead.getRequirement() != null) {
+            response.setRequirementId(lead.getRequirement().getId());
+            response.setSource("MARKETPLACE_REQUIREMENT");
+            response.setContactDetailsShared(lead.getRequirement().isShareContactDetails());
+            response.setPreferredContactChannel(lead.getRequirement().getPreferredContactChannel());
+        } else {
+            response.setSource("DIRECT_ENQUIRY");
+            response.setContactDetailsShared(true);
+        }
 
         response.setService(lead.getService());
         response.setEventType(lead.getEventType());

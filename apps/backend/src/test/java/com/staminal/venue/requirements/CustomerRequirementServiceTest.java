@@ -52,6 +52,9 @@ class CustomerRequirementServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private RequirementMatchingService requirementMatchingService;
+
     private CustomerRequirementService service;
 
     @BeforeEach
@@ -93,7 +96,7 @@ class CustomerRequirementServiceTest {
     }
 
     @Test
-    void createStoresRequirementWithoutGeneratingVendorLeads() {
+    void createStoresRequirementAndStartsVendorDistribution() {
         User customer = customer();
         VendorCategory photography = category(1L, "Photography");
         VendorCategory makeup = category(6L, "Makeup");
@@ -106,6 +109,7 @@ class CustomerRequirementServiceTest {
             requirement.onCreate();
             return requirement;
         });
+        when(requirementMatchingService.countLeads(501L)).thenReturn(2L);
 
         CustomerRequirementResponse response = service.create(request(Set.of(1L, 6L)), customerAuth());
 
@@ -119,7 +123,9 @@ class CustomerRequirementServiceTest {
         assertThat(response.id()).isEqualTo(501L);
         assertThat(response.services()).extracting(item -> item.name())
                 .containsExactly("Makeup", "Photography");
+        assertThat(response.matchedVendorCount()).isEqualTo(2);
         verify(auditService).record(any(AuditCommand.class));
+        verify(requirementMatchingService).distribute(saved);
     }
 
     @Test
@@ -205,7 +211,8 @@ class CustomerRequirementServiceTest {
                 vendorCategoryRepository,
                 userRepository,
                 new MarketplaceRequirementProperties(enabled),
-                auditService);
+                auditService,
+                requirementMatchingService);
     }
 
     private CreateCustomerRequirementRequest request(Set<Long> categoryIds) {

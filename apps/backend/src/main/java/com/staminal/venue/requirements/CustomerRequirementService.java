@@ -40,6 +40,7 @@ public class CustomerRequirementService {
     private final UserRepository userRepository;
     private final MarketplaceRequirementProperties properties;
     private final AuditService auditService;
+    private final RequirementMatchingService requirementMatchingService;
 
     @Transactional(readOnly = true)
     public CustomerRequirementOptionsResponse getOptions() {
@@ -103,6 +104,7 @@ public class CustomerRequirementService {
                         "status", saved.getStatus().name()),
                 null));
 
+        requirementMatchingService.distribute(saved);
         return mapResponse(saved);
     }
 
@@ -209,6 +211,7 @@ public class CustomerRequirementService {
                 requirement.isShareContactDetails(),
                 requirement.getStatus(),
                 services,
+                requirementMatchingService.countLeads(requirement.getId()),
                 requirement.getCreatedAt(),
                 requirement.getUpdatedAt());
     }

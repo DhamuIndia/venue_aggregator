@@ -41,6 +41,7 @@ export async function createCustomerRequirement(
       ...payload,
       services: mockCategories.filter((category) => payload.categoryIds.includes(category.id)),
       status: "OPEN",
+      matchedVendorCount: Math.min(payload.categoryIds.length * 2, 6),
       createdAt: now,
       updatedAt: now
     };
@@ -90,6 +91,7 @@ function normalizeRequirement(value: unknown): CustomerRequirement {
     shareContactDetails: record.shareContactDetails === true,
     status: requirementStatus(record.status),
     services,
+    matchedVendorCount: numberValue(record.matchedVendorCount) ?? 0,
     createdAt: stringValue(record.createdAt) ?? new Date().toISOString(),
     updatedAt: stringValue(record.updatedAt) ?? new Date().toISOString()
   };

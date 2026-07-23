@@ -17,4 +17,6 @@ public interface VendorLeadRepository
     List<VendorLead> findByRequirement_IdOrderByCreatedAtDesc(Long requirementId);
 
     boolean existsByRequirement_IdAndVendor_Id(Long requirementId, Long vendorId);
+
+    long countByRequirement_Id(Long requirementId);
 }

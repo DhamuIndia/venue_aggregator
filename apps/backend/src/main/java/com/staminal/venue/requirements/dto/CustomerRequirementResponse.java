@@ -23,6 +23,7 @@ public record CustomerRequirementResponse(
         boolean shareContactDetails,
         CustomerRequirementStatus status,
         List<CustomerRequirementCategoryResponse> services,
+        long matchedVendorCount,
         Instant createdAt,
         Instant updatedAt) {
 }
