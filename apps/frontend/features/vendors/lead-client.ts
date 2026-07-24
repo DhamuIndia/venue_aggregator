@@ -94,24 +94,18 @@ export async function getCustomerVendorLeads(accessToken?: string | null): Promi
   }
 }
 
-export async function updateVendorLeadStatus(id: string, status: VendorLeadStatus, accessToken?: string | null) {
-  if (useMockVendorLeads || !accessToken) return updateLocalVendorLeadStatus(id, status);
+export async function updateVendorLeadStatus(id: string, status: VendorLeadStatus, accessToken?: string | null, reason?: string) {
+  if (useMockVendorLeads || !accessToken) return updateLocalVendorLeadStatus(id, status, reason);
 
-  try {
-    const response = await apiRequest<unknown>(`/vendor/leads/${encodeURIComponent(id)}/status`, {
-      method: "PATCH",
-      token: accessToken,
-      body: JSON.stringify({ status })
-    });
-    const lead = toVendorLead(response) ?? updateLocalVendorLeadStatus(id, status);
-    if (lead) cacheLocalVendorLead(lead);
-    return lead;
-  } catch (exception) {
-    if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
-      throw exception;
-    }
-    return updateLocalVendorLeadStatus(id, status);
-  }
+  const response = await apiRequest<unknown>(`/vendor/leads/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    token: accessToken,
+    body: JSON.stringify({ status, reason })
+  });
+  const lead = toVendorLead(response);
+  if (!lead) throw new Error("The lead update returned an invalid response.");
+  cacheLocalVendorLead(lead);
+  return lead;
 }
 
 export function createLocalVendorLead(payload: CreateVendorLeadPayload): VendorLead {
@@ -120,8 +114,12 @@ export function createLocalVendorLead(payload: CreateVendorLeadPayload): VendorL
   return lead;
 }
 
-export function updateLocalVendorLeadStatus(id: string, status: VendorLeadStatus) {
-  const updated = getLocalVendorLeads().map((lead) => lead.id === id ? { ...lead, status } : lead);
+export function updateLocalVendorLeadStatus(id: string, status: VendorLeadStatus, reason?: string) {
+  const updated = getLocalVendorLeads().map((lead) => lead.id === id ? {
+    ...lead,
+    status,
+    declineReason: status === "DECLINED" ? reason : lead.declineReason
+  } : lead);
   if (typeof window !== "undefined") window.localStorage.setItem(storageKey, JSON.stringify(updated));
   return updated.find((lead) => lead.id === id);
 }
@@ -149,13 +147,15 @@ function toVendorLead(value: unknown, fallback?: Partial<CreateVendorLeadPayload
   const vendorName = stringValue(value, ["vendorName", "vendor_name", "businessName", "business_name"]) ?? fallback?.vendorName ?? "";
   const customerId = stringValue(value, ["customerId", "customer_id"]) ?? fallback?.customerId ?? "";
   const customerName = stringValue(value, ["customerName", "customer_name", "name"]) ?? fallback?.customerName ?? "Customer";
+  const sourceValue = stringValue(value, ["source"]);
+  const source = sourceValue === "MARKETPLACE_REQUIREMENT" ? "MARKETPLACE_REQUIREMENT" : "DIRECT_ENQUIRY";
   const eventDate = stringValue(value, ["eventDate", "event_date"]) ?? fallback?.eventDate;
   const eventType = stringValue(value, ["eventType", "event_type"]) ?? fallback?.eventType;
   const location = stringValue(value, ["location", "eventLocation", "event_location"]) ?? fallback?.location;
   const service = stringValue(value, ["service", "serviceName", "service_name"]) ?? fallback?.service;
   const budget = numberValue(value, ["budget", "expectedBudget", "expected_budget"]) ?? fallback?.budget;
 
-  if (!id || !eventDate || !eventType || !location || !service || typeof budget !== "number") {
+  if (!id || !eventDate || !eventType || !location || !service) {
     return hasCompleteFallback(fallback) ? createStoredFromFallback(fallback) : undefined;
   }
 
@@ -165,12 +165,19 @@ function toVendorLead(value: unknown, fallback?: Partial<CreateVendorLeadPayload
     vendorName,
     customerId,
     customerName,
+    customerPhone: stringValue(value, ["customerPhone", "customer_phone"]),
+    customerEmail: stringValue(value, ["customerEmail", "customer_email"]),
+    requirementId: stringValue(value, ["requirementId", "requirement_id"]),
+    source,
+    contactDetailsShared: value.contactDetailsShared === true || source === "DIRECT_ENQUIRY",
+    preferredContactChannel: contactChannelValue(value.preferredContactChannel),
     eventDate,
     eventType,
     location,
     service,
     budget,
     notes: stringValue(value, ["notes", "message"]) ?? fallback?.notes,
+    declineReason: stringValue(value, ["declineReason", "decline_reason"]),
     status: statusValue(value) ?? "NEW",
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at"]) ?? new Date().toISOString()
   };
@@ -180,6 +187,8 @@ function createStoredFromFallback(fallback: CreateVendorLeadPayload): VendorLead
   return {
     ...fallback,
     id: `LEAD-${Date.now().toString().slice(-6)}`,
+    source: "DIRECT_ENQUIRY",
+    contactDetailsShared: true,
     status: "NEW",
     submittedAt: new Date().toISOString()
   };
@@ -202,13 +211,19 @@ function hasCompleteFallback(fallback?: Partial<CreateVendorLeadPayload>): fallb
 function statusValue(record: Record<string, unknown>): VendorLeadStatus | undefined {
   const value = stringValue(record, ["status"]);
   if (!value) return undefined;
-  if (value === "NEW" || value === "CONTACTED" || value === "QUOTE_SENT" || value === "BOOKED" || value === "DECLINED") return value;
+  if (value === "NEW" || value === "INTERESTED" || value === "CONTACTED" || value === "QUOTE_SENT" || value === "BOOKED" || value === "NOT_SELECTED" || value === "DECLINED") return value;
   if (value === "IN_PROGRESS") return "CONTACTED";
   if (value === "QUOTED") return "QUOTE_SENT";
   if (value === "CONFIRMED") return "BOOKED";
   if (value === "COMPLETED") return "COMPLETED";
   if (value === "REJECTED") return "DECLINED";
   return undefined;
+}
+
+function contactChannelValue(value: unknown): VendorLead["preferredContactChannel"] {
+  return value === "PHONE" || value === "WHATSAPP" || value === "EMAIL" || value === "IN_APP"
+    ? value
+    : undefined;
 }
 
 function stringValue(record: Record<string, unknown>, keys: string[]) {

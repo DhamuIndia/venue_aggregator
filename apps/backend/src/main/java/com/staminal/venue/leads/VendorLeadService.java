@@ -18,6 +18,7 @@ import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.enums.VendorLeadStatus;
+import com.staminal.venue.enums.VendorServiceBookingStatus;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
@@ -26,6 +27,7 @@ import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
+import com.staminal.venue.vendorbookings.VendorServiceBookingRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 
@@ -41,6 +43,7 @@ public class VendorLeadService {
     private final UserRepository userRepository;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final VendorServiceBookingRepository vendorServiceBookingRepository;
 
     private Vendors currentVendor(Authentication authentication) {
 
@@ -133,9 +136,27 @@ public class VendorLeadService {
         if (lead.getCustomer() != null && lead.getCustomer().getId() != null) {
             response.setCustomerId(String.valueOf(lead.getCustomer().getId()));
         }
-        response.setCustomerName(lead.getCustomerName());
-        response.setCustomerPhone(lead.getCustomerPhone());
-        response.setCustomerEmail(lead.getCustomerEmail());
+        boolean contactDetailsShared = lead.getRequirement() == null
+                || lead.getRequirement().isShareContactDetails()
+                || lead.isContactDetailsReleased();
+        if (lead.isContactDetailsReleased() && lead.getCustomer() != null) {
+            response.setCustomerName(firstText(lead.getCustomer().getFullName(), lead.getCustomerName()));
+            response.setCustomerPhone(firstText(lead.getCustomer().getPhone(), lead.getCustomerPhone(), null));
+            response.setCustomerEmail(firstText(lead.getCustomer().getEmail(), lead.getCustomerEmail(), null));
+        } else {
+            response.setCustomerName(lead.getCustomerName());
+            response.setCustomerPhone(lead.getCustomerPhone());
+            response.setCustomerEmail(lead.getCustomerEmail());
+        }
+        if (lead.getRequirement() != null) {
+            response.setRequirementId(lead.getRequirement().getId());
+            response.setSource("MARKETPLACE_REQUIREMENT");
+            response.setContactDetailsShared(contactDetailsShared);
+            response.setPreferredContactChannel(lead.getRequirement().getPreferredContactChannel());
+        } else {
+            response.setSource("DIRECT_ENQUIRY");
+            response.setContactDetailsShared(true);
+        }
 
         response.setService(lead.getService());
         response.setEventType(lead.getEventType());
@@ -145,6 +166,7 @@ public class VendorLeadService {
         response.setBudget(lead.getBudget());
 
         response.setNotes(lead.getNotes());
+        response.setDeclineReason(lead.getDeclineReason());
 
         response.setStatus(lead.getStatus());
 
@@ -168,7 +190,7 @@ public class VendorLeadService {
                 NotificationType.ENQUIRY,
                 "Lead submitted",
                 "Your enquiry was sent to " + vendorName + ".",
-                "/customer?tab=vendor-leads");
+                "/customer?tab=enquiries");
 
         // Vendor Notification
         notificationService.notifyUser(
@@ -189,6 +211,17 @@ public class VendorLeadService {
 
         switch (lead.getStatus()) {
 
+            case INTERESTED ->
+
+                notificationService.notifyUser(
+                        lead.getCustomer(),
+                        NotificationType.ENQUIRY,
+                        "Vendor is interested",
+                        vendorName + " is interested in your requirement.",
+                        lead.getRequirement() == null
+                                ? "/customer?tab=enquiries"
+                                : "/customer?tab=requirements");
+
             case CONTACTED ->
 
                 notificationService.notifyUser(
@@ -196,7 +229,7 @@ public class VendorLeadService {
                         NotificationType.ENQUIRY,
                         "Vendor contacted you",
                         vendorName + " contacted you regarding your enquiry.",
-                        "/customer?tab=vendor-leads");
+                        "/customer?tab=enquiries");
 
             case QUOTE_SENT ->
 
@@ -205,7 +238,7 @@ public class VendorLeadService {
                         NotificationType.ENQUIRY,
                         "Quote received",
                         vendorName + " sent you a quotation.",
-                        "/customer?tab=vendor-leads");
+                        "/customer?tab=enquiries");
 
             case BOOKED ->
 
@@ -214,7 +247,7 @@ public class VendorLeadService {
                         NotificationType.BOOKING,
                         "Booking confirmed",
                         "Your booking with " + vendorName + " has been confirmed.",
-                        "/customer?tab=vendor-bookings");
+                        "/customer?tab=bookings");
 
             case COMPLETED ->
 
@@ -232,8 +265,10 @@ public class VendorLeadService {
                         lead.getCustomer(),
                         NotificationType.ENQUIRY,
                         "Lead declined",
-                        vendorName + " declined your enquiry.",
-                        "/customer?tab=vendor-leads");
+                        vendorName + " declined your enquiry. Reason: " + lead.getDeclineReason(),
+                        lead.getRequirement() == null
+                                ? "/customer?tab=enquiries"
+                                : "/customer?tab=requirements");
 
             default -> {
             }
@@ -362,6 +397,16 @@ public class VendorLeadService {
                         HttpStatus.NOT_FOUND,
                         "Lead not found"));
 
+        if (request.getStatus() == VendorLeadStatus.DECLINED
+                && (request.getReason() == null || request.getReason().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Decline reason is required");
+        }
+        if (request.getStatus() == VendorLeadStatus.BOOKED && lead.getRequirement() != null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Marketplace bookings are confirmed when the customer accepts a quote");
+        }
+
         validateTransition(
                 lead.getStatus(),
                 request.getStatus());
@@ -369,8 +414,17 @@ public class VendorLeadService {
         VendorLeadStatus oldStatus = lead.getStatus();
 
         lead.setStatus(request.getStatus());
+        if (request.getStatus() == VendorLeadStatus.DECLINED) {
+            lead.setDeclineReason(request.getReason().trim());
+        }
 
         VendorLead savedLead = vendorLeadRepository.save(lead);
+        if (savedLead.getStatus() == VendorLeadStatus.COMPLETED) {
+            vendorServiceBookingRepository.findByLead_Id(savedLead.getId()).ifPresent(booking -> {
+                booking.setStatus(VendorServiceBookingStatus.COMPLETED);
+                vendorServiceBookingRepository.save(booking);
+            });
+        }
 
         notifyCustomer(savedLead);
 
@@ -384,7 +438,9 @@ public class VendorLeadService {
                         "Lead status changed",
                         Map.of("status", oldStatus.name()),
                         Map.of("status", savedLead.getStatus().name()),
-                        null));
+                        request.getStatus() == VendorLeadStatus.DECLINED
+                                ? Map.of("reason", savedLead.getDeclineReason())
+                                : null));
 
         return mapToResponse(savedLead);
     }
@@ -393,8 +449,9 @@ public class VendorLeadService {
             VendorLeadStatus current,
             VendorLeadStatus next) {
 
-        if (current == VendorLeadStatus.COMPLETED ||
-                current == VendorLeadStatus.DECLINED) {
+        if (current == VendorLeadStatus.COMPLETED
+                || current == VendorLeadStatus.DECLINED
+                || current == VendorLeadStatus.NOT_SELECTED) {
 
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -404,6 +461,19 @@ public class VendorLeadService {
         switch (current) {
 
             case NEW -> {
+
+                if (next != VendorLeadStatus.INTERESTED &&
+                        next != VendorLeadStatus.CONTACTED &&
+                        next != VendorLeadStatus.QUOTE_SENT &&
+                        next != VendorLeadStatus.DECLINED) {
+
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "Invalid status transition");
+                }
+            }
+
+            case INTERESTED -> {
 
                 if (next != VendorLeadStatus.CONTACTED &&
                         next != VendorLeadStatus.QUOTE_SENT &&

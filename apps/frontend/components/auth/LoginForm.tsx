@@ -1,26 +1,12 @@
 "use client";
 
 import { Eye, EyeOff, LoaderCircle, Phone } from "lucide-react";
-import type { Route } from "next";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { routeForRole, safeNextRouteForRole } from "@/features/auth/redirects";
 import type { AuthRole } from "@/features/auth/types";
 import { APP_NAME } from "@/lib/constants";
-import { getOwnerHalls } from "@/features/owner/listing-client";
-import { getVendorProfile } from "@/features/vendors/profile-client";
-
-function routeForRole(role: AuthRole): Route {
-  return role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : role === "VENDOR" ? "/vendor" : role === "HALL_OWNER" ? "/owner" : "/customer";
-}
-
-function isSafeNextPathForRole(nextPath: string | null, role: AuthRole) {
-  if (!nextPath?.startsWith("/") || nextPath.startsWith("//")) return false;
-  if (role === "ADMIN" || role === "SUPER_ADMIN") return nextPath === "/admin" || nextPath.startsWith("/admin?");
-  if (role === "VENDOR") return nextPath === "/vendor" || nextPath.startsWith("/vendor/");
-  if (role === "HALL_OWNER") return nextPath === "/owner" || nextPath.startsWith("/owner/");
-  return nextPath === "/customer" || nextPath.startsWith("/customer?") || nextPath.startsWith("/halls") || nextPath.startsWith("/vendors");
-}
 
 export function LoginForm() {
   const { login, loginDemo, getValidAccessToken } = useAuth();
@@ -29,6 +15,11 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nextPath, setNextPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNextPath(new URLSearchParams(window.location.search).get("next"));
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,38 +32,7 @@ export function LoginForm() {
     try {
       setIsSubmitting(true);
       const user = await login({ phone, password });
-      const nextPath = new URLSearchParams(window.location.search).get("next");
-
-      if (user.role === "HALL_OWNER") {
-        const token = await getValidAccessToken();
-        const halls = await getOwnerHalls(token);
-
-        if (halls.length === 0) {
-          window.location.assign("/owner/onboarding");
-          return;
-        }
-
-        window.location.assign("/owner");
-        return;
-      }
-
-      if (user.role === "VENDOR") {
-        const token = await getValidAccessToken();
-        const profile = await getVendorProfile(token);
-
-        if (!profile.id) {
-          window.location.assign("/vendor/onboarding");
-          return;
-        }
-
-        window.location.assign("/vendor");
-        return;
-      }
-
-      const destination: Route = isSafeNextPathForRole(nextPath, user.role)
-        ? (nextPath as Route)
-        : routeForRole(user.role);
-
+      const destination = safeNextRouteForRole(nextPath, user.role) ?? routeForRole(user.role);
       window.location.assign(destination);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "We could not sign you in. Please check your details.");
@@ -85,7 +45,7 @@ export function LoginForm() {
     setError("");
     setIsSubmitting(true);
     const user = await loginDemo(role);
-    window.location.assign(routeForRole(user.role));
+    window.location.assign(safeNextRouteForRole(nextPath, user.role) ?? routeForRole(user.role));
   }
 
   return (
@@ -142,7 +102,7 @@ export function LoginForm() {
         <button className="h-10 rounded-md border border-border text-sm font-medium hover:border-primary hover:text-primary" onClick={() => useDemoAccount("ADMIN")} type="button">Admin demo</button>
       </div>
       <p className="text-center text-sm text-muted-foreground">
-        New to {APP_NAME}? <Link className="font-semibold text-primary" href="/auth/register">Create account</Link>
+        New to {APP_NAME}? <Link className="font-semibold text-primary" href={nextPath ? `/auth/register?next=${encodeURIComponent(nextPath)}` : "/auth/register"}>Create account</Link>
       </p>
     </form>
   );

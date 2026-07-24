@@ -22,6 +22,8 @@ jwt:
   refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
 
 app:
+  features:
+    marketplace-requirements-enabled: ${MARKETPLACE_REQUIREMENTS_ENABLED:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3001,http://localhost:3000}
   seed:

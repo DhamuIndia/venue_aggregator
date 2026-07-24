@@ -21,9 +21,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.staminal.venue.availability.AvailabilityService;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.halls.Dto.CreateHallMediaRequest;
 import com.staminal.venue.halls.Dto.HallListResponse;
 import com.staminal.venue.halls.Dto.HallResponse;
 import com.staminal.venue.halls.Dto.Pricing;
@@ -68,6 +70,7 @@ class HallsServiceTest {
         Halls approvedHall = hall(11L, 301L, HallStatus.APPROVED);
         Halls draftHall = hall(12L, 301L, HallStatus.DRAFT);
         HallMedia media = media(approvedHall, "https://cdn.example.com/emerald-cover.jpg");
+        approvedHall.setCoverImageUrl(media.getUrl());
 
         when(hallRepository.findByStatus(HallStatus.APPROVED)).thenReturn(List.of(approvedHall));
         when(hallMediaRepository.findByHallId_Id(11L)).thenReturn(List.of(media));
@@ -90,6 +93,43 @@ class HallsServiceTest {
         assertThat(response.content().get(0).getGalleryUrls())
                 .containsExactly("https://cdn.example.com/emerald-cover.jpg");
         assertThat(draftHall.getStatus()).isEqualTo(HallStatus.DRAFT);
+    }
+
+    @Test
+    void publicHallKeepsSavedCoverAheadOfMediaSortOrder() {
+        Halls approvedHall = hall(11L, 301L, HallStatus.APPROVED);
+        HallMedia firstUpload = media(approvedHall, "https://cdn.example.com/first-upload.jpg");
+        firstUpload.setIsPrimary(false);
+        firstUpload.setSortOrder(0);
+        HallMedia selectedCover = media(approvedHall, "https://cdn.example.com/selected-cover.jpg");
+        selectedCover.setId(22L);
+        selectedCover.setIsPrimary(false);
+        selectedCover.setSortOrder(4);
+        approvedHall.setCoverImageUrl(selectedCover.getUrl());
+
+        when(hallRepository.findById(11L)).thenReturn(Optional.of(approvedHall));
+        when(hallMediaRepository.findByHallId_Id(11L)).thenReturn(List.of(firstUpload, selectedCover));
+
+        HallResponse response = hallsService.getPublicHall("11");
+
+        assertThat(response.getCoverImageUrl()).isEqualTo(selectedCover.getUrl());
+        assertThat(response.getImageUrl()).isEqualTo(selectedCover.getUrl());
+        assertThat(response.getGalleryUrls()).containsExactly(selectedCover.getUrl(), firstUpload.getUrl());
+    }
+
+    @Test
+    void hallMediaRequestAcceptsOwnerCoverFieldNames() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        CreateHallMediaRequest isCoverRequest = objectMapper.readValue(
+                "{\"isCover\":true}",
+                CreateHallMediaRequest.class);
+        CreateHallMediaRequest primaryRequest = objectMapper.readValue(
+                "{\"primary\":true}",
+                CreateHallMediaRequest.class);
+
+        assertThat(isCoverRequest.getIsPrimary()).isTrue();
+        assertThat(primaryRequest.getIsPrimary()).isTrue();
     }
 
     @Test

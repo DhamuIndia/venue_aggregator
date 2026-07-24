@@ -420,10 +420,11 @@ public class HallsService {
             List<String> galleryUrls = galleryUrls(hall);
             response.setGalleryUrls(galleryUrls);
             if (!galleryUrls.isEmpty()) {
-                response.setImageUrl(galleryUrls.get(0));
-                if (response.getCoverImageUrl() == null || response.getCoverImageUrl().isBlank()) {
-                    response.setCoverImageUrl(galleryUrls.get(0));
-                }
+                String coverImageUrl = hasText(response.getCoverImageUrl())
+                        ? response.getCoverImageUrl()
+                        : galleryUrls.get(0);
+                response.setCoverImageUrl(coverImageUrl);
+                response.setImageUrl(coverImageUrl);
             }
         }
 
@@ -439,7 +440,7 @@ public class HallsService {
     }
 
     private List<String> galleryUrls(Halls hall) {
-        List<String> urls = hallMediaRepository.findByHallId_Id(hall.getId())
+        List<String> mediaUrls = hallMediaRepository.findByHallId_Id(hall.getId())
                 .stream()
                 .sorted(Comparator
                         .comparing((HallMedia media) -> !Boolean.TRUE.equals(media.getIsPrimary()))
@@ -449,13 +450,22 @@ public class HallsService {
                 .filter(url -> url != null && !url.isBlank())
                 .toList();
 
-        if (!urls.isEmpty()) {
-            return urls;
+        List<String> urls = new ArrayList<>();
+        if (hasText(hall.getCoverImageUrl())) {
+            urls.add(hall.getCoverImageUrl());
         }
-        if (hall.getCoverImageUrl() != null && !hall.getCoverImageUrl().isBlank()) {
-            return List.of(hall.getCoverImageUrl());
+        mediaUrls.stream()
+                .filter(url -> !urls.contains(url))
+                .forEach(urls::add);
+
+        if (!urls.isEmpty()) {
+            return List.copyOf(urls);
         }
         return List.of();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private List<String> amenities(Halls hall) {

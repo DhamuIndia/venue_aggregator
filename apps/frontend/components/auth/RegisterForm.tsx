@@ -4,8 +4,9 @@ import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { routeForRole, safeNextRouteForRole } from "@/features/auth/redirects";
 import type { AuthRole } from "@/features/auth/types";
 
 export function RegisterForm() {
@@ -16,6 +17,11 @@ export function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nextPath, setNextPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNextPath(new URLSearchParams(window.location.search).get("next"));
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,8 +52,10 @@ export function RegisterForm() {
 
     try {
       setIsSubmitting(true);
-      await register(form);
-      router.push(form.role === "VENDOR" ? "/vendor/onboarding" : form.role === "HALL_OWNER" ? "/owner/onboarding" : "/customer");
+      const user = await register(form);
+      const destination = safeNextRouteForRole(nextPath, user.role)
+        ?? (user.role === "VENDOR" ? "/vendor/onboarding" : user.role === "HALL_OWNER" ? "/owner/onboarding" : routeForRole(user.role));
+      router.push(destination);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "We could not create your account. Please try again.");
     } finally {
@@ -88,7 +96,7 @@ export function RegisterForm() {
       </div>
       {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
       <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:opacity-60" disabled={isSubmitting} type="submit">{isSubmitting && <LoaderCircle className="animate-spin" size={18} />}Create account</button>
-      <p className="text-center text-sm text-muted-foreground">Already registered? <Link className="font-semibold text-primary" href="/auth/login">Sign in</Link></p>
+      <p className="text-center text-sm text-muted-foreground">Already registered? <Link className="font-semibold text-primary" href={nextPath ? `/auth/login?next=${encodeURIComponent(nextPath)}` : "/auth/login"}>Sign in</Link></p>
     </form>
   );
 }

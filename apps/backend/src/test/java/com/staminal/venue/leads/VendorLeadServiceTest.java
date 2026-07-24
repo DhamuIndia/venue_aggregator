@@ -3,6 +3,8 @@ package com.staminal.venue.leads;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,12 +28,16 @@ import org.springframework.web.server.ResponseStatusException;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorLeadStatus;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.enums.PreferredContactChannel;
 import com.staminal.venue.leads.Dto.CreateVendorLeadRequest;
 import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
 import com.staminal.venue.notifications.NotificationService;
+import com.staminal.venue.notifications.NotificationType;
+import com.staminal.venue.requirements.CustomerRequirement;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
+import com.staminal.venue.vendorbookings.VendorServiceBookingRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 
@@ -53,6 +59,9 @@ class VendorLeadServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private VendorServiceBookingRepository vendorServiceBookingRepository;
+
     private VendorLeadService vendorLeadService;
 
     @BeforeEach
@@ -62,7 +71,8 @@ class VendorLeadServiceTest {
                 vendorRepository,
                 userRepository,
                 auditService,
-                notificationService);
+                notificationService,
+                vendorServiceBookingRepository);
     }
 
     @Test
@@ -93,6 +103,9 @@ class VendorLeadServiceTest {
         assertThat(response.getVendorId()).isEqualTo("501");
         assertThat(response.getVendorName()).isEqualTo("Saffron Leaf Catering");
         assertThat(response.getCustomerId()).isEqualTo("101");
+        assertThat(response.getSource()).isEqualTo("DIRECT_ENQUIRY");
+        assertThat(response.isContactDetailsShared()).isTrue();
+        assertThat(response.getRequirementId()).isNull();
         assertThat(response.getStatus()).isEqualTo(VendorLeadStatus.NEW);
     }
 
@@ -128,6 +141,82 @@ class VendorLeadServiceTest {
     }
 
     @Test
+    void updateStatusAllowsVendorToShowInterest() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.INTERESTED);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VendorLeadResponse response = vendorLeadService.updateStatus(901L, request, vendorAuth());
+
+        assertThat(response.getStatus()).isEqualTo(VendorLeadStatus.INTERESTED);
+        verify(notificationService).notifyUser(
+                eq(lead.getCustomer()),
+                eq(NotificationType.ENQUIRY),
+                eq("Vendor is interested"),
+                eq("Saffron Leaf Catering is interested in your requirement."),
+                eq("/customer?tab=enquiries"));
+    }
+
+    @Test
+    void decliningLeadRequiresCustomerVisibleReason() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.DECLINED);
+        request.setReason(" ");
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+
+        assertThatThrownBy(() -> vendorLeadService.updateStatus(901L, request, vendorAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        exception -> {
+                            assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                            assertThat(exception.getReason()).isEqualTo("Decline reason is required");
+                        });
+        verify(vendorLeadRepository, never()).save(any());
+        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void decliningLeadStoresAndReturnsCustomerVisibleReason() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.DECLINED);
+        request.setReason("  Already booked for the event date.  ");
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VendorLeadResponse response = vendorLeadService.updateStatus(901L, request, vendorAuth());
+
+        assertThat(response.getStatus()).isEqualTo(VendorLeadStatus.DECLINED);
+        assertThat(response.getDeclineReason()).isEqualTo("Already booked for the event date.");
+        verify(notificationService).notifyUser(
+                eq(lead.getCustomer()),
+                eq(NotificationType.ENQUIRY),
+                eq("Lead declined"),
+                eq("Saffron Leaf Catering declined your enquiry. Reason: Already booked for the event date."),
+                eq("/customer?tab=enquiries"));
+    }
+
+    @Test
     void getMyCustomerLeadsReturnsOnlyAuthenticatedCustomerLeads() {
         User customer = customer();
         Vendors vendor = vendor(VendorStatus.APPROVED);
@@ -143,6 +232,89 @@ class VendorLeadServiceTest {
         assertThat(response.get(0).getVendorName()).isEqualTo("Saffron Leaf Catering");
         assertThat(response.get(0).getCustomerId()).isEqualTo("101");
         assertThat(response.get(0).getStatus()).isEqualTo(VendorLeadStatus.BOOKED);
+    }
+
+    @Test
+    void vendorLeadResponseIdentifiesMarketplaceSourceAndContactPrivacy() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+        CustomerRequirement requirement = new CustomerRequirement();
+        requirement.setId(801L);
+        requirement.setPreferredContactChannel(PreferredContactChannel.IN_APP);
+        requirement.setShareContactDetails(false);
+        lead.setRequirement(requirement);
+        lead.setCustomerName("VenueMart customer");
+        lead.setCustomerPhone(null);
+        lead.setCustomerEmail(null);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByVendor_IdOrderByCreatedAtDesc(501L)).thenReturn(List.of(lead));
+
+        VendorLeadResponse response = vendorLeadService.getMyLeads(vendorAuth()).getFirst();
+
+        assertThat(response.getRequirementId()).isEqualTo(801L);
+        assertThat(response.getSource()).isEqualTo("MARKETPLACE_REQUIREMENT");
+        assertThat(response.isContactDetailsShared()).isFalse();
+        assertThat(response.getPreferredContactChannel()).isEqualTo(PreferredContactChannel.IN_APP);
+        assertThat(response.getCustomerName()).isEqualTo("VenueMart customer");
+        assertThat(response.getCustomerPhone()).isNull();
+        assertThat(response.getCustomerEmail()).isNull();
+    }
+
+    @Test
+    void acceptedMarketplaceLeadReleasesContactOnlyForSelectedVendor() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.BOOKED);
+        CustomerRequirement requirement = new CustomerRequirement();
+        requirement.setId(801L);
+        requirement.setPreferredContactChannel(PreferredContactChannel.IN_APP);
+        requirement.setShareContactDetails(false);
+        lead.setRequirement(requirement);
+        lead.setCustomerName("VenueMart customer");
+        lead.setCustomerPhone(null);
+        lead.setCustomerEmail(null);
+        lead.setContactDetailsReleased(true);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByVendor_IdOrderByCreatedAtDesc(501L)).thenReturn(List.of(lead));
+
+        VendorLeadResponse response = vendorLeadService.getMyLeads(vendorAuth()).getFirst();
+
+        assertThat(response.isContactDetailsShared()).isTrue();
+        assertThat(response.getCustomerName()).isEqualTo("Priya Raman");
+        assertThat(response.getCustomerPhone()).isEqualTo("9000000001");
+        assertThat(response.getCustomerEmail()).isEqualTo("priya@example.com");
+    }
+
+    @Test
+    void vendorCannotManuallyBookMarketplaceLead() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.QUOTE_SENT);
+        CustomerRequirement requirement = new CustomerRequirement();
+        requirement.setId(801L);
+        lead.setRequirement(requirement);
+        UpdateVendorLeadStatusRequest request = new UpdateVendorLeadStatusRequest();
+        request.setStatus(VendorLeadStatus.BOOKED);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByIdAndVendor_Id(901L, 501L)).thenReturn(Optional.of(lead));
+
+        assertThatThrownBy(() -> vendorLeadService.updateStatus(901L, request, vendorAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason())
+                            .isEqualTo("Marketplace bookings are confirmed when the customer accepts a quote");
+                });
+        verify(vendorLeadRepository, never()).save(any());
     }
 
     private CreateVendorLeadRequest createRequest(String vendorId) {

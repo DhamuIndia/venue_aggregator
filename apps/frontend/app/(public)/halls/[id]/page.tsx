@@ -9,13 +9,13 @@ import {
   Star,
   UsersRound
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShareButton } from "@/components/common/ShareButton";
 import { EnquiryPanel } from "@/components/enquiries/EnquiryPanel";
 import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import { HallAvailabilityCalendar } from "@/components/halls/HallAvailabilityCalendar";
+import { HallPhotoGallery } from "@/components/halls/HallPhotoGallery";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { getPublicHall } from "@/features/halls/hall-client";
 import { halls } from "@/features/halls/mock-data";
@@ -49,18 +49,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 overflow-hidden rounded-lg md:grid-cols-[1.6fr_1fr]">
-          <div className="relative aspect-[16/10] overflow-hidden bg-muted md:aspect-auto md:min-h-[440px]">
-            <Image alt={`${hall.name} main hall`} className="object-cover" fill priority sizes="(max-width: 768px) 100vw, 65vw" src={hall.imageUrl} />
-          </div>
-          <div className="hidden gap-3 md:grid">
-            {hall.galleryUrls.map((image, index) => (
-              <div className="relative overflow-hidden bg-muted" key={image}>
-                <Image alt={`${hall.name} gallery view ${index + 1}`} className="object-cover" fill sizes="35vw" src={image} />
-              </div>
-            ))}
-          </div>
-        </div>
+        <HallPhotoGallery coverImage={hall.imageUrl} galleryImages={hall.galleryUrls} hallName={hall.name} />
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div>

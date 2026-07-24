@@ -80,6 +80,7 @@ services:
       S3_PATH_STYLE_ACCESS: "true"
       S3_PUBLIC_BASE_URL: https://${MEDIA_DOMAIN}/${MINIO_BUCKET}
       MEDIA_MAX_UPLOAD_SIZE_BYTES: ${MEDIA_MAX_UPLOAD_SIZE_BYTES}
+      MARKETPLACE_REQUIREMENTS_ENABLED: ${MARKETPLACE_REQUIREMENTS_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy

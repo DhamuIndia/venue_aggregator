@@ -1,4 +1,4 @@
-import { CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -8,9 +8,10 @@ type AuthShellProps = {
   title: string;
   description: string;
   children: ReactNode;
+  homeLinkLabel?: string;
 };
 
-export function AuthShell({ title, description, children }: AuthShellProps) {
+export function AuthShell({ title, description, children, homeLinkLabel }: AuthShellProps) {
   return (
     <main className="grid min-h-screen bg-white lg:grid-cols-[minmax(380px,0.85fr)_1.15fr]">
       <section className="relative hidden min-h-screen overflow-hidden lg:block">
@@ -43,6 +44,11 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
           <Link className="mb-10 flex items-center gap-2 font-semibold lg:hidden" href="/">
             <VenueMartLogo />
           </Link>
+          {homeLinkLabel && (
+            <Link className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" href="/">
+              <ArrowLeft aria-hidden="true" size={17} /> {homeLinkLabel}
+            </Link>
+          )}
           <h1 className="text-3xl font-semibold text-foreground">{title}</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
           <div className="mt-8">{children}</div>

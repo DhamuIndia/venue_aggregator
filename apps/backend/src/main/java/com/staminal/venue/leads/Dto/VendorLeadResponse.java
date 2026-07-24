@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 import com.staminal.venue.enums.VendorLeadStatus;
+import com.staminal.venue.enums.PreferredContactChannel;
 
 public class VendorLeadResponse {
 
@@ -22,6 +23,14 @@ public class VendorLeadResponse {
 
     private String customerEmail;
 
+    private Long requirementId;
+
+    private String source;
+
+    private boolean contactDetailsShared;
+
+    private PreferredContactChannel preferredContactChannel;
+
     private String service;
 
     private String eventType;
@@ -33,6 +42,8 @@ public class VendorLeadResponse {
     private BigDecimal budget;
 
     private String notes;
+
+    private String declineReason;
 
     private VendorLeadStatus status;
 
@@ -96,6 +107,38 @@ public class VendorLeadResponse {
         this.customerEmail = customerEmail;
     }
 
+    public Long getRequirementId() {
+        return requirementId;
+    }
+
+    public void setRequirementId(Long requirementId) {
+        this.requirementId = requirementId;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public boolean isContactDetailsShared() {
+        return contactDetailsShared;
+    }
+
+    public void setContactDetailsShared(boolean contactDetailsShared) {
+        this.contactDetailsShared = contactDetailsShared;
+    }
+
+    public PreferredContactChannel getPreferredContactChannel() {
+        return preferredContactChannel;
+    }
+
+    public void setPreferredContactChannel(PreferredContactChannel preferredContactChannel) {
+        this.preferredContactChannel = preferredContactChannel;
+    }
+
     public String getService() {
         return service;
     }
@@ -142,6 +185,14 @@ public class VendorLeadResponse {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public String getDeclineReason() {
+        return declineReason;
+    }
+
+    public void setDeclineReason(String declineReason) {
+        this.declineReason = declineReason;
     }
 
     public VendorLeadStatus getStatus() {
