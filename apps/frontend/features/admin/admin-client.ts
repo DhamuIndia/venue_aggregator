@@ -31,6 +31,15 @@ export type AdminVendorReview = {
   moderatedAt?: string;
 };
 
+export type AdminPendingMedia = {
+  id: string;
+  type: "HALL" | "VENDOR";
+  listingId: string;
+  listingName: string;
+  url: string;
+  isPrimary: boolean;
+};
+
 export type ManagedAdminRole = Extract<AdminUser["role"], "ADMIN" | "SUPER_ADMIN">;
 
 export type CreateAdminUserPayload = {
@@ -242,6 +251,36 @@ export async function getAdminVendorReviews(accessToken: string | null) {
   return extractList(response)
     .map(toAdminVendorReview)
     .filter(Boolean) as AdminVendorReview[];
+}
+
+export async function getPendingAdminMedia(accessToken?: string | null): Promise<AdminPendingMedia[]> {
+  if (useMockAdmin || !accessToken) return [];
+  const response = await apiRequest<unknown>("/admin/media/pending", { token: accessToken });
+  return extractList(response).map(toAdminPendingMedia).filter(Boolean) as AdminPendingMedia[];
+}
+
+export async function approveAdminMedia(type: AdminPendingMedia["type"], id: string, accessToken?: string | null) {
+  if (useMockAdmin || !accessToken) return;
+  await apiRequest<void>(`/admin/media/${type}/${encodeURIComponent(id)}/approve`, {
+    method: "PATCH",
+    token: accessToken
+  });
+}
+
+export async function rejectAdminMedia(
+  type: AdminPendingMedia["type"],
+  id: string,
+  accessToken?: string | null
+) {
+  if (useMockAdmin || !accessToken) return;
+
+  await apiRequest<void>(
+    `/admin/media/${type}/${encodeURIComponent(id)}/reject`,
+    {
+      method: "PATCH",
+      token: accessToken
+    }
+  );
 }
 
 async function getAdminEnquiries(accessToken: string) {
@@ -560,6 +599,23 @@ function toAuditEvent(value: unknown): (typeof auditEvents)[number] | undefined 
     subject: stringValue(value, ["subject", "resourceName", "resource_name"]) ?? "",
     actor: stringValue(value, ["actor", "actorName", "actor_name"]) ?? "Admin",
     timestamp: stringValue(value, ["timestamp", "createdAt", "created_at"]) ?? ""
+  };
+}
+
+function toAdminPendingMedia(value: unknown): AdminPendingMedia | undefined {
+  if (!isRecord(value)) return undefined;
+  const type = stringValue(value, ["type"])?.toUpperCase();
+  const id = stringValue(value, ["id", "mediaId", "media_id"]);
+  const listingId = stringValue(value, ["listingId", "listing_id", "vendorId", "hallId"]);
+  const url = stringValue(value, ["url", "mediaUrl", "media_url"]);
+  if ((type !== "HALL" && type !== "VENDOR") || !id || !listingId || !url) return undefined;
+  return {
+    id,
+    type,
+    listingId,
+    listingName: stringValue(value, ["listingName", "listing_name", "vendorName", "hallName"]) ?? "Listing",
+    url,
+    isPrimary: booleanValue(value, ["isPrimary", "primary", "isCover"]) ?? false
   };
 }
 

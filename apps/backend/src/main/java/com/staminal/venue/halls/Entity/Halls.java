@@ -101,6 +101,9 @@ public class Halls {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @Column(name = "pending_update_payload", columnDefinition = "text")
+    private String pendingUpdatePayload;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -416,6 +419,10 @@ public class Halls {
     public void setRejectionReason(String rejectionReason) {
         this.rejectionReason = rejectionReason;
     }
+
+    public String getPendingUpdatePayload() { return pendingUpdatePayload; }
+
+    public void setPendingUpdatePayload(String pendingUpdatePayload) { this.pendingUpdatePayload = pendingUpdatePayload; }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;

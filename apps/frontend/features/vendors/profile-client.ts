@@ -24,6 +24,7 @@ export type VendorProfileDraft = {
   startingPrice: number;
   packageDescription: string;
   status: VendorProfileStatus;
+  pendingUpdate?: boolean;
   rejectionReason?: string;
   updatedAt?: string;
 };
@@ -83,10 +84,8 @@ export async function saveVendorProfile(payload: VendorProfileDraft, accessToken
 }
 
 export async function submitVendorProfile(payload: VendorProfileDraft, accessToken?: string | null) {
-  const savedProfile = await saveVendorProfile(payload, accessToken);
-
   if (useMockVendorProfile || !accessToken) {
-    return saveLocalVendorProfile({ ...savedProfile, status: "PENDING_APPROVAL" }, accessToken);
+    return saveLocalVendorProfile({ ...payload, status: "PENDING_APPROVAL" }, accessToken);
   }
 
   try {
@@ -94,14 +93,14 @@ export async function submitVendorProfile(payload: VendorProfileDraft, accessTok
       method: "POST",
       token: accessToken
     });
-    const profile = toVendorProfile(response) ?? { ...savedProfile, status: "PENDING_APPROVAL" as const, updatedAt: new Date().toISOString() };
+    const profile = toVendorProfile(response) ?? { ...payload, status: "PENDING_APPROVAL" as const, updatedAt: new Date().toISOString() };
     saveLocalVendorProfile(profile, accessToken);
     return profile;
   } catch (exception) {
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return saveLocalVendorProfile({ ...savedProfile, status: "PENDING_APPROVAL" }, accessToken);
+    return saveLocalVendorProfile({ ...payload, status: "PENDING_APPROVAL" }, accessToken);
   }
 }
 
@@ -165,6 +164,7 @@ function toVendorProfile(value: unknown): VendorProfileDraft | undefined {
     startingPrice: numberValue(record, ["startingPrice", "starting_price"]) ?? firstPackageNumber(record, "price") ?? fallbackVendorProfile.startingPrice,
     packageDescription: stringValue(record, ["packageDescription", "package_description"]) ?? firstPackageValue(record, "description") ?? "",
     status: statusValue(record) ?? "DRAFT",
+    pendingUpdate: record.pendingUpdate === true,
     rejectionReason: stringValue(record, ["rejectionReason", "rejection_reason"]) ?? "",
     updatedAt: stringValue(record, ["updatedAt", "updated_at"])
   };

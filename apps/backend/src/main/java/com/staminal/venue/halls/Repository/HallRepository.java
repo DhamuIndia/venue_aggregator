@@ -11,6 +11,8 @@ public interface HallRepository extends JpaRepository<Halls, Long> {
 
     List<Halls> findByStatus(HallStatus status);
 
+    List<Halls> findByPendingUpdatePayloadIsNotNull();
+
     List<Halls> findByOwnerUserId(User ownerUserId);
 
     List<Halls> findByOwnerUserId_Id(Long ownerUserId);

@@ -22,8 +22,10 @@ import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Dto.UpdateHallRequest;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.halls.Service.HallsService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -38,6 +40,7 @@ public class AdminHallModerationService {
     private final UserRepository userRepository;
     private final AdminRepository adminRepository;
     private final AuditService auditService;
+    private final HallsService hallsService;
 
     @Transactional(readOnly = true)
     public AdminHallListResponse getHalls(String status, int page, int size) {
@@ -45,7 +48,9 @@ public class AdminHallModerationService {
         int safeSize = Math.min(Math.max(size, 1), 100);
         HallStatus hallStatus = toHallStatus(status);
 
-        List<Halls> filtered = (hallStatus == null ? hallRepository.findAll() : hallRepository.findByStatus(hallStatus))
+        List<Halls> filtered = (hallStatus == HallStatus.PENDING_APPROVAL
+                ? Stream.concat(hallRepository.findByStatus(HallStatus.PENDING_APPROVAL).stream(), hallRepository.findByPendingUpdatePayloadIsNotNull().stream()).distinct().toList()
+                : hallStatus == null ? hallRepository.findAll() : hallRepository.findByStatus(hallStatus))
                 .stream()
                 .sorted(Comparator.comparing(Halls::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
@@ -74,15 +79,22 @@ public class AdminHallModerationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rejection reason is required");
         }
 
-        if (hall.getStatus() != HallStatus.PENDING_APPROVAL) {
+        boolean pendingProfile = hall.getStatus() == HallStatus.PENDING_APPROVAL;
+        boolean pendingUpdate = hall.getStatus() == HallStatus.APPROVED && hall.getPendingUpdatePayload() != null;
+        if (!pendingProfile && !pendingUpdate) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending hall listings can be reviewed");
         }
 
         Reviewer reviewer = currentAdmin(authentication);
         LocalDateTime reviewedAt = LocalDateTime.now();
 
-        hall.setStatus(decision);
-        hall.setRejectionReason(decision == HallStatus.REJECTED ? request.reason().trim() : null);
+        if (pendingUpdate) {
+            if (decision == HallStatus.APPROVED) hallsService.approvePendingUpdate(hall);
+            else hallsService.rejectPendingUpdate(hall);
+        } else {
+            hall.setStatus(decision);
+            hall.setRejectionReason(decision == HallStatus.REJECTED ? request.reason().trim() : null);
+        }
         hall.setApprovedBy(reviewer.legacyAdmin().orElse(null));
         hall.setApprovedAt(reviewedAt);
         hall.setUpdatedAt(reviewedAt);
@@ -131,6 +143,7 @@ public class AdminHallModerationService {
     }
 
     private AdminHallResponse toResponse(Halls hall, String reviewerOverride) {
+        UpdateHallRequest pending = hallsService.pendingUpdateFor(hall);
         Long reviewedBy = hall.getApprovedBy() == null
                 ? null
                 : hall.getApprovedBy().getId();
@@ -139,20 +152,20 @@ public class AdminHallModerationService {
 
         return new AdminHallResponse(
                 String.valueOf(hall.getId()),
-                firstText(hall.getName(), "Hall"),
+                firstText(pending == null ? null : pending.getName(), hall.getName(), "Hall"),
                 firstText(hall.getOwnerName(),
                         hall.getOwnerUserId() == null ? null : hall.getOwnerUserId().getFullName(), "Owner"),
                 firstText(hall.getOwnerUserId() == null ? null : hall.getOwnerUserId().getPhone(),
                         hall.getContactNumber(), ""),
-                location(hall),
-                firstText(hall.getHallType(), "Venue"),
-                hall.getCapacityMax(),
-                firstNonNull(hall.getFullDayAmount(), hall.getEveningAmount(), hall.getMorningAmount()),
+                pending == null ? location(hall) : location(pending, hall),
+                firstText(pending == null ? null : pending.getVenueType(), hall.getHallType(), "Venue"),
+                pending == null ? hall.getCapacityMax() : firstNonNull(pending.getCapacityMax(), pending.getCapacity(), hall.getCapacityMax()),
+                pending == null ? firstNonNull(hall.getFullDayAmount(), hall.getEveningAmount(), hall.getMorningAmount()) : firstNonNull(pending.getStartingPrice(), hall.getFullDayAmount(), hall.getEveningAmount(), hall.getMorningAmount()),
                 hall.getCreatedAt(),
                 hall.getUpdatedAt(),
                 imageUrl,
                 imageUrls,
-                toModerationStatus(hall.getStatus()),
+                hall.getPendingUpdatePayload() != null ? "PENDING_APPROVAL" : toModerationStatus(hall.getStatus()),
                 hall.getRejectionReason(),
                 reviewedBy,
                 hall.getApprovedAt());
@@ -252,6 +265,14 @@ public class AdminHallModerationService {
         if (!hasText(city)) {
             return area;
         }
+        return area + ", " + city;
+    }
+
+    private String location(UpdateHallRequest pending, Halls hall) {
+        String area = firstText(pending.getArea(), hall.getArea(), "");
+        String city = firstText(pending.getCity(), hall.getCity(), "");
+        if (!hasText(area)) return city;
+        if (!hasText(city)) return area;
         return area + ", " + city;
     }
 

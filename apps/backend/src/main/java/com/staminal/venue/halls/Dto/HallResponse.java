@@ -76,6 +76,7 @@ public class HallResponse {
     private Integer reviewCount;
 
     private String status;
+    private boolean pendingUpdate;
 
     private String listingStatus;
 
@@ -286,6 +287,8 @@ public class HallResponse {
     public void setStatus(String status) {
         this.status = status;
     }
+    public boolean isPendingUpdate() { return pendingUpdate; }
+    public void setPendingUpdate(boolean pendingUpdate) { this.pendingUpdate = pendingUpdate; }
 
     public String getListingStatus() {
         return listingStatus;

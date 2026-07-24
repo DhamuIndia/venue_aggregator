@@ -84,7 +84,7 @@ public class PublicVendorService {
     }
 
     private PublicVendorResponse mapToResponse(Vendors vendor) {
-        List<VendorMedia> media = vendorMediaRepository.findByVendor_Id(vendor.getId())
+        List<VendorMedia> media = vendorMediaRepository.findByVendor_IdAndApprovedTrue(vendor.getId())
                 .stream()
                 .sorted(Comparator
                         .comparing((VendorMedia item) -> item.getSortOrder() == null ? 0 : item.getSortOrder())

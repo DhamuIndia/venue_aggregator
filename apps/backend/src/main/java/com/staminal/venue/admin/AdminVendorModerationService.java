@@ -22,9 +22,11 @@ import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Dto.VendorResponse;
+import com.staminal.venue.vendors.Dto.UpdateVendorRequest;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
+import com.staminal.venue.vendors.Service.VendorService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -38,6 +40,7 @@ public class AdminVendorModerationService {
     private final AuditService auditService;
     private final AdminRepository adminRepository;
     private final UserRepository userRepository;
+    private final VendorService vendorService;
 
     @Transactional(readOnly = true)
     public AdminVendorListResponse getVendors(String status, int page, int size) {
@@ -45,8 +48,9 @@ public class AdminVendorModerationService {
         int safeSize = Math.min(Math.max(size, 1), 100);
         VendorStatus vendorStatus = toVendorStatus(status);
 
-        List<Vendors> filtered = (vendorStatus == null ? vendorRepository.findAll()
-                : vendorRepository.findByStatus(vendorStatus))
+        List<Vendors> filtered = (vendorStatus == VendorStatus.PENDING
+                ? java.util.stream.Stream.concat(vendorRepository.findByStatus(VendorStatus.PENDING).stream(), vendorRepository.findByPendingUpdatePayloadIsNotNull().stream()).distinct().toList()
+                : vendorStatus == null ? vendorRepository.findAll() : vendorRepository.findByStatus(vendorStatus))
                 .stream()
                 .sorted(Comparator.comparing(Vendors::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
@@ -74,13 +78,21 @@ public class AdminVendorModerationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rejection reason is required");
         }
 
-        if (vendor.getStatus() != VendorStatus.PENDING) {
+        boolean pendingProfile = vendor.getStatus() == VendorStatus.PENDING;
+        boolean pendingUpdate = vendor.getStatus() == VendorStatus.APPROVED && vendor.getPendingUpdatePayload() != null;
+        if (!pendingProfile && !pendingUpdate) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending vendor profiles can be reviewed");
         }
 
         Admin reviewer = currentAdmin(authentication).orElse(null);
-        vendor.setStatus(decision);
-        vendor.setRejectionReason(decision == VendorStatus.REJECTED ? request.reason().trim() : null);
+        if (pendingUpdate) {
+            if (decision == VendorStatus.APPROVED) vendorService.approvePendingUpdate(vendor);
+            else vendorService.rejectPendingUpdate(vendor);
+            vendor = vendorRepository.findById(vendor.getId()).orElseThrow();
+        } else {
+            vendor.setStatus(decision);
+            vendor.setRejectionReason(decision == VendorStatus.REJECTED ? request.reason().trim() : null);
+        }
         vendor.setReviewedByAdmin(reviewer);
         vendor.setReviewedAt(Instant.now());
         vendor.setUpdatedAt(Instant.now());
@@ -129,15 +141,16 @@ public class AdminVendorModerationService {
     }
 
     private AdminVendorResponse toResponse(Vendors vendor) {
+        UpdateVendorRequest pending = vendorService.pendingUpdateFor(vendor);
         return new AdminVendorResponse(
                 String.valueOf(vendor.getId()),
-                firstText(vendor.getBusinessName(), vendor.getVendorName(), "Vendor"),
+                firstText(pending == null ? null : pending.getBusinessName(), vendor.getBusinessName(), vendor.getVendorName(), "Vendor"),
                 firstText(vendor.getVendorName(), vendor.getUser() == null ? null : vendor.getUser().getFullName(),
                         "Vendor"),
-                category(vendor),
-                firstText(vendor.getCity(), ""),
+                firstText(pending == null ? null : pending.getCategory(), category(vendor)),
+                firstText(pending == null ? null : pending.getCity(), vendor.getCity(), ""),
                 firstNonNull(vendor.getReviewedAt(), vendor.getUpdatedAt(), vendor.getCreatedAt()),
-                toModerationStatus(vendor.getStatus()),
+                vendor.getPendingUpdatePayload() != null ? "PENDING_APPROVAL" : toModerationStatus(vendor.getStatus()),
                 vendor.getRejectionReason(),
                 vendor.getReviewedByAdmin() == null ? null
                         : vendor.getReviewedByAdmin() == null
@@ -293,6 +306,30 @@ public class AdminVendorModerationService {
         response.setServices(vendor.getServices());
         response.setStatus(toModerationStatus(vendor.getStatus()));
         response.setRejectionReason(vendor.getRejectionReason());
+
+        UpdateVendorRequest pending = vendorService.pendingUpdateFor(vendor);
+        if (pending != null) {
+            response.setBusinessName(firstText(pending.getBusinessName(), response.getBusinessName()));
+            response.setCategory(firstText(pending.getCategory(), response.getCategory()));
+            response.setDescription(pending.getDescription());
+            response.setCoverImageUrl(firstText(pending.getCoverImageUrl(), response.getCoverImageUrl()));
+            response.setAddressLine(firstText(pending.getAddressLine(), response.getAddressLine()));
+            response.setCity(firstText(pending.getCity(), response.getCity()));
+            response.setArea(firstText(pending.getArea(), response.getArea()));
+            response.setPincode(firstText(pending.getPincode(), response.getPincode()));
+            response.setContactNumber(firstText(pending.getContactNumber(), response.getContactNumber()));
+            response.setWhatsAppNumber(firstText(pending.getWhatsAppNumber(), response.getWhatsAppNumber()));
+            response.setInstagramUrl(pending.getInstagramUrl());
+            response.setFacebookUrl(pending.getFacebookUrl());
+            response.setWhatsAppUrl(pending.getWhatsAppUrl());
+            response.setYearsInBusiness(pending.getYearsInBusiness());
+            response.setServiceRadius(pending.getServiceRadius());
+            response.setServices(pending.getServices());
+            response.setPackageName(pending.getPackageName());
+            response.setStartingPrice(pending.getStartingPrice());
+            response.setPackageDescription(pending.getPackageDescription());
+            response.setStatus("PENDING_APPROVAL");
+        }
 
         return response;
     }

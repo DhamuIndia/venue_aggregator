@@ -16,4 +16,8 @@ public interface VendorMediaRepository
 
     Optional<VendorMedia> findByIdAndVendor_User_Id(Long id, Long userId);
 
+    List<VendorMedia> findByVendor_IdAndApprovedTrue(Long vendorId);
+
+    List<VendorMedia> findByApprovedFalse();
+
 }

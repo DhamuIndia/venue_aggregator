@@ -33,6 +33,9 @@ public class HallMedia {
     @Column(name = "is_primary")
     private Boolean isPrimary;
 
+    @Column(name = "approved", nullable = false)
+    private Boolean approved = false;
+
     @Column(name = "sort_order")
     private Integer sortOrder;
 
@@ -85,6 +88,14 @@ public class HallMedia {
 
     public void setIsPrimary(Boolean isPrimary) {
         this.isPrimary = isPrimary;
+    }
+
+    public Boolean getApproved() {
+        return approved;
+    }
+
+    public void setApproved(Boolean approved) {
+        this.approved = approved;
     }
 
     public Integer getSortOrder() {

@@ -12,6 +12,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.staminal.venue.availability.AvailabilityService;
 import com.staminal.venue.availability.Dto.AvailabilitySummary;
 import com.staminal.venue.enums.HallStatus;
@@ -41,6 +44,7 @@ public class HallsService {
     private final HallMediaRepository hallMediaRepository;
     private final ReviewRepository reviewRepository;
     private final AvailabilityService availabilityService;
+    private final ObjectMapper objectMapper;
 
     public HallResponse createHall(CreateHallRequest request, Authentication authentication) {
         User owner = currentUser(authentication);
@@ -74,6 +78,11 @@ public class HallsService {
             UpdateHallRequest request,
             Authentication authentication) {
         Halls hall = findOwnedHall(hallId, authentication);
+        if (hall.getStatus() == HallStatus.APPROVED) {
+            hall.setPendingUpdatePayload(serializePendingUpdate(request));
+            hall.setUpdatedAt(LocalDateTime.now());
+            return mapToResponse(hallRepository.save(hall), false);
+        }
         applyRequest(hall, request);
         hall.setStatus(HallStatus.DRAFT);
         hall.setRejectionReason(null);
@@ -87,6 +96,9 @@ public class HallsService {
         Halls hall = findOwnedHall(hallId, authentication);
 
         if (hall.getStatus() == HallStatus.APPROVED) {
+            if (hall.getPendingUpdatePayload() != null) {
+                return mapToResponse(hall, false);
+            }
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Approved hall is already live");
@@ -99,6 +111,29 @@ public class HallsService {
         hall.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(hallRepository.save(hall), false);
+    }
+
+    public void approvePendingUpdate(Halls hall) {
+        if (hall.getPendingUpdatePayload() == null) return;
+        try {
+            applyRequest(hall, objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class));
+            hall.setPendingUpdatePayload(null);
+        } catch (JsonProcessingException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending hall update is invalid", exception);
+        }
+    }
+
+    public void rejectPendingUpdate(Halls hall) { hall.setPendingUpdatePayload(null); }
+
+    public UpdateHallRequest pendingUpdateFor(Halls hall) {
+        if (hall.getPendingUpdatePayload() == null) return null;
+        try { return objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class); }
+        catch (JsonProcessingException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending hall update is invalid", exception); }
+    }
+
+    private String serializePendingUpdate(UpdateHallRequest request) {
+        try { return objectMapper.writeValueAsString(request); }
+        catch (JsonProcessingException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not save hall update", exception); }
     }
 
     private boolean isBlank(String value) {
@@ -402,6 +437,7 @@ public class HallsService {
 
         response.setReviews(reviewList);
         response.setStatus(hall.getStatus() != null ? hall.getStatus().name() : null);
+        response.setPendingUpdate(hall.getPendingUpdatePayload() != null);
         response.setListingStatus(hall.getStatus() != null ? hall.getStatus().name() : null);
         response.setRejectionReason(hall.getRejectionReason());
         response.setStartingPrice(startingPrice(hall));
@@ -440,7 +476,7 @@ public class HallsService {
     }
 
     private List<String> galleryUrls(Halls hall) {
-        List<String> mediaUrls = hallMediaRepository.findByHallId_Id(hall.getId())
+        List<String> mediaUrls = hallMediaRepository.findByHallId_IdAndApprovedTrue(hall.getId())
                 .stream()
                 .sorted(Comparator
                         .comparing((HallMedia media) -> !Boolean.TRUE.equals(media.getIsPrimary()))

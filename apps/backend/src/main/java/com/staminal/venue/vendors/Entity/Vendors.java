@@ -114,6 +114,9 @@ public class Vendors {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @Column(name = "pending_update_payload", columnDefinition = "text")
+    private String pendingUpdatePayload;
+
     @OneToOne
     @JoinColumn(name = "reviewed_by_admin_id")
     private Admin reviewedByAdmin;
@@ -214,6 +217,10 @@ public class Vendors {
     public void setRejectionReason(String rejectionReason) {
         this.rejectionReason = rejectionReason;
     }
+
+    public String getPendingUpdatePayload() { return pendingUpdatePayload; }
+
+    public void setPendingUpdatePayload(String pendingUpdatePayload) { this.pendingUpdatePayload = pendingUpdatePayload; }
 
     public Admin getReviewedByAdmin() {
         return reviewedByAdmin;

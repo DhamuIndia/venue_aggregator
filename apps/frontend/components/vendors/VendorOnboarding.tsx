@@ -52,11 +52,29 @@ export function VendorOnboarding() {
       setError("");
 
       try {
+        // const profile = await getVendorProfile(accessToken);
+        // if (!isCurrent) return;
+        // setForm(formFromProfile(profile));
+        // setServices(supportedServices(profile.services));
+        // if (profile.status === "PENDING_APPROVAL") setNotice("This profile is already submitted for admin approval.");
         const profile = await getVendorProfile(accessToken);
+
+        if (profile.pendingUpdate) {
+          setNotice(
+            "Your previous business update is waiting for admin approval."
+          );
+
+          router.push("/vendor");
+          return;
+        }
+
         if (!isCurrent) return;
         setForm(formFromProfile(profile));
         setServices(supportedServices(profile.services));
-        if (profile.status === "PENDING_APPROVAL") setNotice("This profile is already submitted for admin approval.");
+
+        if (profile.status === "PENDING_APPROVAL") {
+          setNotice("This profile is already submitted for admin approval.");
+        }
       } catch {
         if (!isCurrent) return;
         setError("Could not load vendor profile.");

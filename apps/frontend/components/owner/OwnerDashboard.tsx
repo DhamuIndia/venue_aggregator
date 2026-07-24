@@ -1533,6 +1533,7 @@ export function OwnerDashboard() {
             </div>
 
             {listingError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{listingError}</p>}
+            {listing.pendingUpdate && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">An updated listing is already pending admin approval. You can edit again after it has been approved or rejected.</p>}
             {listing.status === "REJECTED" && listing.rejectionReason && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{listing.rejectionReason}</p>}
 
             {isLoadingListing ? (
@@ -1585,10 +1586,10 @@ export function OwnerDashboard() {
                   </fieldset>
 
                   <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={listing.pendingUpdate || isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
                       {isSavingListing ? <LoaderCircle className="animate-spin" size={17} /> : <Check size={17} />} Save draft
                     </button>
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={listing.pendingUpdate || isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
                       {isSubmittingListing ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit for approval
                     </button>
                   </div>

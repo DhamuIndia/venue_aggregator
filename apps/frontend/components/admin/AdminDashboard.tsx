@@ -31,6 +31,9 @@ import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
 import {
   createAdminUser,
+  approveAdminMedia,
+  rejectAdminMedia,
+  getPendingAdminMedia,
   getAdminQueues,
   getAdminVendor,
   getAdminVendorReviews,
@@ -42,6 +45,7 @@ import {
   updateAdminUserRole,
   updateAdminUserStatus,
   type AdminVendorReview,
+  type AdminPendingMedia,
   type ManagedAdminRole
 } from "@/features/admin/admin-client";
 import {
@@ -131,6 +135,8 @@ export function AdminDashboard() {
   const [vendors, setVendors] = useState<VendorApplication[]>([]);
   const [reviews, setReviews] = useState<ReportedReview[]>([]);
   const [vendorReviews, setVendorReviews] = useState<AdminVendorReview[]>([]);
+  const [pendingMedia, setPendingMedia] = useState<AdminPendingMedia[]>([]);
+  const [approvingMediaId, setApprovingMediaId] = useState<string | null>(null);
   const [enquiries, setEnquiries] = useState<AdminEnquiry[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [analytics, setAnalytics] = useState<AdminAnalytics>(emptyAdminAnalytics);
@@ -166,6 +172,9 @@ export function AdminDashboard() {
 
   const pendingVenueCount = venues.filter((venue) => venue.status === "PENDING_APPROVAL").length;
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
+  const pendingVendorMediaCount = pendingMedia.filter((media) => media.type === "VENDOR").length;
+  const pendingHallMediaCount =
+    pendingMedia.filter((media) => media.type === "HALL").length;
   const reportedReviewCount = reviews.filter((review) => review.status === "REPORTED").length;
   const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const suspendedUserCount = users.filter((user) => user.status === "SUSPENDED").length;
@@ -215,6 +224,25 @@ export function AdminDashboard() {
     }
 
     loadAdminQueues();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadPendingMedia() {
+      try {
+        const media = await getPendingAdminMedia(accessToken);
+        if (isCurrent) setPendingMedia(media);
+      } catch {
+        // Keep the existing approvals dashboard usable if this optional queue is unavailable.
+      }
+    }
+
+    loadPendingMedia();
 
     return () => {
       isCurrent = false;
@@ -293,6 +321,46 @@ export function AdminDashboard() {
       setNotice(status === "APPROVED" ? "Vendor approved and notified." : "Vendor rejected with correction guidance.");
     } catch (exception) {
       setNotice(exception instanceof Error ? exception.message : "Could not update vendor approval.");
+    }
+  }
+
+  async function approvePendingMedia(media: AdminPendingMedia) {
+    const mediaKey = `${media.type}-${media.id}`;
+
+    try {
+      setApprovingMediaId(mediaKey);
+      await approveAdminMedia(media.type, media.id, accessToken);
+      setPendingMedia((current) => current.filter((item) => `${item.type}-${item.id}` !== mediaKey));
+      setNotice(`${media.type === "VENDOR" ? "Vendor" : "Venue"} image approved and is now visible publicly.`);
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not approve this image.");
+    } finally {
+      setApprovingMediaId(null);
+    }
+  }
+
+  async function rejectPendingMedia(media: AdminPendingMedia) {
+    try {
+      await rejectAdminMedia(
+        media.type,
+        media.id,
+        accessToken
+      );
+
+      setPendingMedia(current =>
+        current.filter(item =>
+          `${item.type}-${item.id}` !==
+          `${media.type}-${media.id}`
+        )
+      );
+
+      setNotice(`${media.type === "VENDOR" ? "Vendor" : "Venue"} image rejected.`);
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not reject image."
+      );
     }
   }
 
@@ -444,8 +512,8 @@ export function AdminDashboard() {
   }
 
   const tabBadge: Partial<Record<AdminTab, number>> = {
-    venues: pendingVenueCount,
-    vendors: pendingVendorCount,
+    venues: pendingVenueCount + pendingHallMediaCount,
+    vendors: pendingVendorCount + pendingVendorMediaCount,
     users: suspendedUserCount + pendingUserCount,
     reviews: reportedReviewCount,
     vendorReviews: vendorReviews.filter(
@@ -512,6 +580,37 @@ export function AdminDashboard() {
         {activeTab === "venues" && (
           <section className="py-7">
             <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Venue applications</h2><p className="mt-1 text-sm text-muted-foreground">Verify listing details and ownership documents.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setVenueFilter(event.target.value as "ALL" | ModerationStatus)} value={venueFilter}><option value="ALL">All applications</option><option value="PENDING_APPROVAL">Pending approval</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select></label></div>
+            <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">venue images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Only approved images are shown on the public venue profile.</p>
+                </div>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingMedia.filter(media => media.type === "HALL").length} pending</span>
+              </div>
+              {pendingMedia.filter((media) => media.type === "HALL").length === 0 ? (
+                <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No venue images are waiting for approval.</p>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pendingMedia.filter((media) => media.type === "HALL").map((media) => {
+                    const mediaKey = `${media.type}-${media.id}`;
+                    const isApproving = approvingMediaId === mediaKey;
+                    return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>
+                      <img alt={`${media.listingName} venue image`} className="h-40 w-full bg-muted object-cover" src={media.url} />
+                      <div className="p-3">
+                        <p className="truncate font-medium">{media.listingName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{media.isPrimary ? "Cover image" : "Portfolio image"} · {media.listingId}</p>
+                        <button className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isApproving} onClick={() => void approvePendingMedia(media)} type="button"><Check size={16} />{isApproving ? "Approving..." : "Approve image"}</button>
+                        <button className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-red-300 text-red-700" onClick={() => void rejectPendingMedia(media)} type="button"
+                        >
+                          Reject image
+                        </button>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              )}
+            </section>
             <div className="mt-5 grid gap-4">
               {filteredVenues.map((venue) => {
                 const documentReviewRequired = venue.documentReviewRequired ?? true;
@@ -527,6 +626,39 @@ export function AdminDashboard() {
         {activeTab === "vendors" && (
           <section className="py-7">
             <div><h2 className="text-xl font-semibold">Vendor applications</h2><p className="mt-1 text-sm text-muted-foreground">Review service category and business identity.</p></div>
+            <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Portfolio images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Only approved images are shown on the public vendor profile.</p>
+                </div>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingVendorMediaCount} pending</span>
+              </div>
+              {pendingMedia.filter((media) => media.type === "VENDOR").length === 0 ? (
+                <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No vendor portfolio images are waiting for approval.</p>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pendingMedia.filter((media) => media.type === "VENDOR").map((media) => {
+                    const mediaKey = `${media.type}-${media.id}`;
+                    const isApproving = approvingMediaId === mediaKey;
+                    return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>
+                      <img alt={`${media.listingName} portfolio upload`} className="h-40 w-full bg-muted object-cover" src={media.url} />
+                      <div className="p-3">
+                        <p className="truncate font-medium">{media.listingName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{media.isPrimary ? "Cover image" : "Portfolio image"} · {media.listingId}</p>
+                        <button className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isApproving} onClick={() => void approvePendingMedia(media)} type="button"><Check size={16} />{isApproving ? "Approving..." : "Approve image"}</button>
+                        <button className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-red-300 text-red-700"
+                          onClick={() => void rejectPendingMedia(media)}
+                          type="button"
+                        >
+                          Reject image
+                        </button>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              )}
+            </section>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[1.3fr_0.8fr_1fr_120px_300px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => {

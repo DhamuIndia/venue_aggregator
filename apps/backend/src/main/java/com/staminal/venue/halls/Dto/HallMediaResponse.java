@@ -8,6 +8,7 @@ public class HallMediaResponse {
     private String url;
     private Boolean isPrimary;
     private Integer sortOrder;
+    private Boolean approved;
 
     public Long getId() {
         return id;
@@ -55,6 +56,14 @@ public class HallMediaResponse {
 
     public void setSortOrder(Integer sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public Boolean getApproved() {
+        return approved;
+    }
+
+    public void setApproved(Boolean approved) {
+        this.approved = approved;
     }
 
 }
