@@ -3,6 +3,7 @@ package com.staminal.venue.requirements;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.staminal.venue.audit.AuditCommand;
 import com.staminal.venue.audit.AuditService;
@@ -29,6 +31,7 @@ import com.staminal.venue.leads.VendorLead;
 import com.staminal.venue.leads.VendorLeadRepository;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
+import com.staminal.venue.notifications.queue.MarketplaceVendorLeadCreatedEvent;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
@@ -49,6 +52,9 @@ class RequirementMatchingServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private RequirementMatchingService service;
 
     @BeforeEach
@@ -57,7 +63,8 @@ class RequirementMatchingServiceTest {
                 vendorRepository,
                 vendorLeadRepository,
                 notificationService,
-                auditService);
+                auditService,
+                eventPublisher);
     }
 
     @Test
@@ -75,7 +82,7 @@ class RequirementMatchingServiceTest {
 
         when(vendorRepository.findByStatus(VendorStatus.APPROVED)).thenReturn(List.of(vendor));
         when(vendorLeadRepository.existsByRequirement_IdAndVendor_Id(801L, 501L)).thenReturn(false);
-        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> savedLead(invocation.getArgument(0)));
 
         RequirementMatchResult result = service.distribute(requirement);
 
@@ -97,6 +104,7 @@ class RequirementMatchingServiceTest {
                 any(String.class),
                 any(String.class),
                 any(String.class));
+        verify(eventPublisher).publishEvent(new MarketplaceVendorLeadCreatedEvent(901L));
         verify(auditService).record(any(AuditCommand.class));
     }
 
@@ -114,7 +122,7 @@ class RequirementMatchingServiceTest {
 
         when(vendorRepository.findByStatus(VendorStatus.APPROVED)).thenReturn(List.of(vendor));
         when(vendorLeadRepository.existsByRequirement_IdAndVendor_Id(801L, 501L)).thenReturn(false);
-        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> savedLead(invocation.getArgument(0)));
 
         service.distribute(requirement);
 
@@ -162,7 +170,7 @@ class RequirementMatchingServiceTest {
         when(vendorRepository.findByStatus(VendorStatus.APPROVED))
                 .thenReturn(List.of(samePincode, inactive, unrelated, outOfArea));
         when(vendorLeadRepository.existsByRequirement_IdAndVendor_Id(801L, 501L)).thenReturn(false);
-        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(vendorLeadRepository.save(any(VendorLead.class))).thenAnswer(invocation -> savedLead(invocation.getArgument(0)));
 
         RequirementMatchResult result = service.distribute(requirement);
 
@@ -192,6 +200,7 @@ class RequirementMatchingServiceTest {
         assertThat(result).isEqualTo(new RequirementMatchResult(1, 0));
         verify(vendorLeadRepository, never()).save(any());
         verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any());
+        verify(eventPublisher, never()).publishEvent(any(MarketplaceVendorLeadCreatedEvent.class));
         verify(auditService).record(any(AuditCommand.class));
     }
 
@@ -211,6 +220,38 @@ class RequirementMatchingServiceTest {
                 "No matching vendor is available yet. Your requirement remains open.",
                 "/customer?tab=requirements");
         verify(vendorLeadRepository, never()).save(any());
+    }
+
+    @Test
+    void eventPublicationFailureDoesNotUndoCreatedLead() {
+        VendorCategory photography = category(1L, "Photography");
+        CustomerRequirement requirement = requirement(Set.of(photography), false);
+        Vendors vendor = vendor(
+                501L,
+                VendorStatus.APPROVED,
+                "ACTIVE",
+                "Chennai",
+                "600020",
+                Set.of(photography));
+
+        when(vendorRepository.findByStatus(VendorStatus.APPROVED)).thenReturn(List.of(vendor));
+        when(vendorLeadRepository.existsByRequirement_IdAndVendor_Id(801L, 501L)).thenReturn(false);
+        when(vendorLeadRepository.save(any(VendorLead.class)))
+                .thenAnswer(invocation -> savedLead(invocation.getArgument(0)));
+        doThrow(new IllegalStateException("event bus unavailable"))
+                .when(eventPublisher)
+                .publishEvent(any(MarketplaceVendorLeadCreatedEvent.class));
+
+        RequirementMatchResult result = service.distribute(requirement);
+
+        assertThat(result).isEqualTo(new RequirementMatchResult(1, 1));
+        verify(vendorLeadRepository).save(any(VendorLead.class));
+        verify(auditService).record(any(AuditCommand.class));
+    }
+
+    private VendorLead savedLead(VendorLead lead) {
+        lead.setId(901L);
+        return lead;
     }
 
     private CustomerRequirement requirement(Set<VendorCategory> categories, boolean shareContactDetails) {

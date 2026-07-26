@@ -8,6 +8,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +24,7 @@ import com.staminal.venue.leads.VendorLead;
 import com.staminal.venue.leads.VendorLeadRepository;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
+import com.staminal.venue.notifications.queue.MarketplaceVendorLeadCreatedEvent;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
@@ -33,10 +37,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RequirementMatchingService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(RequirementMatchingService.class);
+
     private final VendorRepository vendorRepository;
     private final VendorLeadRepository vendorLeadRepository;
     private final NotificationService notificationService;
     private final AuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public RequirementMatchResult distribute(CustomerRequirement requirement) {
         List<Vendors> eligibleVendors = vendorRepository.findByStatus(VendorStatus.APPROVED)
@@ -54,6 +61,7 @@ public class RequirementMatchingService {
 
             VendorLead lead = vendorLeadRepository.save(toLead(requirement, vendor));
             notifyVendor(lead, requirement);
+            publishLeadCreated(lead);
             createdLeadCount++;
         }
 
@@ -77,6 +85,21 @@ public class RequirementMatchingService {
                 null));
 
         return new RequirementMatchResult(eligibleVendors.size(), createdLeadCount);
+    }
+
+    private void publishLeadCreated(VendorLead lead) {
+        if (lead.getId() == null) {
+            LOGGER.error("Could not schedule notification queueing because the saved vendor lead has no id");
+            return;
+        }
+        try {
+            eventPublisher.publishEvent(new MarketplaceVendorLeadCreatedEvent(lead.getId()));
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "Could not schedule notification queueing for vendor lead {}",
+                    lead.getId(),
+                    exception);
+        }
     }
 
     @Transactional(readOnly = true)
