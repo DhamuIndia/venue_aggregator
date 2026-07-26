@@ -2,6 +2,7 @@ package com.staminal.venue.notifications.whatsapp;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -29,11 +30,17 @@ public class WhatsAppNotificationDispatcher {
             return WhatsAppDispatchBatchResult.disabled();
         }
 
+        Set<Long> allowedVendorIds = properties.getRolloutAllowedVendorIds();
+        if (allowedVendorIds.isEmpty()) {
+            return new WhatsAppDispatchBatchResult(false, 0, 0, 0, 0);
+        }
+
         properties.validateForSending();
         List<LeadNotificationDispatchCandidate> candidates =
                 stateService.claimReady(
                         properties.getBatchSize(),
-                        properties.getMaxAttempts());
+                        properties.getMaxAttempts(),
+                        allowedVendorIds);
         int sent = 0;
         int cancelled = 0;
         int failed = 0;
@@ -103,7 +110,8 @@ public class WhatsAppNotificationDispatcher {
     }
 
     private boolean isCurrentlyEligible(LeadNotificationDispatchCandidate candidate) {
-        return eligibilityService.isEligible(candidate.vendorId(), candidate.destination())
+        return properties.isRolloutVendorAllowed(candidate.vendorId())
+                && eligibilityService.isEligible(candidate.vendorId(), candidate.destination())
                 && LEAD_TEMPLATE_KEY.equals(candidate.templateKey())
                 && LeadReference.isValid(candidate.leadReference());
     }

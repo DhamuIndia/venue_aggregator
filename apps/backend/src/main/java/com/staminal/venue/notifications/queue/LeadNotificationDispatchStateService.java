@@ -3,6 +3,7 @@ package com.staminal.venue.notifications.queue;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,11 @@ public class LeadNotificationDispatchStateService {
     @Transactional
     public List<LeadNotificationDispatchCandidate> claimReady(
             int requestedBatchSize,
-            int maxAttempts) {
+            int maxAttempts,
+            Set<Long> allowedVendorIds) {
+        if (allowedVendorIds == null || allowedVendorIds.isEmpty()) {
+            return List.of();
+        }
         int batchSize = Math.max(1, Math.min(requestedBatchSize, MAX_BATCH_SIZE));
         Instant now = Instant.now();
         List<LeadNotificationJob> jobs = notificationJobRepository.findReadyForDispatch(
@@ -30,6 +35,7 @@ public class LeadNotificationDispatchStateService {
                 LeadNotificationJobStatus.FAILED,
                 now,
                 maxAttempts,
+                allowedVendorIds,
                 PageRequest.of(0, batchSize));
         List<LeadNotificationDispatchCandidate> candidates = new ArrayList<>(jobs.size());
 

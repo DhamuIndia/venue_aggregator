@@ -10,6 +10,7 @@ The application and both production compose files default to:
 
 ```text
 WHATSAPP_SENDING_ENABLED=false
+WHATSAPP_ROLLOUT_ALLOWED_VENDOR_IDS=
 ```
 
 When disabled:
@@ -18,6 +19,11 @@ When disabled:
 - no job is claimed or changed;
 - no HTTP request is made to Meta; and
 - Meta credentials are not required.
+
+The empty rollout allowlist is a second fail-closed gate. Even when global
+sending is enabled, no job is claimed and no Meta request is made until an
+explicitly consented vendor id is allowlisted. See
+[WhatsApp controlled rollout](whatsapp-controlled-rollout.md).
 
 ## Required configuration
 
@@ -30,6 +36,7 @@ WHATSAPP_ACCESS_TOKEN=<system-user access token>
 WHATSAPP_LEAD_TEMPLATE_NAME=<approved Meta template name>
 WHATSAPP_LEAD_TEMPLATE_LANGUAGE=en
 WHATSAPP_LEAD_TEMPLATE_URL_BUTTON_INDEX=0
+WHATSAPP_ROLLOUT_ALLOWED_VENDOR_IDS=<comma-separated consented pilot vendor ids>
 ```
 
 The Graph API version is intentionally not hard-coded because Meta versions it
@@ -70,6 +77,7 @@ contract.
 
 Immediately before the Meta call, VenueMart confirms that:
 
+- the vendor is still in the controlled rollout allowlist;
 - lead notifications remain enabled;
 - notifications are not paused;
 - consent remains present;

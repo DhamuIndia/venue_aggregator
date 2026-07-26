@@ -76,6 +76,7 @@ export type AdminVendorNotificationDelivery = {
   subscribedAtEvaluation: boolean;
   currentlySubscribed: boolean;
   currentlyEligible: boolean;
+  rolloutAllowed: boolean;
   evaluationOutcome: string;
   skipReason?: string | null;
   evaluatedAt?: string | null;
@@ -102,6 +103,7 @@ export type AdminRequirementNotificationList = {
   content: AdminRequirementNotificationSummary[];
   sendingEnabled: boolean;
   maxAttempts: number;
+  rolloutAllowedVendorIds: number[];
 };
 
 export type AdminRequirementNotificationDetail = {
@@ -109,6 +111,7 @@ export type AdminRequirementNotificationDetail = {
   vendors: AdminVendorNotificationDelivery[];
   sendingEnabled: boolean;
   maxAttempts: number;
+  rolloutAllowedVendorIds: number[];
 };
 
 export type AdminManualRetryResult = {

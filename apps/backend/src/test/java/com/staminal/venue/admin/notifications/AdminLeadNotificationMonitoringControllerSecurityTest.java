@@ -53,12 +53,13 @@ class AdminLeadNotificationMonitoringControllerSecurityTest {
     @WithMockUser(username = "301", roles = "ADMIN")
     void adminCanReadMonitoring() throws Exception {
         when(monitoringService.getRequirements(any(Authentication.class)))
-                .thenReturn(new RequirementList(List.of(), false, 3));
+                .thenReturn(new RequirementList(List.of(), false, 3, List.of()));
 
         mockMvc.perform(get("/v1/admin/requirements/notification-monitoring"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sendingEnabled").value(false))
-                .andExpect(jsonPath("$.maxAttempts").value(3));
+                .andExpect(jsonPath("$.maxAttempts").value(3))
+                .andExpect(jsonPath("$.rolloutAllowedVendorIds").isEmpty());
     }
 
     @Test

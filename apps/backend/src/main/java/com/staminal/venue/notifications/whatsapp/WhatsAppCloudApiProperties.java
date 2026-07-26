@@ -1,5 +1,9 @@
 package com.staminal.venue.notifications.whatsapp;
 
+import java.util.Collections;
+import java.util.Set;
+import java.util.TreeSet;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +19,7 @@ public class WhatsAppCloudApiProperties {
     private String leadTemplateName = "";
     private String leadTemplateLanguage = "en";
     private int leadTemplateUrlButtonIndex;
+    private Set<Long> rolloutAllowedVendorIds = Set.of();
     private int batchSize = 20;
     private long pollIntervalMs = 15000;
     private long initialDelayMs = 15000;
@@ -130,6 +135,27 @@ public class WhatsAppCloudApiProperties {
 
     public void setLeadTemplateUrlButtonIndex(int leadTemplateUrlButtonIndex) {
         this.leadTemplateUrlButtonIndex = leadTemplateUrlButtonIndex;
+    }
+
+    public Set<Long> getRolloutAllowedVendorIds() {
+        return rolloutAllowedVendorIds;
+    }
+
+    public void setRolloutAllowedVendorIds(Set<Long> rolloutAllowedVendorIds) {
+        if (rolloutAllowedVendorIds == null || rolloutAllowedVendorIds.isEmpty()) {
+            this.rolloutAllowedVendorIds = Set.of();
+            return;
+        }
+        if (rolloutAllowedVendorIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException(
+                    "WhatsApp rollout vendor ids must contain only positive numbers");
+        }
+        this.rolloutAllowedVendorIds = Collections.unmodifiableSet(
+                new TreeSet<>(rolloutAllowedVendorIds));
+    }
+
+    public boolean isRolloutVendorAllowed(Long vendorId) {
+        return vendorId != null && rolloutAllowedVendorIds.contains(vendorId);
     }
 
     public int getBatchSize() {

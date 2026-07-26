@@ -72,7 +72,8 @@ public class AdminLeadNotificationMonitoringService {
         return new RequirementList(
                 content,
                 whatsAppProperties.isSendingEnabled(),
-                whatsAppProperties.getMaxAttempts());
+                whatsAppProperties.getMaxAttempts(),
+                rolloutAllowedVendorIds());
     }
 
     @Transactional(readOnly = true)
@@ -89,7 +90,8 @@ public class AdminLeadNotificationMonitoringService {
                 data.summary(),
                 data.vendors(),
                 whatsAppProperties.isSendingEnabled(),
-                whatsAppProperties.getMaxAttempts());
+                whatsAppProperties.getMaxAttempts(),
+                rolloutAllowedVendorIds());
     }
 
     public ManualRetry scheduleManualRetry(
@@ -277,6 +279,7 @@ public class AdminLeadNotificationMonitoringService {
                 evaluation != null && evaluation.isSubscribedAtEvaluation(),
                 currentlySubscribed,
                 currentlyEligible,
+                whatsAppProperties.isRolloutVendorAllowed(vendorId),
                 evaluation == null
                         ? LeadNotificationEvaluationOutcome.LEGACY_NOT_RECORDED.name()
                         : evaluation.getOutcome().name(),
@@ -329,6 +332,9 @@ public class AdminLeadNotificationMonitoringService {
         }
         if (job.getAttemptCount() >= whatsAppProperties.getMaxAttempts()) {
             return RetryEligibility.deny("Maximum retry attempts reached");
+        }
+        if (!whatsAppProperties.isRolloutVendorAllowed(job.getVendor().getId())) {
+            return RetryEligibility.deny("Vendor is outside the controlled rollout allowlist");
         }
         if (!eligibilityService.isEligible(job.getVendor().getId(), job.getDestination())) {
             return RetryEligibility.deny("Vendor is opted out, paused, unsubscribed, or changed the destination");
@@ -423,6 +429,10 @@ public class AdminLeadNotificationMonitoringService {
             return "••••";
         }
         return "••••" + digits.substring(digits.length() - 4);
+    }
+
+    private List<Long> rolloutAllowedVendorIds() {
+        return List.copyOf(whatsAppProperties.getRolloutAllowedVendorIds());
     }
 
     private String firstText(String... values) {

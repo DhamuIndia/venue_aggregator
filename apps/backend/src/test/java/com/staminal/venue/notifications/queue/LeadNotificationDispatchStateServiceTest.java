@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,7 @@ class LeadNotificationDispatchStateServiceTest {
                 eq(LeadNotificationJobStatus.FAILED),
                 any(Instant.class),
                 eq(3),
+                eq(Set.of(501L)),
                 any(Pageable.class)))
                 .thenReturn(List.of(job));
         when(attemptRepository.save(any(WhatsAppNotificationAttempt.class)))
@@ -56,7 +59,8 @@ class LeadNotificationDispatchStateServiceTest {
         when(notificationJobRepository.saveAll(any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        List<LeadNotificationDispatchCandidate> candidates = service.claimReady(20, 3);
+        List<LeadNotificationDispatchCandidate> candidates =
+                service.claimReady(20, 3, Set.of(501L));
 
         assertThat(job.getStatus()).isEqualTo(LeadNotificationJobStatus.PROCESSING);
         assertThat(job.getAttemptCount()).isEqualTo(1);
@@ -114,6 +118,7 @@ class LeadNotificationDispatchStateServiceTest {
                 eq(LeadNotificationJobStatus.FAILED),
                 any(Instant.class),
                 eq(3),
+                eq(Set.of(501L)),
                 any(Pageable.class)))
                 .thenReturn(List.of(job));
         when(attemptRepository.save(any(WhatsAppNotificationAttempt.class)))
@@ -123,7 +128,8 @@ class LeadNotificationDispatchStateServiceTest {
                     return attempt;
                 });
 
-        List<LeadNotificationDispatchCandidate> candidates = service.claimReady(20, 3);
+        List<LeadNotificationDispatchCandidate> candidates =
+                service.claimReady(20, 3, Set.of(501L));
 
         assertThat(job.getStatus()).isEqualTo(LeadNotificationJobStatus.PROCESSING);
         assertThat(job.getAttemptCount()).isEqualTo(2);
@@ -131,6 +137,13 @@ class LeadNotificationDispatchStateServiceTest {
         assertThat(job.getNextRetryAt()).isNull();
         assertThat(candidates.getFirst().attemptId()).isEqualTo(802L);
         assertThat(candidates.getFirst().attemptNumber()).isEqualTo(2);
+    }
+
+    @Test
+    void emptyRolloutAllowlistCannotClaimOrChangeAnyJob() {
+        assertThat(service.claimReady(20, 3, Set.of())).isEmpty();
+
+        verifyNoInteractions(notificationJobRepository, attemptRepository);
     }
 
     @Test

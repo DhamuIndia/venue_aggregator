@@ -12,7 +12,8 @@ public final class AdminLeadNotificationMonitoringResponse {
     public record RequirementList(
             List<RequirementSummary> content,
             boolean sendingEnabled,
-            int maxAttempts) {
+            int maxAttempts,
+            List<Long> rolloutAllowedVendorIds) {
     }
 
     public record RequirementSummary(
@@ -39,7 +40,8 @@ public final class AdminLeadNotificationMonitoringResponse {
             RequirementSummary summary,
             List<VendorDelivery> vendors,
             boolean sendingEnabled,
-            int maxAttempts) {
+            int maxAttempts,
+            List<Long> rolloutAllowedVendorIds) {
     }
 
     public record VendorDelivery(
@@ -51,6 +53,7 @@ public final class AdminLeadNotificationMonitoringResponse {
             boolean subscribedAtEvaluation,
             boolean currentlySubscribed,
             boolean currentlyEligible,
+            boolean rolloutAllowed,
             String evaluationOutcome,
             String skipReason,
             Instant evaluatedAt,

@@ -30,6 +30,7 @@ export function AdminLeadNotificationMonitor() {
   const [requirements, setRequirements] = useState<AdminRequirementNotificationSummary[]>([]);
   const [sendingEnabled, setSendingEnabled] = useState(false);
   const [maxAttempts, setMaxAttempts] = useState(3);
+  const [rolloutAllowedVendorIds, setRolloutAllowedVendorIds] = useState<number[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<AdminRequirementNotificationDetail | null>(null);
   const [search, setSearch] = useState("");
@@ -51,6 +52,7 @@ export function AdminLeadNotificationMonitor() {
         setRequirements(response.content);
         setSendingEnabled(response.sendingEnabled);
         setMaxAttempts(response.maxAttempts);
+        setRolloutAllowedVendorIds(response.rolloutAllowedVendorIds ?? []);
       } catch (exception) {
         if (isCurrent) {
           setError(exception instanceof Error ? exception.message : "Could not load notification monitoring.");
@@ -97,6 +99,7 @@ export function AdminLeadNotificationMonitor() {
       setDetail(response);
       setSendingEnabled(response.sendingEnabled);
       setMaxAttempts(response.maxAttempts);
+      setRolloutAllowedVendorIds(response.rolloutAllowedVendorIds ?? []);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Could not load requirement delivery details.");
     } finally {
@@ -119,12 +122,15 @@ export function AdminLeadNotificationMonitor() {
       setDetail(updatedDetail);
       setRequirements(updatedList.content);
       setSendingEnabled(updatedList.sendingEnabled);
+      setRolloutAllowedVendorIds(updatedList.rolloutAllowedVendorIds ?? []);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Could not schedule the retry.");
     } finally {
       setRetryingJobId(null);
     }
   }
+
+  const rolloutBlocked = sendingEnabled && rolloutAllowedVendorIds.length === 0;
 
   return (
     <section className="py-7">
@@ -146,13 +152,27 @@ export function AdminLeadNotificationMonitor() {
         </label>
       </div>
 
-      <div className={`mt-5 flex items-start gap-3 rounded-md border px-4 py-3 text-sm ${sendingEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+      <div className={`mt-5 flex items-start gap-3 rounded-md border px-4 py-3 text-sm ${
+        rolloutBlocked
+          ? "border-rose-200 bg-rose-50 text-rose-800"
+          : sendingEnabled
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            : "border-amber-200 bg-amber-50 text-amber-900"
+      }`}>
         <BellRing className="mt-0.5 shrink-0" size={18} />
         <p>
-          <strong>{sendingEnabled ? "WhatsApp sending is enabled." : "WhatsApp sending is disabled."}</strong>{" "}
-          {sendingEnabled
-            ? "Queued and manually scheduled retries can be processed by the worker."
-            : "Monitoring remains live, but queued and manually scheduled retries will wait."}{" "}
+          <strong>
+            {rolloutBlocked
+              ? "WhatsApp sending is blocked by the empty rollout allowlist."
+              : sendingEnabled
+                ? "WhatsApp sending is enabled for the controlled rollout."
+                : "WhatsApp sending is disabled."}
+          </strong>{" "}
+          {rolloutBlocked
+            ? "No vendor job can be claimed or sent."
+            : sendingEnabled
+              ? `Only ${rolloutAllowedVendorIds.length} allowlisted vendor${rolloutAllowedVendorIds.length === 1 ? "" : "s"} can be processed.`
+              : `Monitoring remains live. ${rolloutAllowedVendorIds.length} vendor${rolloutAllowedVendorIds.length === 1 ? "" : "s"} ${rolloutAllowedVendorIds.length === 1 ? "is" : "are"} currently allowlisted, but queued notifications will wait.`}{" "}
           Maximum attempts: {maxAttempts}.
         </p>
       </div>
@@ -259,6 +279,9 @@ function VendorDeliveryCard({
             <StatusBadge status={vendor.notificationStatus} />
             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${vendor.subscribedAtEvaluation ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
               {vendor.subscribedAtEvaluation ? "Subscribed" : "Not subscribed"}
+            </span>
+            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${vendor.rolloutAllowed ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+              {vendor.rolloutAllowed ? "Pilot allowlisted" : "Outside pilot"}
             </span>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">

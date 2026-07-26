@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,14 +57,28 @@ class WhatsAppNotificationDispatcherTest {
         WhatsAppDispatchBatchResult result = dispatcher.dispatchQueuedBatch();
 
         assertThat(result).isEqualTo(WhatsAppDispatchBatchResult.disabled());
-        verify(stateService, never()).claimReady(any(Integer.class), any(Integer.class));
+        verify(stateService, never()).claimReady(
+                any(Integer.class),
+                any(Integer.class),
+                any());
+        verify(cloudApiClient, never()).sendTemplate(any());
+    }
+
+    @Test
+    void emptyRolloutAllowlistDoesNotClaimOrSendWhenGlobalSendingIsEnabled() {
+        properties.setRolloutAllowedVendorIds(Set.of());
+
+        WhatsAppDispatchBatchResult result = dispatcher.dispatchQueuedBatch();
+
+        assertThat(result).isEqualTo(new WhatsAppDispatchBatchResult(false, 0, 0, 0, 0));
+        verify(stateService, never()).claimReady(any(Integer.class), any(Integer.class), any());
         verify(cloudApiClient, never()).sendTemplate(any());
     }
 
     @Test
     void submitsApprovedTemplateParametersAndStoresMetaMessageIdAsSent() {
         LeadNotificationDispatchCandidate candidate = candidate();
-        when(stateService.claimReady(20, 3)).thenReturn(List.of(candidate));
+        when(stateService.claimReady(20, 3, Set.of(501L))).thenReturn(List.of(candidate));
         when(eligibilityService.isEligible(501L, "+919884012346")).thenReturn(true);
         when(cloudApiClient.sendTemplate(any(WhatsAppTemplateMessage.class)))
                 .thenReturn(new WhatsAppCloudApiSendResult("wamid.test-message-123"));
@@ -88,8 +103,20 @@ class WhatsAppNotificationDispatcherTest {
 
     @Test
     void optedOutVendorCancelsAttemptBeforeMetaCall() {
-        when(stateService.claimReady(20, 3)).thenReturn(List.of(candidate()));
+        when(stateService.claimReady(20, 3, Set.of(501L))).thenReturn(List.of(candidate()));
         when(eligibilityService.isEligible(501L, "+919884012346")).thenReturn(false);
+
+        WhatsAppDispatchBatchResult result = dispatcher.dispatchQueuedBatch();
+
+        verify(cloudApiClient, never()).sendTemplate(any());
+        verify(stateService).markCancelled(701L, 801L);
+        assertThat(result).isEqualTo(new WhatsAppDispatchBatchResult(false, 1, 0, 1, 0));
+    }
+
+    @Test
+    void candidateOutsideRolloutAllowlistIsCancelledBeforeMetaCall() {
+        properties.setRolloutAllowedVendorIds(Set.of(999L));
+        when(stateService.claimReady(20, 3, Set.of(999L))).thenReturn(List.of(candidate()));
 
         WhatsAppDispatchBatchResult result = dispatcher.dispatchQueuedBatch();
 
@@ -101,7 +128,7 @@ class WhatsAppNotificationDispatcherTest {
     @Test
     void explicitTemporaryMetaFailureGetsBoundedRetry() {
         Instant retryAt = Instant.parse("2026-07-26T08:01:00Z");
-        when(stateService.claimReady(20, 3)).thenReturn(List.of(candidate()));
+        when(stateService.claimReady(20, 3, Set.of(501L))).thenReturn(List.of(candidate()));
         when(eligibilityService.isEligible(501L, "+919884012346")).thenReturn(true);
         when(cloudApiClient.sendTemplate(any()))
                 .thenThrow(new WhatsAppCloudApiException(
@@ -128,7 +155,7 @@ class WhatsAppNotificationDispatcherTest {
 
     @Test
     void ambiguousNetworkFailureIsNeverAutomaticallyRetried() {
-        when(stateService.claimReady(20, 3)).thenReturn(List.of(candidate()));
+        when(stateService.claimReady(20, 3, Set.of(501L))).thenReturn(List.of(candidate()));
         when(eligibilityService.isEligible(501L, "+919884012346")).thenReturn(true);
         when(cloudApiClient.sendTemplate(any()))
                 .thenThrow(new WhatsAppCloudApiException(

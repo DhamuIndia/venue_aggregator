@@ -81,6 +81,7 @@ class AdminLeadNotificationMonitoringServiceTest {
     void setUp() {
         properties = new WhatsAppCloudApiProperties();
         properties.setMaxAttempts(3);
+        properties.setRolloutAllowedVendorIds(Set.of(501L, 502L, 503L));
         service = new AdminLeadNotificationMonitoringService(
                 requirementRepository,
                 vendorLeadRepository,
@@ -148,6 +149,7 @@ class AdminLeadNotificationMonitoringServiceTest {
         assertThat(response.summary().deliveredCount()).isEqualTo(1);
         assertThat(response.summary().readCount()).isEqualTo(1);
         assertThat(response.summary().failedCount()).isEqualTo(1);
+        assertThat(response.rolloutAllowedVendorIds()).containsExactly(501L, 502L, 503L);
         assertThat(response.vendors()).hasSize(3);
         assertThat(response.vendors())
                 .filteredOn(vendor -> vendor.notificationJobId() != null
@@ -155,6 +157,7 @@ class AdminLeadNotificationMonitoringServiceTest {
                 .singleElement()
                 .satisfies(vendor -> {
                     assertThat(vendor.failureReason()).isEqualTo("Cloud API throughput reached");
+                    assertThat(vendor.rolloutAllowed()).isTrue();
                     assertThat(vendor.canManualRetry()).isTrue();
                     assertThat(vendor.retryHistory()).hasSize(1);
                 });
@@ -231,6 +234,29 @@ class AdminLeadNotificationMonitoringServiceTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
                     assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(exception.getReason()).contains("opted out");
+                });
+        verify(notificationJobRepository, never()).save(any());
+        verify(auditService, never()).record(any());
+    }
+
+    @Test
+    void manualRetryRejectsVendorOutsideControlledRollout() {
+        properties.setRolloutAllowedVendorIds(Set.of(501L));
+        LeadNotificationJob failedJob = job(
+                602L,
+                lead(902L, "LEAD-123456789ABCDEF01234", 502L, "Failed Vendor"),
+                LeadNotificationJobStatus.FAILED);
+        failedJob.setFailureTemporary(true);
+        failedJob.setAttemptCount(1);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(admin()));
+        when(notificationJobRepository.findByIdForUpdate(602L))
+                .thenReturn(Optional.of(failedJob));
+
+        assertThatThrownBy(() -> service.scheduleManualRetry(602L, adminAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.getReason()).contains("outside the controlled rollout");
                 });
         verify(notificationJobRepository, never()).save(any());
         verify(auditService, never()).record(any());

@@ -3,6 +3,7 @@ package com.staminal.venue.notifications.queue;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,13 +35,16 @@ public interface LeadNotificationJobRepository extends JpaRepository<LeadNotific
     @Query("""
             select job
             from LeadNotificationJob job
-            where job.status = :queuedStatus
-               or (
-                    job.status = :failedStatus
-                    and job.failureTemporary = true
-                    and job.nextRetryAt <= :now
-                    and job.attemptCount < :maxAttempts
-               )
+            where (
+                    job.status = :queuedStatus
+                    or (
+                        job.status = :failedStatus
+                        and job.failureTemporary = true
+                        and job.nextRetryAt <= :now
+                        and job.attemptCount < :maxAttempts
+                    )
+                  )
+              and job.vendor.id in :allowedVendorIds
             order by coalesce(job.nextRetryAt, job.queuedAt) asc, job.id asc
             """)
     List<LeadNotificationJob> findReadyForDispatch(
@@ -48,6 +52,7 @@ public interface LeadNotificationJobRepository extends JpaRepository<LeadNotific
             @Param("failedStatus") LeadNotificationJobStatus failedStatus,
             @Param("now") Instant now,
             @Param("maxAttempts") int maxAttempts,
+            @Param("allowedVendorIds") Set<Long> allowedVendorIds,
             Pageable pageable);
 
     Optional<LeadNotificationJob> findByProviderMessageId(String providerMessageId);

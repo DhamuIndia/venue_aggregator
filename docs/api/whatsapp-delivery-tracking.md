@@ -33,13 +33,15 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN=
 WHATSAPP_APP_SECRET=
 
 WHATSAPP_SENDING_ENABLED=false
+WHATSAPP_ROLLOUT_ALLOWED_VENDOR_IDS=
 WHATSAPP_MAX_ATTEMPTS=3
 WHATSAPP_RETRY_INITIAL_DELAY_MS=60000
 WHATSAPP_RETRY_MAX_DELAY_MS=3600000
 ```
 
 The webhook can be enabled for Meta verification while sending remains off.
-Retries are not dispatched unless `WHATSAPP_SENDING_ENABLED=true`.
+Retries are not dispatched unless `WHATSAPP_SENDING_ENABLED=true` and the
+vendor remains in `WHATSAPP_ROLLOUT_ALLOWED_VENDOR_IDS`.
 
 ## Tracked states
 
