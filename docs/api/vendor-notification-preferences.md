@@ -1,7 +1,17 @@
 # Vendor Lead Notification Preferences
 
-Phase 1 provides vendor-owned WhatsApp lead-alert preferences and consent storage.
-It does not send messages or create notification jobs.
+This module provides vendor-owned WhatsApp lead-alert preferences and consent
+storage. In the vendor workspace, the separate **Notifications** tab lets a
+vendor:
+
+- enter the WhatsApp number used for lead alerts;
+- explicitly opt in (consent is never preselected);
+- pause and resume alerts without withdrawing consent;
+- change the number after providing fresh consent; and
+- opt out through a confirmation step.
+
+The commercial **Subscription** tab is separate and does not control WhatsApp
+consent.
 
 ## Read current preferences
 
@@ -74,9 +84,14 @@ Opt out:
 ## Rules
 
 - Only an authenticated vendor can read or change their own preferences.
+- The UI reads the existing preference from the API and fails closed if it
+  cannot be loaded; it does not create a local or mock consent record.
 - First-time enablement requires `consentConfirmed: true`.
 - Changing the subscribed number requires fresh consent.
 - Indian 10-digit mobile numbers are stored in `+91` E.164 format.
 - Pausing retains consent but makes the vendor temporarily ineligible.
 - Opting out records the time and makes the vendor ineligible.
 - Existing vendors are not backfilled or automatically subscribed.
+- Vendor consent alone does not cause messages to be sent. The vendor must also
+  be included in the controlled rollout allowlist, and global WhatsApp sending
+  must be enabled by an administrator.
