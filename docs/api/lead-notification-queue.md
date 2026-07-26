@@ -50,6 +50,6 @@ Each queue job stores the values needed by the logical
 - formatted budget; and
 - opted-in WhatsApp destination number.
 
-Customer name, phone and email are deliberately excluded. Phase 3 will map the
-logical template key to the final Meta template name and send only after checking
-the vendor's current preference again.
+Customer name, phone and email are deliberately excluded. The WhatsApp
+submission layer maps the logical template key to the configured Meta template
+name and checks the vendor's current preference again before every send.

@@ -79,6 +79,21 @@ public class LeadNotificationJob {
     @Column(name = "budget_text", nullable = false, length = 120)
     private String budgetText;
 
+    @Column(name = "provider_message_id", length = 255)
+    private String providerMessageId;
+
+    @Column(name = "processing_started_at")
+    private Instant processingStartedAt;
+
+    @Column(name = "submitted_at")
+    private Instant submittedAt;
+
+    @Column(name = "send_failed_at")
+    private Instant sendFailedAt;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
     @Column(name = "queued_at", nullable = false)
     private Instant queuedAt;
 
@@ -228,6 +243,46 @@ public class LeadNotificationJob {
 
     public void setBudgetText(String budgetText) {
         this.budgetText = budgetText;
+    }
+
+    public String getProviderMessageId() {
+        return providerMessageId;
+    }
+
+    public void setProviderMessageId(String providerMessageId) {
+        this.providerMessageId = providerMessageId;
+    }
+
+    public Instant getProcessingStartedAt() {
+        return processingStartedAt;
+    }
+
+    public void setProcessingStartedAt(Instant processingStartedAt) {
+        this.processingStartedAt = processingStartedAt;
+    }
+
+    public Instant getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public void setSubmittedAt(Instant submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+
+    public Instant getSendFailedAt() {
+        return sendFailedAt;
+    }
+
+    public void setSendFailedAt(Instant sendFailedAt) {
+        this.sendFailedAt = sendFailedAt;
+    }
+
+    public Instant getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public void setCancelledAt(Instant cancelledAt) {
+        this.cancelledAt = cancelledAt;
     }
 
     public Instant getQueuedAt() {

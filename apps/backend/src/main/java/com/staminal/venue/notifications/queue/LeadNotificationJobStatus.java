@@ -1,5 +1,9 @@
 package com.staminal.venue.notifications.queue;
 
 public enum LeadNotificationJobStatus {
-    QUEUED
+    QUEUED,
+    PROCESSING,
+    SUBMITTED,
+    SEND_FAILED,
+    CANCELLED
 }

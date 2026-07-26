@@ -24,6 +24,18 @@ jwt:
 app:
   features:
     marketplace-requirements-enabled: ${MARKETPLACE_REQUIREMENTS_ENABLED:false}
+  notifications:
+    whatsapp:
+      sending-enabled: ${WHATSAPP_SENDING_ENABLED:false}
+      graph-api-base-url: ${WHATSAPP_GRAPH_API_BASE_URL:https://graph.facebook.com}
+      graph-api-version: ${WHATSAPP_GRAPH_API_VERSION:}
+      phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+      access-token: ${WHATSAPP_ACCESS_TOKEN:}
+      lead-template-name: ${WHATSAPP_LEAD_TEMPLATE_NAME:}
+      lead-template-language: ${WHATSAPP_LEAD_TEMPLATE_LANGUAGE:en}
+      batch-size: ${WHATSAPP_SEND_BATCH_SIZE:20}
+      poll-interval-ms: ${WHATSAPP_POLL_INTERVAL_MS:15000}
+      initial-delay-ms: ${WHATSAPP_INITIAL_DELAY_MS:15000}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3001,http://localhost:3000}
   seed:
