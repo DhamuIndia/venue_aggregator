@@ -3,7 +3,7 @@ package com.staminal.venue.notifications.whatsapp;
 public record WhatsAppDispatchBatchResult(
         boolean sendingDisabled,
         int claimed,
-        int submitted,
+        int sent,
         int cancelled,
         int failed) {
 

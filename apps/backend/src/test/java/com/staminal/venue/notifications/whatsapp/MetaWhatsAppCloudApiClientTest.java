@@ -8,15 +8,19 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 class MetaWhatsAppCloudApiClientTest {
 
@@ -25,7 +29,11 @@ class MetaWhatsAppCloudApiClientTest {
         WhatsAppCloudApiProperties properties = WhatsAppCloudApiPropertiesTest.readyProperties();
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        MetaWhatsAppCloudApiClient client = new MetaWhatsAppCloudApiClient(properties, builder);
+        MetaWhatsAppCloudApiClient client = new MetaWhatsAppCloudApiClient(
+                properties,
+                builder,
+                new ObjectMapper(),
+                new WhatsAppFailureClassifier());
 
         server.expect(once(), requestTo("https://graph.facebook.com/v99.0/1234567890/messages"))
                 .andExpect(method(HttpMethod.POST))
@@ -66,17 +74,66 @@ class MetaWhatsAppCloudApiClientTest {
     }
 
     @Test
-    void wrapsMetaHttpFailureWithoutReturningFalseSuccess() {
+    void preservesStructuredTemporaryMetaFailureForSafeRetry() {
         WhatsAppCloudApiProperties properties = WhatsAppCloudApiPropertiesTest.readyProperties();
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        MetaWhatsAppCloudApiClient client = new MetaWhatsAppCloudApiClient(properties, builder);
+        MetaWhatsAppCloudApiClient client = new MetaWhatsAppCloudApiClient(
+                properties,
+                builder,
+                new ObjectMapper(),
+                new WhatsAppFailureClassifier());
+        server.expect(requestTo("https://graph.facebook.com/v99.0/1234567890/messages"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                                {
+                                  "error": {
+                                    "code": 130429,
+                                    "type": "OAuthException",
+                                    "message": "Rate limit reached",
+                                    "is_transient": true,
+                                    "error_data": {
+                                      "details": "Cloud API throughput reached"
+                                    }
+                                  }
+                                }
+                                """));
+
+        assertThatThrownBy(() -> client.sendTemplate(message()))
+                .isInstanceOf(WhatsAppCloudApiException.class)
+                .satisfies(exception -> {
+                    WhatsAppCloudApiException apiException =
+                            (WhatsAppCloudApiException) exception;
+                    assertThat(apiException.getProviderCode()).isEqualTo(130429);
+                    assertThat(apiException.isTemporary()).isTrue();
+                    assertThat(apiException.isRetrySafe()).isTrue();
+                    assertThat(apiException).hasMessage("Cloud API throughput reached");
+                });
+        server.verify();
+    }
+
+    @Test
+    void unstructuredHttpFailureIsAmbiguousAndNotRetrySafe() {
+        WhatsAppCloudApiProperties properties = WhatsAppCloudApiPropertiesTest.readyProperties();
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        MetaWhatsAppCloudApiClient client = new MetaWhatsAppCloudApiClient(
+                properties,
+                builder,
+                new ObjectMapper(),
+                new WhatsAppFailureClassifier());
         server.expect(requestTo("https://graph.facebook.com/v99.0/1234567890/messages"))
                 .andRespond(withResourceNotFound());
 
         assertThatThrownBy(() -> client.sendTemplate(message()))
                 .isInstanceOf(WhatsAppCloudApiException.class)
-                .hasMessage("Meta WhatsApp template submission failed");
+                .satisfies(exception -> {
+                    WhatsAppCloudApiException apiException =
+                            (WhatsAppCloudApiException) exception;
+                    assertThat(apiException.isTemporary()).isFalse();
+                    assertThat(apiException.isRetrySafe()).isFalse();
+                });
         server.verify();
     }
 

@@ -1,7 +1,6 @@
 package com.staminal.venue.notifications.queue;
 
-public enum LeadNotificationJobStatus {
-    QUEUED,
+public enum WhatsAppNotificationAttemptStatus {
     PROCESSING,
     SENT,
     DELIVERED,

@@ -1,5 +1,6 @@
 package com.staminal.venue.notifications.queue;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,10 +27,25 @@ public interface LeadNotificationJobRepository extends JpaRepository<LeadNotific
     @Query("""
             select job
             from LeadNotificationJob job
-            where job.status = :status
-            order by job.queuedAt asc, job.id asc
+            where job.status = :queuedStatus
+               or (
+                    job.status = :failedStatus
+                    and job.failureTemporary = true
+                    and job.nextRetryAt <= :now
+                    and job.attemptCount < :maxAttempts
+               )
+            order by coalesce(job.nextRetryAt, job.queuedAt) asc, job.id asc
             """)
-    List<LeadNotificationJob> findForDispatch(
-            @Param("status") LeadNotificationJobStatus status,
+    List<LeadNotificationJob> findReadyForDispatch(
+            @Param("queuedStatus") LeadNotificationJobStatus queuedStatus,
+            @Param("failedStatus") LeadNotificationJobStatus failedStatus,
+            @Param("now") Instant now,
+            @Param("maxAttempts") int maxAttempts,
             Pageable pageable);
+
+    Optional<LeadNotificationJob> findByProviderMessageId(String providerMessageId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select job from LeadNotificationJob job where job.id = :id")
+    Optional<LeadNotificationJob> findByIdForUpdate(@Param("id") Long id);
 }

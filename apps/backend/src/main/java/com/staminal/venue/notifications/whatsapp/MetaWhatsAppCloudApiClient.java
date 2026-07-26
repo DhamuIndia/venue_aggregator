@@ -1,24 +1,33 @@
 package com.staminal.venue.notifications.whatsapp;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component
 public class MetaWhatsAppCloudApiClient implements WhatsAppCloudApiClient {
 
     private final WhatsAppCloudApiProperties properties;
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
+    private final WhatsAppFailureClassifier failureClassifier;
 
     public MetaWhatsAppCloudApiClient(
             WhatsAppCloudApiProperties properties,
-            RestClient.Builder restClientBuilder) {
+            RestClient.Builder restClientBuilder,
+            ObjectMapper objectMapper,
+            WhatsAppFailureClassifier failureClassifier) {
         this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.failureClassifier = failureClassifier;
         this.restClient = restClientBuilder
                 .baseUrl(trimTrailingSlash(properties.getGraphApiBaseUrl()))
                 .build();
@@ -53,9 +62,60 @@ public class MetaWhatsAppCloudApiClient implements WhatsAppCloudApiClient {
             return new WhatsAppCloudApiSendResult(messageId.trim());
         } catch (WhatsAppCloudApiException exception) {
             throw exception;
+        } catch (RestClientResponseException exception) {
+            throw providerException(exception);
         } catch (RestClientException exception) {
-            throw new WhatsAppCloudApiException("Meta WhatsApp template submission failed", exception);
+            throw new WhatsAppCloudApiException(
+                    null,
+                    "Submission result unknown",
+                    "Meta WhatsApp submission result is unknown; automatic retry is disabled",
+                    false,
+                    false,
+                    exception);
         }
+    }
+
+    private WhatsAppCloudApiException providerException(RestClientResponseException exception) {
+        try {
+            MetaErrorResponse response = objectMapper.readValue(
+                    exception.getResponseBodyAsByteArray(),
+                    MetaErrorResponse.class);
+            MetaError error = response.error();
+            if (error != null) {
+                String detail = error.errorData() == null
+                        ? null
+                        : error.errorData().details();
+                String reason = firstNonBlank(detail, error.message(), "Meta rejected the message");
+                boolean temporary = failureClassifier.isTemporary(
+                        error.code(),
+                        error.transientFailure());
+                return new WhatsAppCloudApiException(
+                        error.code(),
+                        firstNonBlank(error.type(), "Meta API error"),
+                        reason,
+                        temporary,
+                        true,
+                        exception);
+            }
+        } catch (IOException ignored) {
+            // The response was not a Graph API error object. Treat it as ambiguous.
+        }
+        return new WhatsAppCloudApiException(
+                null,
+                "Submission result unknown",
+                "Meta WhatsApp submission failed without a structured error; automatic retry is disabled",
+                false,
+                false,
+                exception);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private MetaTemplateRequest toRequest(WhatsAppTemplateMessage message) {
@@ -142,5 +202,19 @@ public class MetaWhatsAppCloudApiClient implements WhatsAppCloudApiClient {
     }
 
     record MetaMessage(String id) {
+    }
+
+    record MetaErrorResponse(MetaError error) {
+    }
+
+    record MetaError(
+            Integer code,
+            String type,
+            String message,
+            @JsonProperty("is_transient") Boolean transientFailure,
+            @JsonProperty("error_data") MetaErrorData errorData) {
+    }
+
+    record MetaErrorData(String details) {
     }
 }

@@ -2,6 +2,8 @@ package com.staminal.venue.notifications.queue;
 
 public record LeadNotificationDispatchCandidate(
         Long jobId,
+        Long attemptId,
+        int attemptNumber,
         Long vendorId,
         String destination,
         String templateKey,

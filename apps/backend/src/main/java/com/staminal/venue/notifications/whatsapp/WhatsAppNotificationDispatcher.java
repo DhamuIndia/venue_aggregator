@@ -1,14 +1,13 @@
 package com.staminal.venue.notifications.whatsapp;
 
+import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
-import com.staminal.venue.notifications.preferences.VendorNotificationPreference;
-import com.staminal.venue.notifications.preferences.VendorNotificationPreferenceRepository;
 import com.staminal.venue.notifications.queue.LeadNotificationDispatchCandidate;
 import com.staminal.venue.notifications.queue.LeadNotificationDispatchStateService;
+import com.staminal.venue.notifications.queue.LeadNotificationFailure;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,7 +19,8 @@ public class WhatsAppNotificationDispatcher {
 
     private final WhatsAppCloudApiProperties properties;
     private final LeadNotificationDispatchStateService stateService;
-    private final VendorNotificationPreferenceRepository preferenceRepository;
+    private final WhatsAppVendorEligibilityService eligibilityService;
+    private final WhatsAppRetryPolicy retryPolicy;
     private final WhatsAppCloudApiClient cloudApiClient;
 
     public WhatsAppDispatchBatchResult dispatchQueuedBatch() {
@@ -30,14 +30,16 @@ public class WhatsAppNotificationDispatcher {
 
         properties.validateForSending();
         List<LeadNotificationDispatchCandidate> candidates =
-                stateService.claimQueued(properties.getBatchSize());
-        int submitted = 0;
+                stateService.claimReady(
+                        properties.getBatchSize(),
+                        properties.getMaxAttempts());
+        int sent = 0;
         int cancelled = 0;
         int failed = 0;
 
         for (LeadNotificationDispatchCandidate candidate : candidates) {
             if (!isCurrentlyEligible(candidate)) {
-                stateService.markCancelled(candidate.jobId());
+                stateService.markCancelled(candidate.jobId(), candidate.attemptId());
                 cancelled++;
                 continue;
             }
@@ -46,41 +48,61 @@ public class WhatsAppNotificationDispatcher {
             try {
                 result = cloudApiClient.sendTemplate(
                         toTemplateMessage(candidate));
+            } catch (WhatsAppCloudApiException exception) {
+                boolean canRetry = exception.isTemporary()
+                        && exception.isRetrySafe()
+                        && isCurrentlyEligible(candidate);
+                Instant nextRetryAt = canRetry
+                        ? retryPolicy.nextRetryAt(candidate.attemptNumber())
+                        : null;
+                stateService.markFailed(
+                        candidate.jobId(),
+                        candidate.attemptId(),
+                        new LeadNotificationFailure(
+                                exception.getProviderCode(),
+                                exception.getProviderTitle(),
+                                exception.getMessage(),
+                                exception.isTemporary()),
+                        nextRetryAt);
+                failed++;
+                continue;
             } catch (RuntimeException exception) {
-                stateService.markSendFailed(candidate.jobId());
+                stateService.markFailed(
+                        candidate.jobId(),
+                        candidate.attemptId(),
+                        new LeadNotificationFailure(
+                                null,
+                                "Submission result unknown",
+                                exception.getMessage(),
+                                false),
+                        null);
                 failed++;
                 continue;
             }
 
-            if (!stateService.markSubmitted(candidate.jobId(), result.messageId())) {
+            if (!stateService.markSent(
+                    candidate.jobId(),
+                    candidate.attemptId(),
+                    result.messageId())) {
                 throw new IllegalStateException(
                         "Could not persist Meta message id "
                                 + result.messageId()
                                 + " for notification job "
                                 + candidate.jobId());
             }
-            submitted++;
+            sent++;
         }
 
         return new WhatsAppDispatchBatchResult(
                 false,
                 candidates.size(),
-                submitted,
+                sent,
                 cancelled,
                 failed);
     }
 
     private boolean isCurrentlyEligible(LeadNotificationDispatchCandidate candidate) {
-        VendorNotificationPreference preference = preferenceRepository
-                .findByVendor_Id(candidate.vendorId())
-                .orElse(null);
-        return preference != null
-                && preference.isWhatsAppLeadNotificationsEnabled()
-                && !preference.isWhatsAppLeadNotificationsPaused()
-                && preference.getWhatsAppConsentedAt() != null
-                && preference.getWhatsAppConsentSource() != null
-                && preference.getWhatsAppOptedOutAt() == null
-                && Objects.equals(preference.getWhatsAppNumber(), candidate.destination())
+        return eligibilityService.isEligible(candidate.vendorId(), candidate.destination())
                 && LEAD_TEMPLATE_KEY.equals(candidate.templateKey());
     }
 

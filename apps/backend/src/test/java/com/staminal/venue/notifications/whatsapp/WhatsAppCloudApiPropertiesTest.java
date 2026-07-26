@@ -15,6 +15,8 @@ class WhatsAppCloudApiPropertiesTest {
         assertThat(properties.isSendingEnabled()).isFalse();
         assertThat(properties.getGraphApiBaseUrl()).isEqualTo("https://graph.facebook.com");
         assertThat(properties.getLeadTemplateLanguage()).isEqualTo("en");
+        assertThat(properties.isWebhookEnabled()).isFalse();
+        assertThat(properties.getMaxAttempts()).isEqualTo(3);
     }
 
     @Test
@@ -34,6 +36,21 @@ class WhatsAppCloudApiPropertiesTest {
         assertThatCode(properties::validateForSending).doesNotThrowAnyException();
     }
 
+    @Test
+    void webhookRequiresIndependentVerifyTokenAndAppSecret() {
+        WhatsAppCloudApiProperties properties = new WhatsAppCloudApiProperties();
+        properties.setWebhookEnabled(true);
+
+        assertThatThrownBy(properties::validateWebhookConfiguration)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("verify token");
+
+        properties.setWebhookVerifyToken("venue-mart-webhook-token");
+        properties.setAppSecret("meta-app-secret");
+        assertThatCode(properties::validateWebhookConfiguration)
+                .doesNotThrowAnyException();
+    }
+
     static WhatsAppCloudApiProperties readyProperties() {
         WhatsAppCloudApiProperties properties = new WhatsAppCloudApiProperties();
         properties.setSendingEnabled(true);
@@ -43,6 +60,9 @@ class WhatsAppCloudApiPropertiesTest {
         properties.setLeadTemplateName("new_matching_lead_v1");
         properties.setLeadTemplateLanguage("en");
         properties.setBatchSize(20);
+        properties.setMaxAttempts(3);
+        properties.setRetryInitialDelayMs(60000);
+        properties.setRetryMaxDelayMs(3600000);
         return properties;
     }
 }

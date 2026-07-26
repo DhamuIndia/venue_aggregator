@@ -94,6 +94,39 @@ public class LeadNotificationJob {
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
+    @Column(name = "sent_at")
+    private Instant sentAt;
+
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
+    @Column(name = "read_at")
+    private Instant readAt;
+
+    @Column(name = "failed_at")
+    private Instant failedAt;
+
+    @Column(name = "failure_code")
+    private Integer failureCode;
+
+    @Column(name = "failure_title", length = 255)
+    private String failureTitle;
+
+    @Column(name = "failure_reason", length = 1000)
+    private String failureReason;
+
+    @Column(name = "failure_temporary")
+    private Boolean failureTemporary;
+
+    @Column(name = "attempt_count", nullable = false)
+    private int attemptCount;
+
+    @Column(name = "next_retry_at")
+    private Instant nextRetryAt;
+
+    @Column(name = "status_updated_at")
+    private Instant statusUpdatedAt;
+
     @Column(name = "queued_at", nullable = false)
     private Instant queuedAt;
 
@@ -283,6 +316,94 @@ public class LeadNotificationJob {
 
     public void setCancelledAt(Instant cancelledAt) {
         this.cancelledAt = cancelledAt;
+    }
+
+    public Instant getSentAt() {
+        return sentAt;
+    }
+
+    public void setSentAt(Instant sentAt) {
+        this.sentAt = sentAt;
+    }
+
+    public Instant getDeliveredAt() {
+        return deliveredAt;
+    }
+
+    public void setDeliveredAt(Instant deliveredAt) {
+        this.deliveredAt = deliveredAt;
+    }
+
+    public Instant getReadAt() {
+        return readAt;
+    }
+
+    public void setReadAt(Instant readAt) {
+        this.readAt = readAt;
+    }
+
+    public Instant getFailedAt() {
+        return failedAt;
+    }
+
+    public void setFailedAt(Instant failedAt) {
+        this.failedAt = failedAt;
+    }
+
+    public Integer getFailureCode() {
+        return failureCode;
+    }
+
+    public void setFailureCode(Integer failureCode) {
+        this.failureCode = failureCode;
+    }
+
+    public String getFailureTitle() {
+        return failureTitle;
+    }
+
+    public void setFailureTitle(String failureTitle) {
+        this.failureTitle = failureTitle;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public void setFailureReason(String failureReason) {
+        this.failureReason = failureReason;
+    }
+
+    public Boolean getFailureTemporary() {
+        return failureTemporary;
+    }
+
+    public void setFailureTemporary(Boolean failureTemporary) {
+        this.failureTemporary = failureTemporary;
+    }
+
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+
+    public void setAttemptCount(int attemptCount) {
+        this.attemptCount = attemptCount;
+    }
+
+    public Instant getNextRetryAt() {
+        return nextRetryAt;
+    }
+
+    public void setNextRetryAt(Instant nextRetryAt) {
+        this.nextRetryAt = nextRetryAt;
+    }
+
+    public Instant getStatusUpdatedAt() {
+        return statusUpdatedAt;
+    }
+
+    public void setStatusUpdatedAt(Instant statusUpdatedAt) {
+        this.statusUpdatedAt = statusUpdatedAt;
     }
 
     public Instant getQueuedAt() {

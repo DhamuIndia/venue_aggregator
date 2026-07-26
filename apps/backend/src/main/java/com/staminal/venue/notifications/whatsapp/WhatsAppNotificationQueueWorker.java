@@ -29,9 +29,9 @@ public class WhatsAppNotificationQueueWorker {
             WhatsAppDispatchBatchResult result = dispatcher.dispatchQueuedBatch();
             if (result.claimed() > 0) {
                 LOGGER.info(
-                        "WhatsApp queue batch completed: claimed={}, submitted={}, cancelled={}, failed={}",
+                        "WhatsApp queue batch completed: claimed={}, sent={}, cancelled={}, failed={}",
                         result.claimed(),
-                        result.submitted(),
+                        result.sent(),
                         result.cancelled(),
                         result.failed());
             }

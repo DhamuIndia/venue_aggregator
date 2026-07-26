@@ -1,8 +1,8 @@
 # WhatsApp Cloud API Submission
 
 Phase 3 submits queued `NEW_MATCHING_LEAD` jobs through Meta's official WhatsApp
-Cloud API. Sending is disabled by default and no webhook or retry behavior is
-included in this phase.
+Cloud API. Phase 4 adds signed delivery webhooks and controlled retries. Sending
+remains disabled by default.
 
 ## Safety switch
 
@@ -67,13 +67,20 @@ Immediately before the Meta call, VenueMart confirms that:
 
 If any check fails, the job becomes `CANCELLED` and no Meta call is made.
 
-## Submission states
+## Delivery states
 
 - `QUEUED`: waiting while sending is disabled or for the next enabled batch.
 - `PROCESSING`: safely claimed by one worker.
-- `SUBMITTED`: Meta accepted the request and returned a message ID.
-- `SEND_FAILED`: the API submission failed; Phase 3 does not automatically retry it.
+- `SENT`: Meta accepted the request and returned a message ID.
+- `DELIVERED`: Meta says the message reached the vendor.
+- `READ`: Meta says the vendor read the message.
+- `FAILED`: submission or delivery failed; failure details and retry eligibility
+  are recorded.
 - `CANCELLED`: consent or destination was no longer valid before sending.
 
 Meta's returned `wamid...` value is stored in `provider_message_id`.
-Delivered/read status webhooks and controlled retries belong to Phase 4.
+Every initial send and retry also has an immutable attempt number and its own
+provider message ID.
+
+See [WhatsApp delivery tracking and retries](whatsapp-delivery-tracking.md) for
+the webhook and retry contract.

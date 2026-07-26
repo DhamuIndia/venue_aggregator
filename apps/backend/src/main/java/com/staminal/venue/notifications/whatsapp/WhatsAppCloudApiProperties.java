@@ -17,6 +17,12 @@ public class WhatsAppCloudApiProperties {
     private int batchSize = 20;
     private long pollIntervalMs = 15000;
     private long initialDelayMs = 15000;
+    private boolean webhookEnabled;
+    private String webhookVerifyToken = "";
+    private String appSecret = "";
+    private int maxAttempts = 3;
+    private long retryInitialDelayMs = 60000;
+    private long retryMaxDelayMs = 3600000;
 
     public void validateForSending() {
         required(graphApiBaseUrl, "WhatsApp Graph API base URL");
@@ -27,6 +33,26 @@ public class WhatsAppCloudApiProperties {
         required(leadTemplateLanguage, "WhatsApp lead template language");
         if (batchSize < 1 || batchSize > 100) {
             throw new IllegalStateException("WhatsApp batch size must be between 1 and 100");
+        }
+        validateRetryConfiguration();
+    }
+
+    public void validateWebhookConfiguration() {
+        required(webhookVerifyToken, "WhatsApp webhook verify token");
+        required(appSecret, "Meta app secret");
+        validateRetryConfiguration();
+    }
+
+    private void validateRetryConfiguration() {
+        if (maxAttempts < 1 || maxAttempts > 10) {
+            throw new IllegalStateException("WhatsApp maximum attempts must be between 1 and 10");
+        }
+        if (retryInitialDelayMs < 1000) {
+            throw new IllegalStateException("WhatsApp retry initial delay must be at least 1000 ms");
+        }
+        if (retryMaxDelayMs < retryInitialDelayMs) {
+            throw new IllegalStateException(
+                    "WhatsApp retry maximum delay must not be less than the initial delay");
         }
     }
 
@@ -115,5 +141,53 @@ public class WhatsAppCloudApiProperties {
 
     public void setInitialDelayMs(long initialDelayMs) {
         this.initialDelayMs = initialDelayMs;
+    }
+
+    public boolean isWebhookEnabled() {
+        return webhookEnabled;
+    }
+
+    public void setWebhookEnabled(boolean webhookEnabled) {
+        this.webhookEnabled = webhookEnabled;
+    }
+
+    public String getWebhookVerifyToken() {
+        return webhookVerifyToken;
+    }
+
+    public void setWebhookVerifyToken(String webhookVerifyToken) {
+        this.webhookVerifyToken = webhookVerifyToken;
+    }
+
+    public String getAppSecret() {
+        return appSecret;
+    }
+
+    public void setAppSecret(String appSecret) {
+        this.appSecret = appSecret;
+    }
+
+    public int getMaxAttempts() {
+        return maxAttempts;
+    }
+
+    public void setMaxAttempts(int maxAttempts) {
+        this.maxAttempts = maxAttempts;
+    }
+
+    public long getRetryInitialDelayMs() {
+        return retryInitialDelayMs;
+    }
+
+    public void setRetryInitialDelayMs(long retryInitialDelayMs) {
+        this.retryInitialDelayMs = retryInitialDelayMs;
+    }
+
+    public long getRetryMaxDelayMs() {
+        return retryMaxDelayMs;
+    }
+
+    public void setRetryMaxDelayMs(long retryMaxDelayMs) {
+        this.retryMaxDelayMs = retryMaxDelayMs;
     }
 }
