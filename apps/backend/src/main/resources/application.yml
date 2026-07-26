@@ -33,6 +33,7 @@ app:
       access-token: ${WHATSAPP_ACCESS_TOKEN:}
       lead-template-name: ${WHATSAPP_LEAD_TEMPLATE_NAME:}
       lead-template-language: ${WHATSAPP_LEAD_TEMPLATE_LANGUAGE:en}
+      lead-template-url-button-index: ${WHATSAPP_LEAD_TEMPLATE_URL_BUTTON_INDEX:0}
       batch-size: ${WHATSAPP_SEND_BATCH_SIZE:20}
       poll-interval-ms: ${WHATSAPP_POLL_INTERVAL_MS:15000}
       initial-delay-ms: ${WHATSAPP_INITIAL_DELAY_MS:15000}

@@ -69,6 +69,7 @@ class LeadNotificationDispatchStateServiceTest {
                 "+919884012346",
                 "NEW_MATCHING_LEAD",
                 "en",
+                "LEAD-0123456789ABCDEF0123",
                 "Saffron Leaf Catering",
                 "Photography",
                 "12 September 2026",
@@ -196,6 +197,7 @@ class LeadNotificationDispatchStateServiceTest {
         job.setDestination("+919884012346");
         job.setTemplateKey("NEW_MATCHING_LEAD");
         job.setTemplateLanguage("en");
+        job.setLeadReference("LEAD-0123456789ABCDEF0123");
         job.setVendorName("Saffron Leaf Catering");
         job.setServiceText("Photography");
         job.setEventDateText("12 September 2026");

@@ -44,7 +44,7 @@ class MetaWhatsAppCloudApiClientTest {
                 .andExpect(jsonPath("$.type").value("template"))
                 .andExpect(jsonPath("$.template.name").value("new_matching_lead_v1"))
                 .andExpect(jsonPath("$.template.language.code").value("en"))
-                .andExpect(jsonPath("$.template.components.length()").value(1))
+                .andExpect(jsonPath("$.template.components.length()").value(2))
                 .andExpect(jsonPath("$.template.components[0].type").value("body"))
                 .andExpect(jsonPath("$.template.components[0].parameters[0].text")
                         .value("Saffron Leaf Catering"))
@@ -56,6 +56,12 @@ class MetaWhatsAppCloudApiClientTest {
                         .value("Adyar, Chennai"))
                 .andExpect(jsonPath("$.template.components[0].parameters[4].text")
                         .value("₹75,000–₹1,50,000"))
+                .andExpect(jsonPath("$.template.components[1].type").value("button"))
+                .andExpect(jsonPath("$.template.components[1].sub_type").value("url"))
+                .andExpect(jsonPath("$.template.components[1].index").value("0"))
+                .andExpect(jsonPath("$.template.components[1].parameters[0].type").value("text"))
+                .andExpect(jsonPath("$.template.components[1].parameters[0].text")
+                        .value("LEAD-0123456789ABCDEF0123"))
                 .andRespond(withSuccess(
                         """
                                 {
@@ -147,6 +153,7 @@ class MetaWhatsAppCloudApiClientTest {
                         "Photography",
                         "12 September 2026",
                         "Adyar, Chennai",
-                        "₹75,000–₹1,50,000"));
+                        "₹75,000–₹1,50,000"),
+                "LEAD-0123456789ABCDEF0123");
     }
 }

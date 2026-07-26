@@ -98,6 +98,7 @@ public class LeadNotificationQueueService {
         job.setDestination(preference.getWhatsAppNumber());
         job.setTemplateKey(NEW_MATCHING_LEAD_TEMPLATE_KEY);
         job.setTemplateLanguage(DEFAULT_TEMPLATE_LANGUAGE);
+        job.setLeadReference(lead.getPublicReference());
         job.setVendorName(firstText(vendor.getBusinessName(), vendor.getVendorName(), "VenueMart vendor"));
         job.setServiceText(firstText(lead.getService(), "Requested service"));
         job.setEventTypeText(firstText(lead.getEventType(), requirement.getEventType(), "Event"));

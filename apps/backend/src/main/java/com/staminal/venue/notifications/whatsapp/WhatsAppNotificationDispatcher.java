@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.staminal.venue.leads.LeadReference;
 import com.staminal.venue.notifications.queue.LeadNotificationDispatchCandidate;
 import com.staminal.venue.notifications.queue.LeadNotificationDispatchStateService;
 import com.staminal.venue.notifications.queue.LeadNotificationFailure;
@@ -103,7 +104,8 @@ public class WhatsAppNotificationDispatcher {
 
     private boolean isCurrentlyEligible(LeadNotificationDispatchCandidate candidate) {
         return eligibilityService.isEligible(candidate.vendorId(), candidate.destination())
-                && LEAD_TEMPLATE_KEY.equals(candidate.templateKey());
+                && LEAD_TEMPLATE_KEY.equals(candidate.templateKey())
+                && LeadReference.isValid(candidate.leadReference());
     }
 
     private WhatsAppTemplateMessage toTemplateMessage(LeadNotificationDispatchCandidate candidate) {
@@ -116,6 +118,7 @@ public class WhatsAppNotificationDispatcher {
                         candidate.serviceText(),
                         candidate.eventDateText(),
                         candidate.locationText(),
-                        candidate.budgetText()));
+                        candidate.budgetText()),
+                candidate.leadReference());
     }
 }

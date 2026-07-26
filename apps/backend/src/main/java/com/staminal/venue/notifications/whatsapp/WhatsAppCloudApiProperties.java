@@ -14,6 +14,7 @@ public class WhatsAppCloudApiProperties {
     private String accessToken = "";
     private String leadTemplateName = "";
     private String leadTemplateLanguage = "en";
+    private int leadTemplateUrlButtonIndex;
     private int batchSize = 20;
     private long pollIntervalMs = 15000;
     private long initialDelayMs = 15000;
@@ -31,6 +32,10 @@ public class WhatsAppCloudApiProperties {
         required(accessToken, "WhatsApp access token");
         required(leadTemplateName, "WhatsApp lead template name");
         required(leadTemplateLanguage, "WhatsApp lead template language");
+        if (leadTemplateUrlButtonIndex < 0 || leadTemplateUrlButtonIndex > 2) {
+            throw new IllegalStateException(
+                    "WhatsApp lead template URL button index must be between 0 and 2");
+        }
         if (batchSize < 1 || batchSize > 100) {
             throw new IllegalStateException("WhatsApp batch size must be between 1 and 100");
         }
@@ -117,6 +122,14 @@ public class WhatsAppCloudApiProperties {
 
     public void setLeadTemplateLanguage(String leadTemplateLanguage) {
         this.leadTemplateLanguage = leadTemplateLanguage;
+    }
+
+    public int getLeadTemplateUrlButtonIndex() {
+        return leadTemplateUrlButtonIndex;
+    }
+
+    public void setLeadTemplateUrlButtonIndex(int leadTemplateUrlButtonIndex) {
+        this.leadTemplateUrlButtonIndex = leadTemplateUrlButtonIndex;
     }
 
     public int getBatchSize() {

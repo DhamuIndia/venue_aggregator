@@ -79,6 +79,7 @@ class LeadNotificationQueueServiceTest {
         assertThat(job.getDestination()).isEqualTo("+919884012346");
         assertThat(job.getTemplateKey()).isEqualTo("NEW_MATCHING_LEAD");
         assertThat(job.getTemplateLanguage()).isEqualTo("en");
+        assertThat(job.getLeadReference()).isEqualTo("LEAD-0123456789ABCDEF0123");
         assertThat(job.getVendorName()).isEqualTo("Saffron Leaf Catering");
         assertThat(job.getServiceText()).isEqualTo("Photography");
         assertThat(job.getEventTypeText()).isEqualTo("Wedding");
@@ -187,6 +188,7 @@ class LeadNotificationQueueServiceTest {
 
         VendorLead lead = new VendorLead();
         lead.setId(901L);
+        lead.setPublicReference("LEAD-0123456789ABCDEF0123");
         lead.setVendor(vendor);
         lead.setRequirement(requirement);
         lead.setService("Photography");

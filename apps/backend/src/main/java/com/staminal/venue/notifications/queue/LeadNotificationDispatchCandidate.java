@@ -8,6 +8,7 @@ public record LeadNotificationDispatchCandidate(
         String destination,
         String templateKey,
         String templateLanguage,
+        String leadReference,
         String vendorName,
         String serviceText,
         String eventDateText,

@@ -48,6 +48,7 @@ Each queue job stores the values needed by the logical
 - formatted event date;
 - location;
 - formatted budget; and
+- opaque `LEAD-...` reference for the direct-open button; and
 - opted-in WhatsApp destination number.
 
 Customer name, phone and email are deliberately excluded. The WhatsApp

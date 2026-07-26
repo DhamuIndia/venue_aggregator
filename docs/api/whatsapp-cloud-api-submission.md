@@ -29,6 +29,7 @@ WHATSAPP_PHONE_NUMBER_ID=<VenueMart WhatsApp phone number id>
 WHATSAPP_ACCESS_TOKEN=<system-user access token>
 WHATSAPP_LEAD_TEMPLATE_NAME=<approved Meta template name>
 WHATSAPP_LEAD_TEMPLATE_LANGUAGE=en
+WHATSAPP_LEAD_TEMPLATE_URL_BUTTON_INDEX=0
 ```
 
 The Graph API version is intentionally not hard-coded because Meta versions it
@@ -52,8 +53,18 @@ The template body parameters are sent in this exact order:
 4. location; and
 5. budget.
 
-The approved template owns the static `https://bookvenuemart.in/vendor` website
-button, so the sender does not add a button component.
+The approved template must contain a dynamic website button at the configured
+index with this URL:
+
+```text
+https://bookvenuemart.in/vendor/leads/{{1}}
+```
+
+The sender adds the opaque `LEAD-...` reference as the URL button's dynamic
+suffix. It never sends a customer name, phone number, email address, requirement
+ID, vendor ID, or numeric database lead ID in that URL. See
+[direct vendor lead links](direct-vendor-lead-links.md) for the access-control
+contract.
 
 ## Consent recheck
 

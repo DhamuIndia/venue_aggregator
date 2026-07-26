@@ -61,6 +61,9 @@ public class LeadNotificationJob {
     @Column(name = "template_language", nullable = false, length = 10)
     private String templateLanguage;
 
+    @Column(name = "lead_reference", nullable = false, length = 25)
+    private String leadReference;
+
     @Column(name = "vendor_name", nullable = false, length = 180)
     private String vendorName;
 
@@ -228,6 +231,14 @@ public class LeadNotificationJob {
 
     public void setTemplateLanguage(String templateLanguage) {
         this.templateLanguage = templateLanguage;
+    }
+
+    public String getLeadReference() {
+        return leadReference;
+    }
+
+    public void setLeadReference(String leadReference) {
+        this.leadReference = leadReference;
     }
 
     public String getVendorName() {

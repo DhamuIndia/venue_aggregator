@@ -1,6 +1,7 @@
 package com.staminal.venue.notifications.whatsapp;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.http.HttpHeaders;
@@ -10,7 +11,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.staminal.venue.leads.LeadReference;
 
 @Component
 public class MetaWhatsAppCloudApiClient implements WhatsAppCloudApiClient {
@@ -123,6 +126,20 @@ public class MetaWhatsAppCloudApiClient implements WhatsAppCloudApiClient {
                 .stream()
                 .map(value -> new MetaParameter("text", value))
                 .toList();
+        String dynamicUrlSuffix = required(
+                message.dynamicUrlSuffix(),
+                "WhatsApp dynamic URL suffix");
+        if (!LeadReference.isValid(dynamicUrlSuffix)) {
+            throw new WhatsAppCloudApiException(
+                    "WhatsApp dynamic URL suffix must be an opaque lead reference");
+        }
+        List<MetaComponent> components = new ArrayList<>();
+        components.add(new MetaComponent("body", null, null, parameters));
+        components.add(new MetaComponent(
+                "button",
+                "url",
+                String.valueOf(properties.getLeadTemplateUrlButtonIndex()),
+                List.of(new MetaParameter("text", dynamicUrlSuffix))));
         return new MetaTemplateRequest(
                 "whatsapp",
                 "individual",
@@ -131,7 +148,7 @@ public class MetaWhatsAppCloudApiClient implements WhatsAppCloudApiClient {
                 new MetaTemplate(
                         required(message.templateName(), "Template name"),
                         new MetaLanguage(required(message.languageCode(), "Template language")),
-                        List.of(new MetaComponent("body", parameters))));
+                        List.copyOf(components)));
     }
 
     private String destinationDigits(String destination) {
@@ -186,8 +203,11 @@ public class MetaWhatsAppCloudApiClient implements WhatsAppCloudApiClient {
     record MetaLanguage(String code) {
     }
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     record MetaComponent(
             String type,
+            @JsonProperty("sub_type") String subType,
+            String index,
             List<MetaParameter> parameters) {
     }
 

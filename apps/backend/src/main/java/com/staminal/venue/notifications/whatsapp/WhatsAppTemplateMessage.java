@@ -6,7 +6,8 @@ public record WhatsAppTemplateMessage(
         String destination,
         String templateName,
         String languageCode,
-        List<String> bodyParameters) {
+        List<String> bodyParameters,
+        String dynamicUrlSuffix) {
 
     public WhatsAppTemplateMessage {
         bodyParameters = bodyParameters == null ? List.of() : List.copyOf(bodyParameters);

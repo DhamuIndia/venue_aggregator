@@ -80,6 +80,8 @@ class WhatsAppNotificationDispatcherTest {
                 "12 September 2026",
                 "Adyar, Chennai",
                 "₹75,000–₹1,50,000");
+        assertThat(messageCaptor.getValue().dynamicUrlSuffix())
+                .isEqualTo("LEAD-0123456789ABCDEF0123");
         verify(stateService).markSent(701L, 801L, "wamid.test-message-123");
         assertThat(result).isEqualTo(new WhatsAppDispatchBatchResult(false, 1, 1, 0, 0));
     }
@@ -160,6 +162,7 @@ class WhatsAppNotificationDispatcherTest {
                 "+919884012346",
                 "NEW_MATCHING_LEAD",
                 "en",
+                "LEAD-0123456789ABCDEF0123",
                 "Saffron Leaf Catering",
                 "Photography",
                 "12 September 2026",

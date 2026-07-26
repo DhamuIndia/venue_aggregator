@@ -15,6 +15,7 @@ class WhatsAppCloudApiPropertiesTest {
         assertThat(properties.isSendingEnabled()).isFalse();
         assertThat(properties.getGraphApiBaseUrl()).isEqualTo("https://graph.facebook.com");
         assertThat(properties.getLeadTemplateLanguage()).isEqualTo("en");
+        assertThat(properties.getLeadTemplateUrlButtonIndex()).isZero();
         assertThat(properties.isWebhookEnabled()).isFalse();
         assertThat(properties.getMaxAttempts()).isEqualTo(3);
     }
@@ -34,6 +35,16 @@ class WhatsAppCloudApiPropertiesTest {
         WhatsAppCloudApiProperties properties = readyProperties();
 
         assertThatCode(properties::validateForSending).doesNotThrowAnyException();
+    }
+
+    @Test
+    void dynamicUrlButtonIndexMustMatchAMetaTemplateButton() {
+        WhatsAppCloudApiProperties properties = readyProperties();
+        properties.setLeadTemplateUrlButtonIndex(3);
+
+        assertThatThrownBy(properties::validateForSending)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("URL button index");
     }
 
     @Test

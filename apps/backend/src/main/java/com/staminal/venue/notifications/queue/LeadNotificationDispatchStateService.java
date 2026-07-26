@@ -160,6 +160,7 @@ public class LeadNotificationDispatchStateService {
                 job.getDestination(),
                 job.getTemplateKey(),
                 job.getTemplateLanguage(),
+                job.getLeadReference(),
                 job.getVendorName(),
                 job.getServiceText(),
                 job.getEventDateText(),
