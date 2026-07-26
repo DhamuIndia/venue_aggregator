@@ -38,6 +38,9 @@ class LeadNotificationQueueServiceTest {
     @Mock
     private LeadNotificationJobRepository notificationJobRepository;
 
+    @Mock
+    private LeadNotificationEvaluationRepository evaluationRepository;
+
     private LeadNotificationQueueService service;
 
     @BeforeEach
@@ -45,7 +48,8 @@ class LeadNotificationQueueServiceTest {
         service = new LeadNotificationQueueService(
                 vendorLeadRepository,
                 preferenceRepository,
-                notificationJobRepository);
+                notificationJobRepository,
+                evaluationRepository);
     }
 
     @Test
@@ -55,11 +59,6 @@ class LeadNotificationQueueServiceTest {
 
         when(vendorLeadRepository.findById(901L)).thenReturn(Optional.of(lead));
         when(preferenceRepository.findByVendor_Id(501L)).thenReturn(Optional.of(preference));
-        when(notificationJobRepository.existsByVendorLead_IdAndChannelAndNotificationType(
-                901L,
-                NotificationChannel.WHATSAPP,
-                LeadNotificationType.LEAD_MATCHED))
-                .thenReturn(false);
         when(notificationJobRepository.save(any(LeadNotificationJob.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -86,6 +85,15 @@ class LeadNotificationQueueServiceTest {
         assertThat(job.getEventDateText()).isEqualTo("12 September 2026");
         assertThat(job.getLocationText()).isEqualTo("Adyar, Chennai");
         assertThat(job.getBudgetText()).isEqualTo("₹75,000–₹1,50,000");
+
+        ArgumentCaptor<LeadNotificationEvaluation> evaluationCaptor =
+                ArgumentCaptor.forClass(LeadNotificationEvaluation.class);
+        verify(evaluationRepository).save(evaluationCaptor.capture());
+        LeadNotificationEvaluation evaluation = evaluationCaptor.getValue();
+        assertThat(evaluation.getOutcome()).isEqualTo(LeadNotificationEvaluationOutcome.QUEUED);
+        assertThat(evaluation.isSubscribedAtEvaluation()).isTrue();
+        assertThat(evaluation.getNotificationJob()).isSameAs(job);
+        assertThat(evaluation.getEvaluatedAt()).isNotNull();
     }
 
     @Test
@@ -97,6 +105,13 @@ class LeadNotificationQueueServiceTest {
         assertThat(service.enqueueMarketplaceLead(901L))
                 .isEqualTo(LeadNotificationQueueOutcome.SKIPPED_NOT_SUBSCRIBED);
         verify(notificationJobRepository, never()).save(any());
+        ArgumentCaptor<LeadNotificationEvaluation> evaluationCaptor =
+                ArgumentCaptor.forClass(LeadNotificationEvaluation.class);
+        verify(evaluationRepository).save(evaluationCaptor.capture());
+        assertThat(evaluationCaptor.getValue().getOutcome())
+                .isEqualTo(LeadNotificationEvaluationOutcome.SKIPPED_NOT_SUBSCRIBED);
+        assertThat(evaluationCaptor.getValue().getSkipReason())
+                .contains("not subscribed");
     }
 
     @Test
@@ -149,15 +164,23 @@ class LeadNotificationQueueServiceTest {
 
         when(vendorLeadRepository.findById(901L)).thenReturn(Optional.of(lead));
         when(preferenceRepository.findByVendor_Id(501L)).thenReturn(Optional.of(preference));
-        when(notificationJobRepository.existsByVendorLead_IdAndChannelAndNotificationType(
+        LeadNotificationJob existingJob = new LeadNotificationJob();
+        existingJob.setId(601L);
+        when(notificationJobRepository.findByVendorLead_IdAndChannelAndNotificationType(
                 901L,
                 NotificationChannel.WHATSAPP,
                 LeadNotificationType.LEAD_MATCHED))
-                .thenReturn(true);
+                .thenReturn(Optional.of(existingJob));
 
         assertThat(service.enqueueMarketplaceLead(901L))
                 .isEqualTo(LeadNotificationQueueOutcome.SKIPPED_DUPLICATE);
         verify(notificationJobRepository, never()).save(any());
+        ArgumentCaptor<LeadNotificationEvaluation> evaluationCaptor =
+                ArgumentCaptor.forClass(LeadNotificationEvaluation.class);
+        verify(evaluationRepository).save(evaluationCaptor.capture());
+        assertThat(evaluationCaptor.getValue().getOutcome())
+                .isEqualTo(LeadNotificationEvaluationOutcome.QUEUED);
+        assertThat(evaluationCaptor.getValue().getNotificationJob()).isSameAs(existingJob);
     }
 
     @Test

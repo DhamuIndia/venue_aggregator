@@ -100,6 +100,10 @@ Before an actual retry, VenueMart checks the vendor preference again. If the
 vendor opted out or changed the number after the retry was scheduled, the
 attempt is cancelled without calling Meta.
 
+Administrators can inspect the requirement-level funnel, failure details and
+attempt history, and schedule a safe manual retry. See
+[admin lead notification monitoring](admin-lead-notification-monitoring.md).
+
 ## Duplicate-send protection
 
 Ready jobs are claimed with a database row lock and moved to `PROCESSING` before

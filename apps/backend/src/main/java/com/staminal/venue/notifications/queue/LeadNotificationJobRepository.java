@@ -19,6 +19,13 @@ public interface LeadNotificationJobRepository extends JpaRepository<LeadNotific
             NotificationChannel channel,
             LeadNotificationType notificationType);
 
+    Optional<LeadNotificationJob> findByVendorLead_IdAndChannelAndNotificationType(
+            Long vendorLeadId,
+            NotificationChannel channel,
+            LeadNotificationType notificationType);
+
+    List<LeadNotificationJob> findByRequirement_IdOrderByQueuedAtAsc(Long requirementId);
+
     Optional<LeadNotificationJob> findByIdAndStatus(
             Long id,
             LeadNotificationJobStatus status);

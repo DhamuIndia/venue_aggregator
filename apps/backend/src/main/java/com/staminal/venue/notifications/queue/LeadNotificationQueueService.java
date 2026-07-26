@@ -2,6 +2,7 @@ package com.staminal.venue.notifications.queue;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -31,6 +32,7 @@ public class LeadNotificationQueueService {
     private final VendorLeadRepository vendorLeadRepository;
     private final VendorNotificationPreferenceRepository preferenceRepository;
     private final LeadNotificationJobRepository notificationJobRepository;
+    private final LeadNotificationEvaluationRepository evaluationRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public LeadNotificationQueueOutcome enqueueMarketplaceLead(Long vendorLeadId) {
@@ -50,26 +52,88 @@ public class LeadNotificationQueueService {
                 .findByVendor_Id(lead.getVendor().getId())
                 .orElse(null);
         if (preference == null || !preference.isWhatsAppLeadNotificationsEnabled()) {
+            recordEvaluation(
+                    lead,
+                    LeadNotificationEvaluationOutcome.SKIPPED_NOT_SUBSCRIBED,
+                    false,
+                    "Vendor has not subscribed to WhatsApp lead notifications",
+                    null);
             return LeadNotificationQueueOutcome.SKIPPED_NOT_SUBSCRIBED;
         }
         if (preference.isWhatsAppLeadNotificationsPaused()) {
+            boolean subscribed = hasValidConsent(preference);
+            recordEvaluation(
+                    lead,
+                    LeadNotificationEvaluationOutcome.SKIPPED_PAUSED,
+                    subscribed,
+                    "Vendor paused WhatsApp lead notifications",
+                    null);
             return LeadNotificationQueueOutcome.SKIPPED_PAUSED;
         }
         if (!hasValidConsent(preference)) {
+            recordEvaluation(
+                    lead,
+                    LeadNotificationEvaluationOutcome.SKIPPED_INVALID_CONSENT,
+                    false,
+                    "WhatsApp consent or destination is incomplete, withdrawn, or invalid",
+                    null);
             return LeadNotificationQueueOutcome.SKIPPED_INVALID_CONSENT;
         }
 
         NotificationChannel channel = NotificationChannel.WHATSAPP;
         LeadNotificationType notificationType = LeadNotificationType.LEAD_MATCHED;
-        if (notificationJobRepository.existsByVendorLead_IdAndChannelAndNotificationType(
-                lead.getId(),
-                channel,
-                notificationType)) {
+        LeadNotificationJob existingJob = notificationJobRepository
+                .findByVendorLead_IdAndChannelAndNotificationType(
+                        lead.getId(),
+                        channel,
+                        notificationType)
+                .orElse(null);
+        if (existingJob != null) {
+            recordEvaluation(
+                    lead,
+                    LeadNotificationEvaluationOutcome.QUEUED,
+                    true,
+                    null,
+                    existingJob);
             return LeadNotificationQueueOutcome.SKIPPED_DUPLICATE;
         }
 
-        notificationJobRepository.save(toJob(lead, preference, channel, notificationType));
+        LeadNotificationJob job = notificationJobRepository.save(
+                toJob(lead, preference, channel, notificationType));
+        recordEvaluation(
+                lead,
+                LeadNotificationEvaluationOutcome.QUEUED,
+                true,
+                null,
+                job);
         return LeadNotificationQueueOutcome.QUEUED;
+    }
+
+    private void recordEvaluation(
+            VendorLead lead,
+            LeadNotificationEvaluationOutcome outcome,
+            boolean subscribedAtEvaluation,
+            String skipReason,
+            LeadNotificationJob notificationJob) {
+        NotificationChannel channel = NotificationChannel.WHATSAPP;
+        LeadNotificationType notificationType = LeadNotificationType.LEAD_MATCHED;
+        LeadNotificationEvaluation evaluation = evaluationRepository
+                .findByVendorLead_IdAndChannelAndNotificationType(
+                        lead.getId(),
+                        channel,
+                        notificationType)
+                .orElseGet(LeadNotificationEvaluation::new);
+        evaluation.setVendorLead(lead);
+        evaluation.setVendor(lead.getVendor());
+        evaluation.setRequirement(lead.getRequirement());
+        evaluation.setNotificationJob(notificationJob);
+        evaluation.setChannel(channel);
+        evaluation.setNotificationType(notificationType);
+        evaluation.setOutcome(outcome);
+        evaluation.setSubscribedAtEvaluation(subscribedAtEvaluation);
+        evaluation.setSkipReason(skipReason);
+        evaluation.setEvaluatedAt(Instant.now());
+        evaluationRepository.save(evaluation);
     }
 
     private boolean hasValidConsent(VendorNotificationPreference preference) {
