@@ -24,7 +24,9 @@ import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Dto.VendorResponse;
 import com.staminal.venue.vendors.Dto.UpdateVendorRequest;
 import com.staminal.venue.vendors.Entity.VendorCategory;
+import com.staminal.venue.vendors.Entity.VendorMedia;
 import com.staminal.venue.vendors.Entity.Vendors;
+import com.staminal.venue.vendors.Repository.VendorMediaRepository;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 import com.staminal.venue.vendors.Service.VendorService;
 import com.staminal.venue.users.Entity.User;
@@ -37,6 +39,7 @@ import lombok.RequiredArgsConstructor;
 public class AdminVendorModerationService {
 
     private final VendorRepository vendorRepository;
+    private final VendorMediaRepository vendorMediaRepository;
     private final AuditService auditService;
     private final AdminRepository adminRepository;
     private final UserRepository userRepository;
@@ -92,6 +95,9 @@ public class AdminVendorModerationService {
         } else {
             vendor.setStatus(decision);
             vendor.setRejectionReason(decision == VendorStatus.REJECTED ? request.reason().trim() : null);
+            if (decision == VendorStatus.APPROVED) {
+                approveInitialMedia(vendor);
+            }
         }
         vendor.setReviewedByAdmin(reviewer);
         vendor.setReviewedAt(Instant.now());
@@ -123,6 +129,12 @@ public class AdminVendorModerationService {
                         null));
 
         return toResponse(savedVendor);
+    }
+
+    private void approveInitialMedia(Vendors vendor) {
+        List<VendorMedia> media = vendorMediaRepository.findByVendor_Id(vendor.getId());
+        media.forEach(item -> item.setApproved(true));
+        vendorMediaRepository.saveAll(media);
     }
 
     private Vendors findVendor(String vendorId) {

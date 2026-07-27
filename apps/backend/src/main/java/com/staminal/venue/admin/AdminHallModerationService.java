@@ -94,6 +94,9 @@ public class AdminHallModerationService {
         } else {
             hall.setStatus(decision);
             hall.setRejectionReason(decision == HallStatus.REJECTED ? request.reason().trim() : null);
+            if (decision == HallStatus.APPROVED) {
+                approveInitialMedia(hall);
+            }
         }
         hall.setApprovedBy(reviewer.legacyAdmin().orElse(null));
         hall.setApprovedAt(reviewedAt);
@@ -125,6 +128,12 @@ public class AdminHallModerationService {
                         null));
 
         return toResponse(savedHall, reviewer.displayName());
+    }
+
+    private void approveInitialMedia(Halls hall) {
+        List<HallMedia> media = hallMediaRepository.findByHallId_Id(hall.getId());
+        media.forEach(item -> item.setApproved(true));
+        hallMediaRepository.saveAll(media);
     }
 
     private Halls findHall(String hallId) {

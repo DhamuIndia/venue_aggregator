@@ -172,9 +172,12 @@ export function AdminDashboard() {
 
   const pendingVenueCount = venues.filter((venue) => venue.status === "PENDING_APPROVAL").length;
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
-  const pendingVendorMediaCount = pendingMedia.filter((media) => media.type === "VENDOR").length;
-  const pendingHallMediaCount =
-    pendingMedia.filter((media) => media.type === "HALL").length;
+  const pendingVenueIds = new Set(venues.filter((venue) => venue.status === "PENDING_APPROVAL").map((venue) => venue.id));
+  const pendingVendorIds = new Set(vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").map((vendor) => vendor.id));
+  const standalonePendingHallMedia = pendingMedia.filter((media) => media.type === "HALL" && !pendingVenueIds.has(media.listingId));
+  const standalonePendingVendorMedia = pendingMedia.filter((media) => media.type === "VENDOR" && !pendingVendorIds.has(media.listingId));
+  const pendingVendorMediaCount = standalonePendingVendorMedia.length;
+  const pendingHallMediaCount = standalonePendingHallMedia.length;
   const reportedReviewCount = reviews.filter((review) => review.status === "REPORTED").length;
   const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const suspendedUserCount = users.filter((user) => user.status === "SUSPENDED").length;
@@ -583,16 +586,16 @@ export function AdminDashboard() {
             <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-semibold">venue images awaiting approval</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Only approved images are shown on the public venue profile.</p>
+                  <h3 className="text-base font-semibold">Standalone venue images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Images submitted with a pending venue application are reviewed with that application.</p>
                 </div>
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingMedia.filter(media => media.type === "HALL").length} pending</span>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingHallMediaCount} pending</span>
               </div>
-              {pendingMedia.filter((media) => media.type === "HALL").length === 0 ? (
+              {standalonePendingHallMedia.length === 0 ? (
                 <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No venue images are waiting for approval.</p>
               ) : (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {pendingMedia.filter((media) => media.type === "HALL").map((media) => {
+                  {standalonePendingHallMedia.map((media) => {
                     const mediaKey = `${media.type}-${media.id}`;
                     const isApproving = approvingMediaId === mediaKey;
                     return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>
@@ -629,16 +632,16 @@ export function AdminDashboard() {
             <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-semibold">Portfolio images awaiting approval</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Only approved images are shown on the public vendor profile.</p>
+                  <h3 className="text-base font-semibold">Standalone portfolio images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Images submitted with a pending vendor application are reviewed with that application.</p>
                 </div>
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingVendorMediaCount} pending</span>
               </div>
-              {pendingMedia.filter((media) => media.type === "VENDOR").length === 0 ? (
+              {standalonePendingVendorMedia.length === 0 ? (
                 <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No vendor portfolio images are waiting for approval.</p>
               ) : (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {pendingMedia.filter((media) => media.type === "VENDOR").map((media) => {
+                  {standalonePendingVendorMedia.map((media) => {
                     const mediaKey = `${media.type}-${media.id}`;
                     const isApproving = approvingMediaId === mediaKey;
                     return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>

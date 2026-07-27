@@ -27,6 +27,7 @@ import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
+import com.staminal.venue.vendors.Repository.VendorMediaRepository;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 import com.staminal.venue.vendors.Service.VendorService;
 
@@ -48,12 +49,16 @@ class AdminVendorModerationServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private VendorMediaRepository vendorMediaRepository;
+
     private AdminVendorModerationService adminVendorModerationService;
 
     @BeforeEach
     void setUp() {
         adminVendorModerationService = new AdminVendorModerationService(
                 vendorRepository,
+                vendorMediaRepository,
                 auditService,
                 adminRepository,
                 userRepository,

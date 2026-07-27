@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { NotificationActivity } from "@/components/notifications/NotificationCenter";
 import { formatGuestCapacityOption, formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
@@ -419,6 +420,8 @@ function reviewCounts(reviews: OwnerReview[]) {
 
 export function OwnerDashboard() {
   const { accessToken } = useAuth();
+  const router = useRouter();
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
   const [activeTab, setActiveTab] = useState<OwnerTab>("overview");
   const [activeHallId, setActiveHallId] = useState(() => preferredOwnerHallId());
   const [listing, setListing] = useState<OwnerHallListing>(() => fallbackListingForHall(preferredOwnerHallId()));
@@ -661,16 +664,22 @@ export function OwnerDashboard() {
   useEffect(() => {
     async function loadOwnerHall() {
       if (!accessToken) return;
-
-      const halls = await getOwnerHalls(accessToken);
-
-      if (halls.length > 0) {
+      try {
+        const halls = await getOwnerHalls(accessToken);
+        if (halls.length === 0) {
+          router.replace("/owner/onboarding");
+          return;
+        }
         setActiveHallId(String(halls[0].id));
+      } catch {
+        // Do not redirect a valid owner because of a temporary API failure.
+      } finally {
+        setIsCheckingOnboarding(false);
       }
     }
 
     loadOwnerHall();
-  }, [accessToken]);
+  }, [accessToken, router]);
 
   const pendingCount = enquiries.filter((enquiry) => enquiry.status === "NEW" || enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const activeBookingCount = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED").length;
@@ -839,6 +848,10 @@ export function OwnerDashboard() {
   }
 
   async function saveListingDraft() {
+    if (listing.status === "PENDING_APPROVAL" || listing.pendingUpdate) {
+      return;
+    }
+
     const coverImageUrl = currentCoverImageUrl(listing, media);
     const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
@@ -861,6 +874,10 @@ export function OwnerDashboard() {
   }
 
   async function submitListingForApproval() {
+    if (listing.status === "PENDING_APPROVAL" || listing.pendingUpdate) {
+      return;
+    }
+
     const coverImageUrl = currentCoverImageUrl(listing, media);
     const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
@@ -951,6 +968,11 @@ export function OwnerDashboard() {
   }
 
   const isListingPublic = listing.status === "APPROVED";
+  const areListingActionsLocked = listing.status === "PENDING_APPROVAL" || listing.pendingUpdate;
+
+  if (isCheckingOnboarding) {
+    return <div className="grid min-h-[60vh] place-items-center"><LoaderCircle className="animate-spin text-primary" size={28} /></div>;
+  }
 
   return (
     <>
@@ -1368,10 +1390,12 @@ export function OwnerDashboard() {
                 <h2 className="text-xl font-semibold">Availability calendar</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Confirmed bookings and owner-blocked slots.</p>
               </div>
-              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => setBlockDialogOpen(true)}>
+              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={listing.status !== "APPROVED"} onClick={() => setBlockDialogOpen(true)} title={listing.status !== "APPROVED" ? "Availability can be managed after admin approval" : undefined}>
                 <Plus size={17} /> Block date
               </button>
             </div>
+
+            {listing.status !== "APPROVED" && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Date blocking is available after your hall has been approved by an admin.</p>}
 
             {availabilityError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{availabilityError}</p>}
 
@@ -1444,7 +1468,7 @@ export function OwnerDashboard() {
                               : "border-transparent hover:border-primary"
                             }`}
                           onClick={() => {
-                            if (confirmedDays.has(day) || blockedDays.has(day)) {
+                            if (listing.status !== "APPROVED" || confirmedDays.has(day) || blockedDays.has(day)) {
                               return;
                             }
 
@@ -1484,7 +1508,7 @@ export function OwnerDashboard() {
                               <p className="font-medium">{formatDate(date.date)}</p>
                               <p className="mt-1 text-sm text-muted-foreground">{formatSlot(date.slot)} | {date.reason}</p>
                             </div>
-                            <button aria-label={`Remove block for ${date.date}`} className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-60" disabled={isDeleting} onClick={() => removeBlockedDate(date.id)}>
+                            <button aria-label={`Remove block for ${date.date}`} className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-60" disabled={listing.status !== "APPROVED" || isDeleting} onClick={() => removeBlockedDate(date.id)}>
                               {isDeleting ? <LoaderCircle className="animate-spin" size={17} /> : <X size={17} />}
                             </button>
                           </div>
@@ -1586,10 +1610,10 @@ export function OwnerDashboard() {
                   </fieldset>
 
                   <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={listing.pendingUpdate || isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:cursor-not-allowed disabled:opacity-60" disabled={areListingActionsLocked || isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
                       {isSavingListing ? <LoaderCircle className="animate-spin" size={17} /> : <Check size={17} />} Save draft
                     </button>
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={listing.pendingUpdate || isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={areListingActionsLocked || isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
                       {isSubmittingListing ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit for approval
                     </button>
                   </div>

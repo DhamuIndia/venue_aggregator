@@ -149,10 +149,6 @@ public class VendorService {
                         response.setStatus(status.name());
                 }
                 response.setRejectionReason(vendor.getRejectionReason());
-                System.out.println("======================");
-                System.out.println(vendor.getPendingUpdatePayload());
-                System.out.println(vendor.getPendingUpdatePayload() != null);
-                System.out.println("======================");
                 response.setPendingUpdate(vendor.getPendingUpdatePayload() != null);
 
                 Set<VendorCategory> categories = vendor.getCategories() == null ? Set.of() : vendor.getCategories();

@@ -13,6 +13,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.enums.HallStatus;
+import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.vendors.Entity.VendorMedia;
 import com.staminal.venue.vendors.Repository.VendorMediaRepository;
 import com.staminal.venue.vendors.Repository.VendorRepository;
@@ -31,12 +33,14 @@ public class AdminMediaModerationService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> pendingMedia() {
         List<Map<String, Object>> halls = hallMediaRepository.findByApprovedFalse().stream()
+                .filter(media -> media.getHallId().getStatus() == HallStatus.APPROVED)
                 .map(media -> Map.<String, Object>of(
                         "id", media.getId(), "type", "HALL", "listingId", media.getHallId().getId(),
                         "listingName", media.getHallId().getName(), "url", media.getUrl(),
                         "isPrimary", Boolean.TRUE.equals(media.getIsPrimary())))
                 .toList();
         List<Map<String, Object>> vendors = vendorMediaRepository.findByApprovedFalse().stream()
+                .filter(media -> media.getVendor().getStatus() == VendorStatus.APPROVED)
                 .map(media -> Map.<String, Object>of(
                         "id", media.getId(), "type", "VENDOR", "listingId", media.getVendor().getId(),
                         "listingName", media.getVendor().getBusinessName(), "url", media.getMediaUrl(),
