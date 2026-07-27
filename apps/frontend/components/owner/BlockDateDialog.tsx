@@ -1,19 +1,25 @@
 "use client";
 
 import { CalendarX2, LoaderCircle, X } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { EnquirySlot } from "@/features/enquiries/types";
 import { formatSlot } from "@/features/halls/slot-model";
 import type { BlockDatePayload } from "@/features/owner/availability-client";
 
 const blockableSlots: EnquirySlot[] = ["MORNING", "AFTERNOON", "EVENING", "FULL_DAY"];
 
-export function BlockDateDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (date: BlockDatePayload) => Promise<void> | void }) {
-  const [date, setDate] = useState("");
+export function BlockDateDialog({ open, onClose, onAdd, initialDate }: { open: boolean; initialDate?: string; onClose: () => void; onAdd: (date: BlockDatePayload) => Promise<void> | void }) {
+  const [date, setDate] = useState(initialDate ?? "");
   const [slot, setSlot] = useState<EnquirySlot>("FULL_DAY");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setDate(initialDate ?? "");
+    }
+  }, [open, initialDate]);
 
   if (!open) return null;
 

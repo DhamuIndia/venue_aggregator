@@ -13,6 +13,8 @@ public interface VendorRepository
 
         List<Vendors> findByStatus(VendorStatus status);
 
+        List<Vendors> findByPendingUpdatePayloadIsNotNull();
+
         List<Vendors> findByCategories_CategoryName(String categoryName);
 
         Optional<Vendors> findByEmail(String email);

@@ -179,15 +179,66 @@ function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnqu
     id,
     hallId,
     hallName: toTitleCase(hallName),
-    customerId: stringValue(value, ["customerId", "customer_id"]) ?? fallback?.customerId ?? "",
+
+    customerId:
+      stringValue(value, ["customerId", "customer_id"]) ??
+      fallback?.customerId ??
+      "",
+
+    customerName: stringValue(value, [
+      "customerName",
+      "customer_name"
+    ]),
+
+    customerPhone: stringValue(value, [
+      "customerPhone",
+      "customer_phone"
+    ]),
+
+    customerEmail: stringValue(value, [
+      "customerEmail",
+      "customer_email"
+    ]),
+
     eventDate,
     eventType,
-    guestCount: numberValue(value, ["guestCount", "guest_count"]) ?? fallback?.guestCount ?? 0,
+    guestCount:
+      numberValue(value, ["guestCount", "guest_count"]) ??
+      fallback?.guestCount ??
+      0,
+
     slot,
     slotRequests,
-    notes: stringValue(value, ["notes", "message"]) ?? fallback?.notes,
+
+    notes:
+      stringValue(value, ["notes", "message"]) ??
+      fallback?.notes,
+
     status: statusValue(value) ?? "PENDING_OWNER_RESPONSE",
-    submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at"]) ?? new Date().toISOString()
+
+    submittedAt:
+      stringValue(value, [
+        "submittedAt",
+        "createdAt",
+        "created_at"
+      ]) ?? new Date().toISOString(),
+
+    createdAt: stringValue(value, [
+      "createdAt",
+      "created_at"
+    ]),
+
+    updatedAt: stringValue(value, [
+      "updatedAt",
+      "updated_at"
+    ]),
+
+    ownerResponseMessage: stringValue(value, [
+      "ownerResponseMessage",
+      "owner_response_message"
+    ]),
+
+    version: numberValue(value, ["version"])
   };
 }
 

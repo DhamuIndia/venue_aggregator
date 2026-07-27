@@ -10,6 +10,7 @@ import {
   subscribeToSavedHallChanges
 } from "@/features/customer/saved-halls-client";
 import type { HallSummary } from "@/features/halls/types";
+import { useRouter } from "next/navigation";
 
 type SaveHallButtonProps = {
   hall: HallSummary;
@@ -27,6 +28,7 @@ export function SaveHallButton({
   variant = "icon"
 }: SaveHallButtonProps) {
   const { accessToken } = useAuth();
+  const router = useRouter();
   const [isSaved, setIsSaved] = useState(initialSaved);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -68,6 +70,11 @@ export function SaveHallButton({
   async function toggleSaved() {
     if (isSaving) return;
 
+    if (!accessToken) {
+      router.push("/auth/login");
+      return;
+    }
+
     setIsSaving(true);
     const nextSaved = !isSaved;
 
@@ -77,6 +84,7 @@ export function SaveHallButton({
       } else {
         await removeCustomerSavedHall(hall.id, accessToken);
       }
+
       setIsSaved(nextSaved);
       onSavedChange?.(hall.id, nextSaved);
     } finally {

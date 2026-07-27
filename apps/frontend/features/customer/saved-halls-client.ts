@@ -15,7 +15,13 @@ export type CustomerSavedHallsResult = {
 };
 
 export async function getCustomerSavedHalls(accessToken?: string | null): Promise<CustomerSavedHallsResult> {
-  if (useMockCustomerSavedHalls || !accessToken) return { halls: getLocalSavedHalls(), source: "local" };
+  if (useMockCustomerSavedHalls) return { halls: getLocalSavedHalls(), source: "local" };
+  if (!accessToken) {
+    return {
+      halls: [],
+      source: "api"
+    };
+  }
 
   try {
     const response = await apiRequest<unknown>("/customer/saved-halls", {
@@ -40,7 +46,10 @@ export async function isCustomerHallSaved(hallId: string, accessToken?: string |
 }
 
 export async function saveCustomerHall(hall: HallSummary, accessToken?: string | null) {
-  if (useMockCustomerSavedHalls || !accessToken) return saveLocalHall(hall);
+  if (useMockCustomerSavedHalls) return saveLocalHall(hall);
+  if (!accessToken) {
+    throw new Error("Authentication Required")
+  }
 
   try {
     const response = await apiRequest<unknown>(`/customer/saved-halls/${encodeURIComponent(hall.id)}`, {
@@ -60,7 +69,10 @@ export async function saveCustomerHall(hall: HallSummary, accessToken?: string |
 }
 
 export async function removeCustomerSavedHall(hallId: string, accessToken?: string | null) {
-  if (useMockCustomerSavedHalls || !accessToken) return removeLocalHall(hallId);
+  if (useMockCustomerSavedHalls) return removeLocalHall(hallId);
+  if (!accessToken) {
+    throw new Error("Authentication required");
+  }
 
   try {
     await apiRequest<void>(`/customer/saved-halls/${encodeURIComponent(hallId)}`, {

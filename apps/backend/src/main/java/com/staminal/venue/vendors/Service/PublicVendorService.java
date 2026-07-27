@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.reviews.HallReview.Review;
 import com.staminal.venue.reviews.VendorReview.VendorReview;
 import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
 import com.staminal.venue.vendors.Dto.PublicVendorListResponse;
@@ -84,7 +83,7 @@ public class PublicVendorService {
     }
 
     private PublicVendorResponse mapToResponse(Vendors vendor) {
-        List<VendorMedia> media = vendorMediaRepository.findByVendor_Id(vendor.getId())
+        List<VendorMedia> media = vendorMediaRepository.findByVendor_IdAndApprovedTrue(vendor.getId())
                 .stream()
                 .sorted(Comparator
                         .comparing((VendorMedia item) -> item.getSortOrder() == null ? 0 : item.getSortOrder())

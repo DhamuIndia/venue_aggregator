@@ -43,6 +43,8 @@ public class VendorResponse {
 
     private String status;
 
+    private boolean pendingUpdate;
+
     private String rejectionReason;
 
     private Integer yearsInBusiness;
@@ -265,6 +267,14 @@ public class VendorResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public boolean isPendingUpdate() {
+        return pendingUpdate;
+    }
+
+    public void setPendingUpdate(boolean pendingUpdate) {
+        this.pendingUpdate = pendingUpdate;
     }
 
 }

@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.staminal.venue.auth.service.JwtService;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.users.Entity.User;
@@ -47,9 +48,14 @@ class VendorServiceTest {
 
     private VendorService vendorService;
 
+    @Mock
+    private ObjectMapper objectMapper;
+
     @BeforeEach
     void setUp() {
-        vendorService = new VendorService(vendorRepository, vendorCategoryRepository, jwtService, userRepository);
+        objectMapper = new ObjectMapper();
+        vendorService = new VendorService(vendorRepository, vendorCategoryRepository, jwtService, userRepository,
+                objectMapper);
     }
 
     @Test

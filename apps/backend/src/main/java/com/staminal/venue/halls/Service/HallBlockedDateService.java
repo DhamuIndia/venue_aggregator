@@ -16,6 +16,7 @@ import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.bookings.Booking;
 import com.staminal.venue.bookings.BookingRepository;
 import com.staminal.venue.enums.BookingStatus;
+import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.halls.Dto.BlockedDateResponse;
 import com.staminal.venue.halls.Dto.CreateBlockedDateRequest;
@@ -46,6 +47,9 @@ public class HallBlockedDateService {
 
     public BlockedDateResponse create(Long hallId, CreateBlockedDateRequest request, Authentication authentication) {
         Halls hall = findOwnedHall(hallId, authentication);
+        if (hall.getStatus() != HallStatus.APPROVED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Availability can be managed only after the hall is approved");
+        }
 
         Long ownerId = currentUserId(authentication);
 

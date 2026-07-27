@@ -19,7 +19,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import com.staminal.venue.leads.VendorLead;
 import com.staminal.venue.audit.AuditService;
-import com.staminal.venue.enquiries.Enquiry;
 import com.staminal.venue.leads.VendorLeadRepository;
 import com.staminal.venue.reviews.VendorReview.VendorReview;
 import com.staminal.venue.reviews.VendorReview.VendorRatingAggregateService;

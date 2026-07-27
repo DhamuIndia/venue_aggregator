@@ -32,6 +32,9 @@ import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
 import {
   createAdminUser,
+  approveAdminMedia,
+  rejectAdminMedia,
+  getPendingAdminMedia,
   getAdminQueues,
   getAdminVendor,
   getAdminVendorReviews,
@@ -43,6 +46,7 @@ import {
   updateAdminUserRole,
   updateAdminUserStatus,
   type AdminVendorReview,
+  type AdminPendingMedia,
   type ManagedAdminRole
 } from "@/features/admin/admin-client";
 import {
@@ -133,6 +137,8 @@ export function AdminDashboard() {
   const [vendors, setVendors] = useState<VendorApplication[]>([]);
   const [reviews, setReviews] = useState<ReportedReview[]>([]);
   const [vendorReviews, setVendorReviews] = useState<AdminVendorReview[]>([]);
+  const [pendingMedia, setPendingMedia] = useState<AdminPendingMedia[]>([]);
+  const [approvingMediaId, setApprovingMediaId] = useState<string | null>(null);
   const [enquiries, setEnquiries] = useState<AdminEnquiry[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [analytics, setAnalytics] = useState<AdminAnalytics>(emptyAdminAnalytics);
@@ -168,6 +174,12 @@ export function AdminDashboard() {
 
   const pendingVenueCount = venues.filter((venue) => venue.status === "PENDING_APPROVAL").length;
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
+  const pendingVenueIds = new Set(venues.filter((venue) => venue.status === "PENDING_APPROVAL").map((venue) => venue.id));
+  const pendingVendorIds = new Set(vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").map((vendor) => vendor.id));
+  const standalonePendingHallMedia = pendingMedia.filter((media) => media.type === "HALL" && !pendingVenueIds.has(media.listingId));
+  const standalonePendingVendorMedia = pendingMedia.filter((media) => media.type === "VENDOR" && !pendingVendorIds.has(media.listingId));
+  const pendingVendorMediaCount = standalonePendingVendorMedia.length;
+  const pendingHallMediaCount = standalonePendingHallMedia.length;
   const reportedReviewCount = reviews.filter((review) => review.status === "REPORTED").length;
   const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const suspendedUserCount = users.filter((user) => user.status === "SUSPENDED").length;
@@ -217,6 +229,25 @@ export function AdminDashboard() {
     }
 
     loadAdminQueues();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadPendingMedia() {
+      try {
+        const media = await getPendingAdminMedia(accessToken);
+        if (isCurrent) setPendingMedia(media);
+      } catch {
+        // Keep the existing approvals dashboard usable if this optional queue is unavailable.
+      }
+    }
+
+    loadPendingMedia();
 
     return () => {
       isCurrent = false;
@@ -298,6 +329,46 @@ export function AdminDashboard() {
     }
   }
 
+  async function approvePendingMedia(media: AdminPendingMedia) {
+    const mediaKey = `${media.type}-${media.id}`;
+
+    try {
+      setApprovingMediaId(mediaKey);
+      await approveAdminMedia(media.type, media.id, accessToken);
+      setPendingMedia((current) => current.filter((item) => `${item.type}-${item.id}` !== mediaKey));
+      setNotice(`${media.type === "VENDOR" ? "Vendor" : "Venue"} image approved and is now visible publicly.`);
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not approve this image.");
+    } finally {
+      setApprovingMediaId(null);
+    }
+  }
+
+  async function rejectPendingMedia(media: AdminPendingMedia) {
+    try {
+      await rejectAdminMedia(
+        media.type,
+        media.id,
+        accessToken
+      );
+
+      setPendingMedia(current =>
+        current.filter(item =>
+          `${item.type}-${item.id}` !==
+          `${media.type}-${media.id}`
+        )
+      );
+
+      setNotice(`${media.type === "VENDOR" ? "Vendor" : "Venue"} image rejected.`);
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not reject image."
+      );
+    }
+  }
+
   function rejectWithReason(_reason: string) {
     if (!rejectTarget) return;
     if (rejectTarget.kind === "venue") void updateVenue(rejectTarget.id, "REJECTED", _reason);
@@ -318,7 +389,7 @@ export function AdminDashboard() {
 
   async function moderateVendorReview(
     id: string,
-    status: "PUBLISHED" | "HIDDEN" | "REJECTED",
+    status: "PUBLISHED" | "HIDDEN",
     reason: string
   ) {
     try {
@@ -446,8 +517,8 @@ export function AdminDashboard() {
   }
 
   const tabBadge: Partial<Record<AdminTab, number>> = {
-    venues: pendingVenueCount,
-    vendors: pendingVendorCount,
+    venues: pendingVenueCount + pendingHallMediaCount,
+    vendors: pendingVendorCount + pendingVendorMediaCount,
     users: suspendedUserCount + pendingUserCount,
     reviews: reportedReviewCount,
     vendorReviews: vendorReviews.filter(
@@ -514,6 +585,37 @@ export function AdminDashboard() {
         {activeTab === "venues" && (
           <section className="py-7">
             <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Venue applications</h2><p className="mt-1 text-sm text-muted-foreground">Verify listing details and ownership documents.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setVenueFilter(event.target.value as "ALL" | ModerationStatus)} value={venueFilter}><option value="ALL">All applications</option><option value="PENDING_APPROVAL">Pending approval</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select></label></div>
+            <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Standalone venue images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Images submitted with a pending venue application are reviewed with that application.</p>
+                </div>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingHallMediaCount} pending</span>
+              </div>
+              {standalonePendingHallMedia.length === 0 ? (
+                <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No venue images are waiting for approval.</p>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {standalonePendingHallMedia.map((media) => {
+                    const mediaKey = `${media.type}-${media.id}`;
+                    const isApproving = approvingMediaId === mediaKey;
+                    return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>
+                      <img alt={`${media.listingName} venue image`} className="h-40 w-full bg-muted object-cover" src={media.url} />
+                      <div className="p-3">
+                        <p className="truncate font-medium">{media.listingName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{media.isPrimary ? "Cover image" : "Portfolio image"} · {media.listingId}</p>
+                        <button className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isApproving} onClick={() => void approvePendingMedia(media)} type="button"><Check size={16} />{isApproving ? "Approving..." : "Approve image"}</button>
+                        <button className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-red-300 text-red-700" onClick={() => void rejectPendingMedia(media)} type="button"
+                        >
+                          Reject image
+                        </button>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              )}
+            </section>
             <div className="mt-5 grid gap-4">
               {filteredVenues.map((venue) => {
                 const documentReviewRequired = venue.documentReviewRequired ?? true;
@@ -529,6 +631,39 @@ export function AdminDashboard() {
         {activeTab === "vendors" && (
           <section className="py-7">
             <div><h2 className="text-xl font-semibold">Vendor applications</h2><p className="mt-1 text-sm text-muted-foreground">Review service category and business identity.</p></div>
+            <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Standalone portfolio images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Images submitted with a pending vendor application are reviewed with that application.</p>
+                </div>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingVendorMediaCount} pending</span>
+              </div>
+              {standalonePendingVendorMedia.length === 0 ? (
+                <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No vendor portfolio images are waiting for approval.</p>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {standalonePendingVendorMedia.map((media) => {
+                    const mediaKey = `${media.type}-${media.id}`;
+                    const isApproving = approvingMediaId === mediaKey;
+                    return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>
+                      <img alt={`${media.listingName} portfolio upload`} className="h-40 w-full bg-muted object-cover" src={media.url} />
+                      <div className="p-3">
+                        <p className="truncate font-medium">{media.listingName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{media.isPrimary ? "Cover image" : "Portfolio image"} · {media.listingId}</p>
+                        <button className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isApproving} onClick={() => void approvePendingMedia(media)} type="button"><Check size={16} />{isApproving ? "Approving..." : "Approve image"}</button>
+                        <button className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-red-300 text-red-700"
+                          onClick={() => void rejectPendingMedia(media)}
+                          type="button"
+                        >
+                          Reject image
+                        </button>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              )}
+            </section>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[1.3fr_0.8fr_1fr_120px_300px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => {
@@ -538,7 +673,7 @@ export function AdminDashboard() {
                     <div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div>
                     <p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p>
                     <p className="text-sm text-muted-foreground">{vendor.submittedAt}</p>
-                    <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>
+                    <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>
                     <div className="flex flex-wrap justify-end gap-2">
                       <button className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isLoadingVendor} onClick={() => openVendorDetails(vendor)} type="button">{isLoadingVendor ? "Loading..." : "View details"}</button>
                       {vendor.status === "PENDING_APPROVAL" && (
@@ -564,12 +699,12 @@ export function AdminDashboard() {
                 <h2 className="text-xl font-semibold">User management</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Search users, review roles, and control account access.</p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-[220px_150px_170px_auto]">
-                <label className="relative block">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <input className="h-10 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm outline-none focus:border-primary" onChange={(event) => setUserSearch(event.target.value)} placeholder="Search user" value={userSearch} />
                 </label>
-                <select className="h-10 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserRoleFilter(event.target.value as "ALL" | AuthRole)} value={userRoleFilter}>
+                <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserRoleFilter(event.target.value as "ALL" | AuthRole)} value={userRoleFilter}>
                   <option value="ALL">All roles</option>
                   <option value="CUSTOMER">Customers</option>
                   <option value="HALL_OWNER">Owners</option>
@@ -577,13 +712,13 @@ export function AdminDashboard() {
                   <option value="ADMIN">Admins</option>
                   <option value="SUPER_ADMIN">Super admins</option>
                 </select>
-                <select className="h-10 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
+                <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
                   <option value="ALL">All statuses</option>
                   <option value="ACTIVE">Active</option>
                   <option value="PENDING_VERIFICATION">Pending verification</option>
                   <option value="SUSPENDED">Suspended</option>
                 </select>
-                <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-semibold hover:border-primary" onClick={() => { setUserSearch(""); setUserRoleFilter("ALL"); setUserStatusFilter("ALL"); }} type="button"><RotateCcw size={16} /> Reset</button>
+                <button className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-semibold hover:border-primary" onClick={() => { setUserSearch(""); setUserRoleFilter("ALL"); setUserStatusFilter("ALL"); }} type="button"><RotateCcw size={16} /> Reset</button>
               </div>
             </div>
 
@@ -614,14 +749,14 @@ export function AdminDashboard() {
               </div>
             )}
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Total users</p><p className="mt-2 text-2xl font-semibold">{users.length}</p></div>
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Pending verification</p><p className="mt-2 text-2xl font-semibold">{pendingUserCount}</p></div>
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Suspended</p><p className="mt-2 text-2xl font-semibold">{suspendedUserCount}</p></div>
             </div>
 
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
-              <div className="hidden grid-cols-[1.2fr_160px_130px_0.8fr_360px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
+              <div className="hidden grid-cols-[1.5fr_180px_140px_180px_220px] items-center gap-6 border-b border-border bg-muted/60 px-6 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">              <span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[84px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredUsers.map((user) => {
                 const isUpdating = updatingUserId === user.id;
                 const isCurrentUser = authUser?.id === user.id;
@@ -631,7 +766,7 @@ export function AdminDashboard() {
                 const canManageAdminAccount = isSuperAdmin && isAdminAccount;
 
                 return (
-                  <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.2fr_160px_130px_0.8fr_360px] md:items-center" key={user.id}>
+                  <article className="grid gap-6 border-b border-border px-6 py-5 last:border-0 md:grid-cols-[1.5fr_180px_140px_180px_220px] md:items-center" key={user.id}>
                     <div>
                       <div className="flex items-center gap-3">
                         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-800">{user.fullName.charAt(0)}</span>
@@ -642,13 +777,13 @@ export function AdminDashboard() {
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground md:hidden">{user.id}</p>
                     </div>
-                    <p className="text-sm font-medium">{userRoleLabels[user.role]}</p>
-                    <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${userStatusStyle[user.status]}`}>{readableStatus(user.status)}</span>
-                    <div className="text-sm text-muted-foreground">
+                    <p className="text-sm font-medium whitespace-nowrap">{userRoleLabels[user.role]}</p>
+                    <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${userStatusStyle[user.status]}`}>{readableStatus(user.status)}</span>
+                    <div className="space-y-1 text-sm text-muted-foreground">
                       <p>Joined {new Date(user.joinedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>
                       {user.lastActiveAt && <p className="mt-1">Last active {new Date(user.lastActiveAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>}
                     </div>
-                    <div className="grid gap-2">
+                    <div className="flex flex-col items-end gap-2">
                       {canManageAdminAccount && (
                         <div className="flex justify-end">
                           <select className="h-9 rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-primary disabled:opacity-60" disabled={roleUpdatingUserId === user.id} onChange={(event) => changeUserRole(user.id, event.target.value as ManagedAdminRole)} value={user.role as ManagedAdminRole}>
@@ -657,13 +792,13 @@ export function AdminDashboard() {
                           </select>
                         </div>
                       )}
-                      <div className="flex flex-wrap gap-2 md:justify-end">
-                      {canActivate && <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "ACTIVE")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <Check size={16} />} Activate</button>}
-                      {canSuspend && <button className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "SUSPENDED")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <ShieldBan size={16} />} Suspend</button>}
-                      {!canActivate && !canSuspend && <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">{isCurrentUser ? "Current user" : "Protected"}</span>}
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {canActivate && <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "ACTIVE")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <Check size={16} />} Activate</button>}
+                        {canSuspend && <button className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "SUSPENDED")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <ShieldBan size={16} />} Suspend</button>}
+                        {!canActivate && !canSuspend && <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">{isCurrentUser ? "Current user" : "Protected"}</span>}
                       </div>
                       {canManageAdminAccount && (
-                        <div className="flex flex-wrap gap-2 md:justify-end">
+                        <div className="flex flex-wrap justify-end gap-2">
                           {passwordResetUserId === user.id && <input className="h-9 w-44 rounded-md border border-border px-3 text-sm outline-none focus:border-primary" minLength={8} onChange={(event) => setPasswordResetValue(event.target.value)} placeholder="New password" type="password" value={passwordResetValue} />}
                           <button className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isUpdating} onClick={() => submitPasswordReset(user.id)} type="button">{isUpdating && passwordResetUserId === user.id ? <Activity className="animate-spin" size={16} /> : <KeyRound size={16} />}{passwordResetUserId === user.id ? "Save password" : "Reset password"}</button>
                         </div>
@@ -830,20 +965,6 @@ export function AdminDashboard() {
                       >
                         Hide
                       </button>
-
-                      <button
-                        className="rounded-md bg-rose-600 px-4 py-2 text-white"
-                        onClick={() =>
-                          moderateVendorReview(
-                            review.id,
-                            "REJECTED",
-                            "Rejected by admin",
-                          )
-                        }
-                      >
-                        Reject
-                      </button>
-
                     </div>
 
                   )}
@@ -862,7 +983,7 @@ export function AdminDashboard() {
             <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Enquiry tracking</h2><p className="mt-1 text-sm text-muted-foreground">Marketplace-wide status visibility for support and reconciliation.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setEnquiryFilter(event.target.value as "ALL" | EnquiryStatus)} value={enquiryFilter}><option value="ALL">All enquiries</option><option value="PENDING_OWNER_RESPONSE">Pending owner response</option><option value="CONFIRMED">Confirmed</option><option value="DECLINED">Declined</option><option value="COMPLETED">Completed</option></select></label></div>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[130px_1.4fr_1fr_1fr_150px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>ID</span><span>Venue</span><span>Customer</span><span>Event date</span><span>Status</span></div>
-              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[72px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredEnquiries.map((enquiry) => <article className="grid gap-2 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[130px_1.4fr_1fr_1fr_150px] md:items-center" key={enquiry.id}><p className="text-sm font-medium">{enquiry.id}</p><div><p className="font-medium">{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground md:hidden">Submitted {enquiry.submittedAt}</p></div><p className="text-sm">{enquiry.customerName}</p><p className="text-sm text-muted-foreground">{enquiry.eventDate}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span></article>)}
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[72px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredEnquiries.map((enquiry) => <article className="grid gap-2 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[130px_1.4fr_1fr_1fr_150px] md:items-center" key={enquiry.id}><p className="text-sm font-medium">{enquiry.id}</p><div><p className="font-medium">{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground md:hidden">Submitted {enquiry.submittedAt}</p></div><p className="text-sm">{enquiry.customerName}</p><p className="text-sm text-muted-foreground">{enquiry.eventDate}</p><span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span></article>)}
               {!isLoadingQueues && filteredEnquiries.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No enquiries match this filter.</p>}
             </div>
           </section>

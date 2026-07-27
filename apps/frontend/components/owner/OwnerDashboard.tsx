@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { NotificationActivity } from "@/components/notifications/NotificationCenter";
 import { formatGuestCapacityOption, formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
@@ -419,6 +420,8 @@ function reviewCounts(reviews: OwnerReview[]) {
 
 export function OwnerDashboard() {
   const { accessToken } = useAuth();
+  const router = useRouter();
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
   const [activeTab, setActiveTab] = useState<OwnerTab>("overview");
   const [activeHallId, setActiveHallId] = useState(() => preferredOwnerHallId());
   const [listing, setListing] = useState<OwnerHallListing>(() => fallbackListingForHall(preferredOwnerHallId()));
@@ -442,6 +445,7 @@ export function OwnerDashboard() {
   const [availabilityError, setAvailabilityError] = useState("");
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [selectedBlockDate, setSelectedBlockDate] = useState("");
   const [notice, setNotice] = useState("");
   const [media, setMedia] = useState<OwnerMediaItem[]>(() => mediaFromListing(fallbackListingForHall(preferredOwnerHallId())));
   const [mediaError, setMediaError] = useState("");
@@ -455,6 +459,13 @@ export function OwnerDashboard() {
   const [analytics, setAnalytics] = useState<OwnerAnalytics>(() => useOwnerDemoFallbacks ? fallbackOwnerAnalytics : emptyOwnerAnalytics());
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
+  const [expandedEnquiryId, setExpandedEnquiryId] = useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  }); const monthKey = `${currentMonth.getFullYear()}-${String(
+    currentMonth.getMonth() + 1
+  ).padStart(2, "0")}`;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -653,16 +664,22 @@ export function OwnerDashboard() {
   useEffect(() => {
     async function loadOwnerHall() {
       if (!accessToken) return;
-
-      const halls = await getOwnerHalls(accessToken);
-
-      if (halls.length > 0) {
+      try {
+        const halls = await getOwnerHalls(accessToken);
+        if (halls.length === 0) {
+          router.replace("/owner/onboarding");
+          return;
+        }
         setActiveHallId(String(halls[0].id));
+      } catch {
+        // Do not redirect a valid owner because of a temporary API failure.
+      } finally {
+        setIsCheckingOnboarding(false);
       }
     }
 
     loadOwnerHall();
-  }, [accessToken]);
+  }, [accessToken, router]);
 
   const pendingCount = enquiries.filter((enquiry) => enquiry.status === "NEW" || enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const activeBookingCount = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED").length;
@@ -701,8 +718,13 @@ export function OwnerDashboard() {
       });
     return Array.from(bookingMap.values()).sort((first, second) => first.eventDate.localeCompare(second.eventDate));
   }, [availabilityBookings, bookings, enquiries]);
-  const confirmedDays = useMemo(() => new Set(confirmedBookings.filter((booking) => booking.eventDate.startsWith("2026-07")).map((booking) => Number(booking.eventDate.slice(-2)))), [confirmedBookings]);
-  const blockedDays = new Set(blockedDates.filter((date) => date.date.startsWith("2026-07")).map((date) => Number(date.date.slice(-2))));
+  const confirmedDays = useMemo(() => new Set(confirmedBookings.filter((booking) => booking.eventDate.startsWith(monthKey)).map((booking) => Number(booking.eventDate.slice(-2)))), [confirmedBookings, monthKey]);
+  const blockedDays = new Set(blockedDates.filter((date) => date.date.startsWith(monthKey)).map((date) => Number(date.date.slice(-2))));
+  const daysInMonth = new Date(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth() + 1,
+    0
+  ).getDate();
 
   async function respondToEnquiry(id: string, status: EnquiryStatus) {
     const currentEnquiry = enquiries.find((enquiry) => enquiry.id === id);
@@ -826,6 +848,10 @@ export function OwnerDashboard() {
   }
 
   async function saveListingDraft() {
+    if (listing.status === "PENDING_APPROVAL" || listing.pendingUpdate) {
+      return;
+    }
+
     const coverImageUrl = currentCoverImageUrl(listing, media);
     const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
@@ -848,6 +874,10 @@ export function OwnerDashboard() {
   }
 
   async function submitListingForApproval() {
+    if (listing.status === "PENDING_APPROVAL" || listing.pendingUpdate) {
+      return;
+    }
+
     const coverImageUrl = currentCoverImageUrl(listing, media);
     const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
@@ -938,6 +968,11 @@ export function OwnerDashboard() {
   }
 
   const isListingPublic = listing.status === "APPROVED";
+  const areListingActionsLocked = listing.status === "PENDING_APPROVAL" || listing.pendingUpdate;
+
+  if (isCheckingOnboarding) {
+    return <div className="grid min-h-[60vh] place-items-center"><LoaderCircle className="animate-spin text-primary" size={28} /></div>;
+  }
 
   return (
     <>
@@ -1129,8 +1164,6 @@ export function OwnerDashboard() {
                             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span>
                           </div>
                           <p className="mt-2 text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {formatSlot(enquiry.slot)} | {enquiry.guestCount} guests</p>
-                          {enquiry.notes && <p className="mt-2 text-sm leading-6 text-muted-foreground">“{enquiry.notes}”</p>}
-                          <p className="mt-2 text-xs text-muted-foreground">{enquiry.id}</p>
                         </div>
                         {isPending ? (
                           <div className="flex flex-wrap gap-2">
@@ -1142,11 +1175,136 @@ export function OwnerDashboard() {
                             </button>
                           </div>
                         ) : (
-                          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium">
-                            <MessageSquareText size={16} /> View details
+                          <button
+                            className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium"
+                            onClick={() =>
+                              setExpandedEnquiryId(
+                                expandedEnquiryId === enquiry.id
+                                  ? null
+                                  : enquiry.id
+                              )
+                            }
+                          >
+                            <>
+                              {expandedEnquiryId === enquiry.id ? (
+                                <>
+                                  <ChevronDown size={16} />
+                                  Hide Details
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronRight size={16} />
+                                  View Details
+                                </>
+                              )}
+                            </>
                           </button>
                         )}
                       </div>
+                      {expandedEnquiryId === enquiry.id && (
+                        <div className="mt-6 border-t pt-6">
+
+                          <div className="grid gap-6 md:grid-cols-2">
+
+                            {/* Customer Information */}
+                            <div className="rounded-lg border p-4">
+                              <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                                Customer Information
+                              </h4>
+
+                              <div className="space-y-2 text-sm">
+                                <p>
+                                  <span className="font-medium">Name:</span>{" "}
+                                  {enquiry.customerName ?? "Not Available"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Phone:</span>{" "}
+                                  {enquiry.customerPhone ?? "Not Available"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Email:</span>{" "}
+                                  {enquiry.customerEmail ?? "Not Available"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Event Information */}
+                            <div className="rounded-lg border p-4">
+                              <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                                Event Information
+                              </h4>
+
+                              <div className="space-y-2 text-sm">
+                                <p>
+                                  <span className="font-medium">Event:</span>{" "}
+                                  {enquiry.eventType}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Guests:</span>{" "}
+                                  {enquiry.guestCount}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Date:</span>{" "}
+                                  {formatDate(enquiry.eventDate)}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Slot:</span>{" "}
+                                  {formatSlot(enquiry.slot)}
+                                </p>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Notes */}
+                          <div className="mt-6 rounded-lg border p-4">
+                            <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                              Customer Notes
+                            </h4>
+
+                            <p className="text-sm text-muted-foreground">
+                              {enquiry.notes || "No notes provided."}
+                            </p>
+                          </div>
+
+                          {/* Status */}
+                          <div className="mt-6 flex flex-wrap gap-6 text-sm">
+
+                            <div>
+                              <span className="font-medium">Status:</span>{" "}
+                              <span
+                                className={`rounded-full px-2 py-1 text-xs ${statusStyle[enquiry.status]}`}
+                              >
+                                {formatStatus(enquiry.status)}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Enquiry ID:</span>{" "}
+                              {enquiry.id}
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Created:</span>{" "}
+                              {new Date(enquiry.submittedAt).toLocaleString()}
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Updated:</span>{" "}
+                              {enquiry.updatedAt
+                                ? new Date(enquiry.updatedAt).toLocaleString()
+                                : "Not Available"}
+                            </div>
+
+                          </div>
+
+                        </div>
+                      )}
                     </article>
                   );
                 })}
@@ -1232,10 +1390,12 @@ export function OwnerDashboard() {
                 <h2 className="text-xl font-semibold">Availability calendar</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Confirmed bookings and owner-blocked slots.</p>
               </div>
-              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => setBlockDialogOpen(true)}>
+              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={listing.status !== "APPROVED"} onClick={() => setBlockDialogOpen(true)} title={listing.status !== "APPROVED" ? "Availability can be managed after admin approval" : undefined}>
                 <Plus size={17} /> Block date
               </button>
             </div>
+
+            {listing.status !== "APPROVED" && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Date blocking is available after your hall has been approved by an admin.</p>}
 
             {availabilityError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{availabilityError}</p>}
 
@@ -1251,21 +1411,74 @@ export function OwnerDashboard() {
               <>
                 <div className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-6">
                   <div className="flex items-center justify-between">
-                    <button aria-label="Previous month" className="grid size-9 place-items-center rounded-md border border-border">‹</button>
-                    <h3 className="font-semibold">July 2026</h3>
-                    <button aria-label="Next month" className="grid size-9 place-items-center rounded-md border border-border">›</button>
+                    <button
+                      aria-label="Previous month"
+                      className="grid size-9 place-items-center rounded-md border border-border"
+                      onClick={() =>
+                        setCurrentMonth(
+                          new Date(
+                            currentMonth.getFullYear(),
+                            currentMonth.getMonth() - 1,
+                            1
+                          )
+                        )
+                      }
+                    >
+                      ‹
+                    </button>                    <h3 className="font-semibold">
+                      {currentMonth.toLocaleDateString("en-IN", {
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </h3>
+                    <button
+                      aria-label="Next month"
+                      className="grid size-9 place-items-center rounded-md border border-border"
+                      onClick={() =>
+                        setCurrentMonth(
+                          new Date(
+                            currentMonth.getFullYear(),
+                            currentMonth.getMonth() + 1,
+                            1
+                          )
+                        )
+                      }
+                    >
+                      ›
+                    </button>
                   </div>
                   <div className="mt-5 grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span className="py-2" key={day}>{day}</span>)}
                   </div>
                   <div className="grid grid-cols-7 gap-1">
                     {[0, 0, 0].map((_, index) => <span key={`blank-${index}`} />)}
-                    {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => {
+                    {Array.from({ length: daysInMonth }, (_, index) => index + 1).map((day) => {
                       const confirmed = confirmedDays.has(day);
                       const blocked = blockedDays.has(day);
 
                       return (
-                        <button aria-label={`July ${day}${confirmed ? ", confirmed" : blocked ? ", blocked" : ", available"}`} className={`aspect-square min-h-10 rounded-md border text-sm ${confirmed ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-800" : blocked ? "border-rose-200 bg-rose-50 font-semibold text-rose-700" : "border-transparent hover:border-primary"}`} key={day}>
+                        <button
+                          key={day}
+                          aria-label={`${monthKey}-${String(day).padStart(2, "0")}${confirmed ? ", confirmed" : blocked ? ", blocked" : ", available"
+                            }`}
+                          className={`aspect-square min-h-10 rounded-md border text-sm ${confirmed
+                            ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-800"
+                            : blocked
+                              ? "border-rose-200 bg-rose-50 font-semibold text-rose-700"
+                              : "border-transparent hover:border-primary"
+                            }`}
+                          onClick={() => {
+                            if (listing.status !== "APPROVED" || confirmedDays.has(day) || blockedDays.has(day)) {
+                              return;
+                            }
+
+                            setSelectedBlockDate(
+                              `${monthKey}-${String(day).padStart(2, "0")}`
+                            );
+
+                            setBlockDialogOpen(true);
+                          }}
+                        >
                           {day}
                         </button>
                       );
@@ -1295,7 +1508,7 @@ export function OwnerDashboard() {
                               <p className="font-medium">{formatDate(date.date)}</p>
                               <p className="mt-1 text-sm text-muted-foreground">{formatSlot(date.slot)} | {date.reason}</p>
                             </div>
-                            <button aria-label={`Remove block for ${date.date}`} className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-60" disabled={isDeleting} onClick={() => removeBlockedDate(date.id)}>
+                            <button aria-label={`Remove block for ${date.date}`} className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-60" disabled={listing.status !== "APPROVED" || isDeleting} onClick={() => removeBlockedDate(date.id)}>
                               {isDeleting ? <LoaderCircle className="animate-spin" size={17} /> : <X size={17} />}
                             </button>
                           </div>
@@ -1344,6 +1557,7 @@ export function OwnerDashboard() {
             </div>
 
             {listingError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{listingError}</p>}
+            {listing.pendingUpdate && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">An updated listing is already pending admin approval. You can edit again after it has been approved or rejected.</p>}
             {listing.status === "REJECTED" && listing.rejectionReason && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{listing.rejectionReason}</p>}
 
             {isLoadingListing ? (
@@ -1396,10 +1610,10 @@ export function OwnerDashboard() {
                   </fieldset>
 
                   <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:cursor-not-allowed disabled:opacity-60" disabled={areListingActionsLocked || isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
                       {isSavingListing ? <LoaderCircle className="animate-spin" size={17} /> : <Check size={17} />} Save draft
                     </button>
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={areListingActionsLocked || isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
                       {isSubmittingListing ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit for approval
                     </button>
                   </div>
@@ -1547,10 +1761,32 @@ export function OwnerDashboard() {
             )}
           </section>
         )}
+
+
       </main>
 
-      <BlockDateDialog onAdd={addBlockedDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
+      <BlockDateDialog onAdd={addBlockedDate} initialDate={selectedBlockDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
     </>
+  );
+}
+
+function Row({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex justify-between border-b pb-2">
+      <span className="font-medium text-gray-500">
+        {label}
+      </span>
+
+      <span className="font-semibold text-right">
+        {value}
+      </span>
+    </div>
   );
 }
 

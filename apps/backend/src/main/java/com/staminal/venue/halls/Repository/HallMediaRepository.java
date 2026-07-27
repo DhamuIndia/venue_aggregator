@@ -11,4 +11,8 @@ import com.staminal.venue.halls.Entity.HallMedia;
 public interface HallMediaRepository extends JpaRepository<HallMedia, Long> {
 
     List<HallMedia> findByHallId_Id(Long hallId);
+
+    List<HallMedia> findByHallId_IdAndApprovedTrue(Long hallId);
+
+    List<HallMedia> findByApprovedFalse();
 }

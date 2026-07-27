@@ -16,6 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import com.staminal.venue.auth.service.JwtService;
 import com.staminal.venue.enums.VendorStatus;
 import com.staminal.venue.users.Entity.User;
@@ -40,21 +43,9 @@ public class VendorService {
         private final VendorCategoryRepository vendorCategoryRepository;
         private final JwtService jwtService;
         private final UserRepository userRepository;
+        private final ObjectMapper objectMapper;
 
         public VendorResponse createVendor(String userId, CreateVendorRequest request) {
-                // User user = new User();
-                // user.setFullName(request.getVendorName());
-                // user.setPhone(request.getContactNumber());
-                // user.setEmail(request.getEmail());
-                // user.setPasswordHash(passwordEncoder.encode(request.getPasswordHash()));
-                // user.setStatus("ACTIVE");
-
-                // Role vendorRole = roleRepository.findByName(UserRole.VENDOR)
-                // .orElseThrow(() -> new RuntimeException("Vendor role not found"));
-
-                // user.getRoles().add(vendorRole);
-
-                // User savedUser = userRepository.save(user);
 
                 User savedUser = userRepository.findById(Long.parseLong(userId))
                                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -158,6 +149,7 @@ public class VendorService {
                         response.setStatus(status.name());
                 }
                 response.setRejectionReason(vendor.getRejectionReason());
+                response.setPendingUpdate(vendor.getPendingUpdatePayload() != null);
 
                 Set<VendorCategory> categories = vendor.getCategories() == null ? Set.of() : vendor.getCategories();
                 response.setCategories(categories.stream()
@@ -243,14 +235,26 @@ public class VendorService {
                 Vendors vendor = vendorRepository.findByUserId(user.getId())
                                 .orElseGet(() -> newDraftVendor(user));
 
+                if (vendor.getStatus() == VendorStatus.APPROVED) {
+                        if (vendor.getPendingUpdatePayload() != null) {
+                                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                                "Your previous business update is still pending admin approval.");
+                        }
+                        vendor.setPendingUpdatePayload(serializePendingUpdate(request));
+                        vendor.setUpdatedAt(Instant.now());
+                        return mapToResponse(vendorRepository.save(vendor));
+                }
+
                 vendor.setBusinessName(defaultText(request.getBusinessName(), user.getFullName()));
                 vendor.setCoverImageUrl(firstText(request.getCoverImageUrl(), vendor.getCoverImageUrl(), ""));
                 vendor.setAddressLine(firstText(request.getAddressLine(), vendor.getAddressLine(), ""));
                 vendor.setCity(defaultText(request.getCity(), "Chennai"));
                 vendor.setArea(defaultText(request.getArea(), ""));
                 vendor.setPincode(firstText(request.getPincode(), vendor.getPincode(), ""));
-                vendor.setContactNumber(firstText(request.getContactNumber(), vendor.getContactNumber(), user.getPhone()));
-                vendor.setWhatsAppNumber(firstText(request.getWhatsAppNumber(), vendor.getWhatsAppNumber(), user.getPhone()));
+                vendor.setContactNumber(
+                                firstText(request.getContactNumber(), vendor.getContactNumber(), user.getPhone()));
+                vendor.setWhatsAppNumber(
+                                firstText(request.getWhatsAppNumber(), vendor.getWhatsAppNumber(), user.getPhone()));
                 if (request.getInstagramUrl() != null) {
                         vendor.setInstagramUrl(normalizeInstagramUrl(request.getInstagramUrl()));
                 }
@@ -306,6 +310,10 @@ public class VendorService {
 
                 validateSubmittable(vendor);
 
+                if (vendor.getStatus() == VendorStatus.APPROVED && vendor.getPendingUpdatePayload() != null) {
+                        return mapToResponse(vendor);
+                }
+
                 vendor.setStatus(VendorStatus.PENDING);
 
                 vendor.setUpdatedAt(Instant.now());
@@ -315,9 +323,57 @@ public class VendorService {
                 return mapToResponse(saved);
         }
 
+        @Transactional
+        public void approvePendingUpdate(Vendors vendor) {
+                if (vendor.getPendingUpdatePayload() == null)
+                        return;
+                try {
+                        UpdateVendorRequest request = objectMapper.readValue(vendor.getPendingUpdatePayload(),
+                                        UpdateVendorRequest.class);
+                        vendor.setStatus(VendorStatus.DRAFT);
+                        vendorRepository.save(vendor);
+                        updateProfile(String.valueOf(vendor.getUser().getId()), request);
+                        Vendors updated = vendorRepository.findById(vendor.getId()).orElseThrow();
+                        updated.setStatus(VendorStatus.APPROVED);
+                        updated.setPendingUpdatePayload(null);
+                        updated.setRejectionReason(null);
+                        vendorRepository.save(updated);
+                } catch (JsonProcessingException exception) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending vendor update is invalid",
+                                        exception);
+                }
+        }
+
+        @Transactional
+        public void rejectPendingUpdate(Vendors vendor) {
+                vendor.setPendingUpdatePayload(null);
+                vendorRepository.save(vendor);
+        }
+
+        public UpdateVendorRequest pendingUpdateFor(Vendors vendor) {
+                if (vendor.getPendingUpdatePayload() == null)
+                        return null;
+                try {
+                        return objectMapper.readValue(vendor.getPendingUpdatePayload(), UpdateVendorRequest.class);
+                } catch (JsonProcessingException exception) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending vendor update is invalid",
+                                        exception);
+                }
+        }
+
+        private String serializePendingUpdate(UpdateVendorRequest request) {
+                try {
+                        return objectMapper.writeValueAsString(request);
+                } catch (JsonProcessingException exception) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not save vendor update",
+                                        exception);
+                }
+        }
+
         private User findUser(Long userId) {
                 return userRepository.findById(userId)
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                                                "User not found"));
         }
 
         private Long parseUserId(String userId) {

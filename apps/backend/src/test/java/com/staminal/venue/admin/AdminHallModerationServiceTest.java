@@ -27,6 +27,7 @@ import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Entity.Halls;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
+import com.staminal.venue.halls.Service.HallsService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -46,7 +47,10 @@ class AdminHallModerationServiceTest {
     private AdminRepository adminRepository;
 
     @Mock
-    AuditService auditService;
+    private AuditService auditService;
+
+    @Mock
+    private HallsService hallsService;
 
     private AdminHallModerationService adminHallModerationService;
 
@@ -56,7 +60,9 @@ class AdminHallModerationServiceTest {
                 hallRepository,
                 hallMediaRepository,
                 userRepository,
-                adminRepository, auditService);
+                adminRepository,
+                auditService,
+                hallsService);
     }
 
     @Test

@@ -44,6 +44,9 @@ public class VendorMedia {
     @Column(name = "is_primary")
     private boolean isPrimary;
 
+    @Column(name = "approved", nullable = false)
+    private boolean approved;
+
     @Column(name = "sort_order")
     private Integer sortOrder;
 
@@ -135,6 +138,14 @@ public class VendorMedia {
 
     public void setIsPrimary(boolean isPrimary) {
         this.isPrimary = isPrimary;
+    }
+
+    public boolean isApproved() {
+        return approved;
+    }
+
+    public void setApproved(boolean approved) {
+        this.approved = approved;
     }
 
     public Integer getSortOrder() {

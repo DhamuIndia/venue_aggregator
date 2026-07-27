@@ -9,7 +9,7 @@ import type { AuthRole } from "@/features/auth/types";
 import { APP_NAME } from "@/lib/constants";
 
 export function LoginForm() {
-  const { login, loginDemo } = useAuth();
+  const { login, loginDemo, getValidAccessToken } = useAuth();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

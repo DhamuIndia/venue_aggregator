@@ -28,6 +28,8 @@ public class VendorMediaResponse {
 
     private Long serviceId;
 
+    private boolean approved;
+
     public VendorServiceType getServiceType() {
         return serviceType;
     }
@@ -42,6 +44,14 @@ public class VendorMediaResponse {
 
     public void setServiceId(Long serviceId) {
         this.serviceId = serviceId;
+    }
+
+    public boolean isApproved() {
+        return approved;
+    }
+
+    public void setApproved(boolean approved) {
+        this.approved = approved;
     }
 
     public Long getId() {

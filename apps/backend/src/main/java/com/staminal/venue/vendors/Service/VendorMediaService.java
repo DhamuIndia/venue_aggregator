@@ -50,10 +50,7 @@ public class VendorMediaService {
         media.setCreatedAt(Instant.now());
         applyCreateRequest(media, vendor, request);
 
-        if (media.getIsPrimary()) {
-            clearPrimary(vendor.getId(), null);
-            vendor.setCoverImageUrl(media.getMediaUrl());
-        }
+        media.setApproved(false);
 
         VendorMedia saved = vendorMediaRepository.save(media);
         vendor.setUpdatedAt(Instant.now());
@@ -74,7 +71,7 @@ public class VendorMediaService {
 
         applyPatchRequest(media, request);
 
-        if (media.getIsPrimary()) {
+        if (media.isApproved() && media.getIsPrimary()) {
             clearPrimary(vendor.getId(), media.getId());
             vendor.setCoverImageUrl(media.getMediaUrl());
         }
@@ -114,6 +111,7 @@ public class VendorMediaService {
         media.setMediaUrl(firstText(request.getMediaUrl(), request.getUrl()));
         media.setIsPrimary(request.isPrimary());
         media.setCreatedAt(Instant.now());
+        media.setApproved(false);
         media.setServiceType(request.getServiceType());
         media.setServiceId(request.getServiceId());
         media.setMediaType(firstText(request.getMediaType(), request.getType(), "IMAGE"));
@@ -274,6 +272,7 @@ public class VendorMediaService {
         response.setMediaType(firstText(media.getMediaType(), "IMAGE"));
         response.setServiceType(media.getServiceType());
         response.setServiceId(media.getServiceId());
+        response.setApproved(media.isApproved());
         return response;
     }
 

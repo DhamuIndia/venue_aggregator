@@ -17,6 +17,7 @@ export type OwnerHallListing = HallSummary & {
   rejectionReason?: string;
   updatedAt?: string;
   version?: number | string;
+  pendingUpdate?: boolean;
 };
 
 export type OwnerHallUpdatePayload = {
@@ -224,7 +225,8 @@ function toOwnerHallListing(value: unknown, fallback?: OwnerHallListing): OwnerH
     status: statusValue(record) ?? fallback?.status ?? "DRAFT",
     rejectionReason: stringValue(record, ["rejectionReason", "rejection_reason"]),
     updatedAt: stringValue(record, ["updatedAt", "updated_at"]) ?? fallback?.updatedAt,
-    version: numberValue(record, ["version"]) ?? stringValue(record, ["version"]) ?? fallback?.version
+    version: numberValue(record, ["version"]) ?? stringValue(record, ["version"]) ?? fallback?.version,
+    pendingUpdate: record.pendingUpdate === true
   };
 }
 

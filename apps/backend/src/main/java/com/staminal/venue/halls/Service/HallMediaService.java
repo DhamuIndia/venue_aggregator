@@ -43,11 +43,9 @@ public class HallMediaService {
                         : false);
         media.setSortOrder(request.getSortOrder());
         media.setCreatedAt(LocalDateTime.now());
+        media.setApproved(false);
 
         HallMedia savedMedia = hallMediaRepository.save(media);
-        if (Boolean.TRUE.equals(savedMedia.getIsPrimary())) {
-            promotePrimaryMedia(hall, savedMedia);
-        }
 
         return map(savedMedia);
     }
@@ -71,6 +69,7 @@ public class HallMediaService {
         response.setUrl(media.getUrl());
         response.setIsPrimary(media.getIsPrimary());
         response.setSortOrder(media.getSortOrder());
+        response.setApproved(media.getApproved());
 
         return response;
     }
@@ -106,9 +105,9 @@ public class HallMediaService {
         }
 
         HallMedia savedMedia = hallMediaRepository.save(media);
-        if (Boolean.TRUE.equals(request.getIsPrimary())) {
+        if (Boolean.TRUE.equals(savedMedia.getApproved()) && Boolean.TRUE.equals(request.getIsPrimary())) {
             promotePrimaryMedia(hall, savedMedia);
-        } else if (Boolean.FALSE.equals(request.getIsPrimary()) && wasPrimary) {
+        } else if (Boolean.TRUE.equals(savedMedia.getApproved()) && Boolean.FALSE.equals(request.getIsPrimary()) && wasPrimary) {
             ensurePrimaryMedia(hall);
         }
 
