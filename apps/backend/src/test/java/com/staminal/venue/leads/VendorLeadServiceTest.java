@@ -317,6 +317,51 @@ class VendorLeadServiceTest {
         verify(vendorLeadRepository, never()).save(any());
     }
 
+    @Test
+    void vendorCanOpenAssignedLeadByOpaqueReference() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+        VendorLead lead = lead(vendor, VendorLeadStatus.NEW);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByPublicReferenceAndVendor_Id(
+                "LEAD-0123456789ABCDEF0123",
+                501L))
+                .thenReturn(Optional.of(lead));
+
+        VendorLeadResponse response = vendorLeadService.getLeadByReference(
+                "LEAD-0123456789ABCDEF0123",
+                vendorAuth());
+
+        assertThat(response.getId()).isEqualTo(901L);
+        assertThat(response.getLeadReference()).isEqualTo("LEAD-0123456789ABCDEF0123");
+        assertThat(response.getVendorId()).isEqualTo("501");
+    }
+
+    @Test
+    void vendorCannotOpenLeadThatIsNotAssignedToItsAccount() {
+        User vendorUser = vendorUser();
+        Vendors vendor = vendor(VendorStatus.APPROVED);
+        vendor.setUser(vendorUser);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(vendorUser));
+        when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
+        when(vendorLeadRepository.findByPublicReferenceAndVendor_Id(
+                "LEAD-ABCDEF0123456789ABCD",
+                501L))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> vendorLeadService.getLeadByReference(
+                "LEAD-ABCDEF0123456789ABCD",
+                vendorAuth()))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(exception.getReason()).isEqualTo("Lead not found");
+                });
+    }
+
     private CreateVendorLeadRequest createRequest(String vendorId) {
         CreateVendorLeadRequest request = new CreateVendorLeadRequest();
         request.setVendorId(vendorId);
@@ -332,6 +377,7 @@ class VendorLeadServiceTest {
     private VendorLead lead(Vendors vendor, VendorLeadStatus status) {
         VendorLead lead = new VendorLead();
         lead.setId(901L);
+        lead.setPublicReference("LEAD-0123456789ABCDEF0123");
         lead.setVendor(vendor);
         lead.setCustomer(customer());
         lead.setCustomerName("Priya Raman");

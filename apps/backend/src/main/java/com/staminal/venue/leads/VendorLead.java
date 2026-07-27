@@ -31,6 +31,9 @@ public class VendorLead {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "public_reference", nullable = false, unique = true, length = 25)
+    private String publicReference;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vendor_id", nullable = false)
     private Vendors vendor;
@@ -87,6 +90,9 @@ public class VendorLead {
         createdAt = now;
         updatedAt = now;
 
+        if (publicReference == null || publicReference.isBlank()) {
+            publicReference = LeadReference.create();
+        }
         if (status == null) {
             status = VendorLeadStatus.NEW;
         }
@@ -103,6 +109,14 @@ public class VendorLead {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getPublicReference() {
+        return publicReference;
+    }
+
+    public void setPublicReference(String publicReference) {
+        this.publicReference = publicReference;
     }
 
     public Vendors getVendor() {

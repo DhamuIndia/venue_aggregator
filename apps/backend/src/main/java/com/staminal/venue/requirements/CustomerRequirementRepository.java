@@ -12,6 +12,8 @@ import jakarta.persistence.LockModeType;
 
 public interface CustomerRequirementRepository extends JpaRepository<CustomerRequirement, Long> {
 
+    List<CustomerRequirement> findAllByOrderByCreatedAtDesc();
+
     List<CustomerRequirement> findByCustomer_IdOrderByCreatedAtDesc(Long customerId);
 
     boolean existsByIdAndCustomer_Id(Long requirementId, Long customerId);

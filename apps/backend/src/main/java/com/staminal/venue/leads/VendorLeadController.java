@@ -50,6 +50,14 @@ public class VendorLeadController {
         return vendorLeadService.getLead(leadId, authentication);
     }
 
+    @GetMapping("/vendor/leads/reference/{leadReference}")
+    public VendorLeadResponse getLeadByReference(
+            @PathVariable String leadReference,
+            Authentication authentication) {
+
+        return vendorLeadService.getLeadByReference(leadReference, authentication);
+    }
+
     @PatchMapping("/vendor/leads/{leadId}/status")
     public VendorLeadResponse updateStatus(
             @PathVariable Long leadId,

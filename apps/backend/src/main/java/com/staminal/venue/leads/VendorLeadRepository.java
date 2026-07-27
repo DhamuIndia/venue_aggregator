@@ -14,6 +14,8 @@ public interface VendorLeadRepository
 
     Optional<VendorLead> findByIdAndVendor_Id(Long leadId, Long vendorId);
 
+    Optional<VendorLead> findByPublicReferenceAndVendor_Id(String publicReference, Long vendorId);
+
     List<VendorLead> findByRequirement_IdOrderByCreatedAtDesc(Long requirementId);
 
     boolean existsByRequirement_IdAndVendor_Id(Long requirementId, Long vendorId);
