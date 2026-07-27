@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.VendorStatus;
-import com.staminal.venue.reviews.HallReview.Review;
 import com.staminal.venue.reviews.VendorReview.VendorReview;
 import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
 import com.staminal.venue.vendors.Dto.PublicVendorListResponse;

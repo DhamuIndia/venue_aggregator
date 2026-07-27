@@ -28,6 +28,7 @@ import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Entity.VendorCategory;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
+import com.staminal.venue.vendors.Service.VendorService;
 
 @ExtendWith(MockitoExtension.class)
 class AdminVendorModerationServiceTest {
@@ -42,6 +43,9 @@ class AdminVendorModerationServiceTest {
     private AuditService auditService;
 
     @Mock
+    private VendorService vendorService;
+
+    @Mock
     private UserRepository userRepository;
 
     private AdminVendorModerationService adminVendorModerationService;
@@ -52,7 +56,8 @@ class AdminVendorModerationServiceTest {
                 vendorRepository,
                 auditService,
                 adminRepository,
-                userRepository);
+                userRepository,
+                vendorService);
     }
 
     @Test

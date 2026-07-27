@@ -46,19 +46,6 @@ public class VendorService {
         private final ObjectMapper objectMapper;
 
         public VendorResponse createVendor(String userId, CreateVendorRequest request) {
-                // User user = new User();
-                // user.setFullName(request.getVendorName());
-                // user.setPhone(request.getContactNumber());
-                // user.setEmail(request.getEmail());
-                // user.setPasswordHash(passwordEncoder.encode(request.getPasswordHash()));
-                // user.setStatus("ACTIVE");
-
-                // Role vendorRole = roleRepository.findByName(UserRole.VENDOR)
-                // .orElseThrow(() -> new RuntimeException("Vendor role not found"));
-
-                // user.getRoles().add(vendorRole);
-
-                // User savedUser = userRepository.save(user);
 
                 User savedUser = userRepository.findById(Long.parseLong(userId))
                                 .orElseThrow(() -> new RuntimeException("User not found"));

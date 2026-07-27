@@ -20,6 +20,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.staminal.venue.availability.AvailabilityService;
 import com.staminal.venue.customer.savedhalls.dto.CustomerSavedHallsResponse;
 import com.staminal.venue.enums.HallStatus;
@@ -54,12 +55,15 @@ class CustomerSavedHallServiceTest {
     @Mock
     private ReviewRepository reviewRepository;
 
+    @Mock
+    private ObjectMapper objectMapper;
+
     private CustomerSavedHallService savedHallService;
 
     @BeforeEach
     void setUp() {
         HallsService hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository,
-                reviewRepository, availabilityService);
+                reviewRepository, availabilityService, objectMapper);
         savedHallService = new CustomerSavedHallService(savedHallRepository, hallRepository, hallsService,
                 userRepository);
     }

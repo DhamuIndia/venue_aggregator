@@ -59,10 +59,12 @@ class HallsServiceTest {
 
     private HallsService hallsService;
 
+    private ObjectMapper objectMapper;
+
     @BeforeEach
     void setUp() {
         hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository, reviewRepository,
-                availabilityService);
+                availabilityService, objectMapper);
     }
 
     @Test
