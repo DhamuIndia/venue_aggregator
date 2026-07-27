@@ -31,13 +31,97 @@ export type AdminVendorReview = {
   moderatedAt?: string;
 };
 
-export type AdminPendingMedia = {
-  id: string;
-  type: "HALL" | "VENDOR";
-  listingId: string;
-  listingName: string;
-  url: string;
-  isPrimary: boolean;
+export type AdminRequirementNotificationSummary = {
+  requirementId: number;
+  customerName: string;
+  eventType: string;
+  eventDate: string;
+  location: string;
+  city?: string | null;
+  requirementStatus?: string | null;
+  services: string[];
+  createdAt: string;
+  matchedVendorCount: number;
+  subscribedVendorCount: number;
+  notificationSkippedCount: number;
+  queuedCount: number;
+  sentCount: number;
+  deliveredCount: number;
+  readCount: number;
+  failedCount: number;
+};
+
+export type AdminWhatsAppAttempt = {
+  attemptNumber: number;
+  status: string;
+  providerMessageId?: string | null;
+  requestedAt: string;
+  sentAt?: string | null;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  failedAt?: string | null;
+  cancelledAt?: string | null;
+  failureCode?: number | null;
+  failureTitle?: string | null;
+  failureReason?: string | null;
+  failureTemporary?: boolean | null;
+};
+
+export type AdminVendorNotificationDelivery = {
+  vendorLeadId: number;
+  leadReference: string;
+  vendorId: number;
+  vendorName: string;
+  service: string;
+  subscribedAtEvaluation: boolean;
+  currentlySubscribed: boolean;
+  currentlyEligible: boolean;
+  rolloutAllowed: boolean;
+  evaluationOutcome: string;
+  skipReason?: string | null;
+  evaluatedAt?: string | null;
+  notificationJobId?: number | null;
+  notificationStatus: string;
+  maskedDestination?: string | null;
+  attemptCount: number;
+  queuedAt?: string | null;
+  sentAt?: string | null;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  failedAt?: string | null;
+  nextRetryAt?: string | null;
+  failureCode?: number | null;
+  failureTitle?: string | null;
+  failureReason?: string | null;
+  failureTemporary?: boolean | null;
+  canManualRetry: boolean;
+  manualRetryBlockedReason?: string | null;
+  retryHistory: AdminWhatsAppAttempt[];
+};
+
+export type AdminRequirementNotificationList = {
+  content: AdminRequirementNotificationSummary[];
+  sendingEnabled: boolean;
+  maxAttempts: number;
+  rolloutAllowedVendorIds: number[];
+};
+
+export type AdminRequirementNotificationDetail = {
+  summary: AdminRequirementNotificationSummary;
+  vendors: AdminVendorNotificationDelivery[];
+  sendingEnabled: boolean;
+  maxAttempts: number;
+  rolloutAllowedVendorIds: number[];
+};
+
+export type AdminManualRetryResult = {
+  notificationJobId: number;
+  status: string;
+  nextRetryAt: string;
+  attemptCount: number;
+  maxAttempts: number;
+  sendingEnabled: boolean;
+  message: string;
 };
 
 export type ManagedAdminRole = Extract<AdminUser["role"], "ADMIN" | "SUPER_ADMIN">;
@@ -74,6 +158,41 @@ export async function getAdminQueues(accessToken?: string | null): Promise<Admin
   ]);
 
   return { venues, vendors, reviews, enquiries, users, auditEvents: events, source: "api" };
+}
+
+export async function getAdminRequirementNotificationMonitoring(
+  accessToken?: string | null
+): Promise<AdminRequirementNotificationList> {
+  if (!accessToken) throw new Error("Authentication required");
+  return apiRequest<AdminRequirementNotificationList>(
+    "/admin/requirements/notification-monitoring",
+    { token: accessToken }
+  );
+}
+
+export async function getAdminRequirementNotificationDetail(
+  requirementId: number,
+  accessToken?: string | null
+): Promise<AdminRequirementNotificationDetail> {
+  if (!accessToken) throw new Error("Authentication required");
+  return apiRequest<AdminRequirementNotificationDetail>(
+    `/admin/requirements/${encodeURIComponent(String(requirementId))}/notification-monitoring`,
+    { token: accessToken }
+  );
+}
+
+export async function retryAdminLeadNotification(
+  notificationJobId: number,
+  accessToken?: string | null
+): Promise<AdminManualRetryResult> {
+  if (!accessToken) throw new Error("Authentication required");
+  return apiRequest<AdminManualRetryResult>(
+    `/admin/notification-jobs/${encodeURIComponent(String(notificationJobId))}/retry`,
+    {
+      method: "POST",
+      token: accessToken
+    }
+  );
 }
 
 export async function reviewAdminHall(id: string, decision: Exclude<ModerationStatus, "PENDING_APPROVAL">, reason: string, accessToken?: string | null) {

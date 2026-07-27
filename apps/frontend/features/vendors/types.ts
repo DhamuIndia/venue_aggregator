@@ -52,6 +52,7 @@ export type VendorLeadStatus = "NEW" | "INTERESTED" | "CONTACTED" | "QUOTE_SENT"
 
 export type VendorLead = {
   id: string;
+  leadReference?: string;
   vendorId: string;
   vendorName: string;
   customerId: string;

@@ -11,6 +11,8 @@ public class VendorLeadResponse {
 
     private Long id;
 
+    private String leadReference;
+
     private String vendorId;
 
     private String vendorName;
@@ -57,6 +59,14 @@ public class VendorLeadResponse {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getLeadReference() {
+        return leadReference;
+    }
+
+    public void setLeadReference(String leadReference) {
+        this.leadReference = leadReference;
     }
 
     public String getVendorId() {

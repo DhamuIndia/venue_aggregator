@@ -129,6 +129,7 @@ public class VendorLeadService {
         VendorLeadResponse response = new VendorLeadResponse();
 
         response.setId(lead.getId());
+        response.setLeadReference(lead.getPublicReference());
         if (lead.getVendor() != null) {
             response.setVendorId(String.valueOf(lead.getVendor().getId()));
             response.setVendorName(firstText(lead.getVendor().getBusinessName(), lead.getVendor().getVendorName(), ""));
@@ -371,6 +372,27 @@ public class VendorLeadService {
 
         VendorLead lead = vendorLeadRepository
                 .findByIdAndVendor_Id(leadId, vendor.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Lead not found"));
+
+        return mapToResponse(lead);
+    }
+
+    @Transactional(readOnly = true)
+    public VendorLeadResponse getLeadByReference(
+            String leadReference,
+            Authentication authentication) {
+
+        Vendors vendor = currentVendor(authentication);
+        if (!LeadReference.isValid(leadReference)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Lead not found");
+        }
+
+        VendorLead lead = vendorLeadRepository
+                .findByPublicReferenceAndVendor_Id(leadReference, vendor.getId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Lead not found"));

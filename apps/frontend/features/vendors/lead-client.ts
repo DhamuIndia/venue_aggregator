@@ -77,6 +77,31 @@ export async function getVendorLeads(vendorId: string, accessToken?: string | nu
   }
 }
 
+export async function getVendorLeadByReference(
+  leadReference: string,
+  accessToken?: string | null
+): Promise<VendorLead> {
+  if (useMockVendorLeads) {
+    const lead = getLocalVendorLeads().find(
+      (item) => item.leadReference === leadReference || item.id === leadReference
+    );
+    if (!lead) throw new ApiError(404, "Lead not found");
+    return lead;
+  }
+  if (!accessToken) {
+    throw new ApiError(401, "Vendor login is required");
+  }
+
+  const response = await apiRequest<unknown>(
+    `/vendor/leads/reference/${encodeURIComponent(leadReference)}`,
+    { token: accessToken }
+  );
+  const lead = toVendorLead(response);
+  if (!lead) throw new Error("The lead response was invalid.");
+  cacheLocalVendorLead(lead);
+  return lead;
+}
+
 export async function getCustomerVendorLeads(accessToken?: string | null): Promise<VendorLeadListResult> {
   if (useMockVendorLeads || !accessToken) {
     return { leads: getLocalVendorLeads(), source: "mock" };
@@ -161,6 +186,7 @@ function toVendorLead(value: unknown, fallback?: Partial<CreateVendorLeadPayload
 
   return {
     id,
+    leadReference: stringValue(value, ["leadReference", "lead_reference"]),
     vendorId,
     vendorName,
     customerId,
