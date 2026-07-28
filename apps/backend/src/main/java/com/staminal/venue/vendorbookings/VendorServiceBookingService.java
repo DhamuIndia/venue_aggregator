@@ -10,6 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.staminal.venue.enums.UserRole;
+import com.staminal.venue.enums.VendorLeadStatus;
+import com.staminal.venue.leads.VendorLead;
+import com.staminal.venue.leads.VendorLeadRepository;
+import com.staminal.venue.quotes.VendorQuoteRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendorbookings.dto.VendorServiceBookingResponse;
@@ -26,13 +30,38 @@ public class VendorServiceBookingService {
     private final VendorServiceBookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final VendorRepository vendorRepository;
+    private final VendorLeadRepository vendorLeadRepository;
+    private final VendorQuoteRepository vendorQuoteRepository;
 
+    @Transactional
     public List<VendorServiceBookingResponse> getCustomerBookings(Authentication authentication) {
         User customer = currentUser(authentication, UserRole.CUSTOMER);
+        vendorLeadRepository.findByCustomer_IdOrderByCreatedAtDesc(customer.getId()).stream()
+                .filter(lead -> lead.getStatus() == VendorLeadStatus.BOOKED)
+                .forEach(this::createMissingBooking);
         return bookingRepository.findByCustomer_IdOrderByEventDateDesc(customer.getId())
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    private void createMissingBooking(VendorLead lead) {
+        if (bookingRepository.findByLead_Id(lead.getId()).isPresent()) return;
+        vendorQuoteRepository.findByLead_Id(lead.getId()).ifPresent(quote -> {
+            VendorServiceBooking booking = new VendorServiceBooking();
+            booking.setQuote(quote);
+            booking.setLead(lead);
+            booking.setRequirement(lead.getRequirement());
+            booking.setVendor(lead.getVendor());
+            booking.setCustomer(lead.getCustomer());
+            booking.setService(lead.getService());
+            booking.setPackageName(quote.getPackageName());
+            booking.setEventType(lead.getEventType());
+            booking.setEventDate(lead.getEventDate());
+            booking.setLocation(lead.getLocation());
+            booking.setAmount(quote.getAmount());
+            bookingRepository.save(booking);
+        });
     }
 
     public List<VendorServiceBookingResponse> getVendorBookings(Authentication authentication) {

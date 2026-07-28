@@ -739,9 +739,15 @@ export function OwnerDashboard() {
       }
       const confirmedEnquiry = updated ?? currentEnquiry;
       if (status === "CONFIRMED" && confirmedEnquiry) {
-        const booking = upsertLocalBooking(lifecycleBookingFromEnquiry({ ...confirmedEnquiry, status: "CONFIRMED" }));
-        setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
-        setAvailabilityBookings((current) => [availabilityBookingFromLifecycle(booking), ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+        // const booking = upsertLocalBooking(lifecycleBookingFromEnquiry({ ...confirmedEnquiry, status: "CONFIRMED" }));
+        // setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+        const bookings = await getOwnerBookings(activeHallId, accessToken);
+
+        setBookings(bookings.bookings);
+
+        setAvailabilityBookings(
+          bookings.bookings.map(availabilityBookingFromLifecycle)
+        );
       }
       setNotice(status === "CONFIRMED" ? "Enquiry confirmed and booking created." : "Enquiry declined and the customer status was updated.");
     } catch (exception) {

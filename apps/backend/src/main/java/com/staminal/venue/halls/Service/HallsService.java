@@ -114,7 +114,8 @@ public class HallsService {
     }
 
     public void approvePendingUpdate(Halls hall) {
-        if (hall.getPendingUpdatePayload() == null) return;
+        if (hall.getPendingUpdatePayload() == null)
+            return;
         try {
             applyRequest(hall, objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class));
             hall.setPendingUpdatePayload(null);
@@ -123,17 +124,26 @@ public class HallsService {
         }
     }
 
-    public void rejectPendingUpdate(Halls hall) { hall.setPendingUpdatePayload(null); }
+    public void rejectPendingUpdate(Halls hall) {
+        hall.setPendingUpdatePayload(null);
+    }
 
     public UpdateHallRequest pendingUpdateFor(Halls hall) {
-        if (hall.getPendingUpdatePayload() == null) return null;
-        try { return objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class); }
-        catch (JsonProcessingException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending hall update is invalid", exception); }
+        if (hall.getPendingUpdatePayload() == null)
+            return null;
+        try {
+            return objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class);
+        } catch (JsonProcessingException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending hall update is invalid", exception);
+        }
     }
 
     private String serializePendingUpdate(UpdateHallRequest request) {
-        try { return objectMapper.writeValueAsString(request); }
-        catch (JsonProcessingException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not save hall update", exception); }
+        try {
+            return objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not save hall update", exception);
+        }
     }
 
     private boolean isBlank(String value) {
@@ -420,8 +430,10 @@ public class HallsService {
                 .average()
                 .orElse(0);
 
-        response.setRating(avg);
-        response.setRatings(avg);
+        double rounded = Math.round(avg * 10.0) / 10.0;
+
+        response.setRating(rounded);
+        response.setRatings(rounded);
         AvailabilitySummary summary = availabilityService.getAvailabilitySummary(hall.getId());
         response.setAvailabilitySummary(summary);
 

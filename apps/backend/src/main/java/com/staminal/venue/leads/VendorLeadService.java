@@ -28,6 +28,8 @@ import com.staminal.venue.notifications.NotificationType;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendorbookings.VendorServiceBookingRepository;
+import com.staminal.venue.vendorbookings.VendorServiceBooking;
+import com.staminal.venue.quotes.VendorQuoteRepository;
 import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Repository.VendorRepository;
 
@@ -44,6 +46,7 @@ public class VendorLeadService {
     private final AuditService auditService;
     private final NotificationService notificationService;
     private final VendorServiceBookingRepository vendorServiceBookingRepository;
+    private final VendorQuoteRepository vendorQuoteRepository;
 
     private Vendors currentVendor(Authentication authentication) {
 
@@ -441,6 +444,9 @@ public class VendorLeadService {
         }
 
         VendorLead savedLead = vendorLeadRepository.save(lead);
+        if (savedLead.getStatus() == VendorLeadStatus.BOOKED) {
+            createBookingForBookedLead(savedLead);
+        }
         if (savedLead.getStatus() == VendorLeadStatus.COMPLETED) {
             vendorServiceBookingRepository.findByLead_Id(savedLead.getId()).ifPresent(booking -> {
                 booking.setStatus(VendorServiceBookingStatus.COMPLETED);
@@ -465,6 +471,26 @@ public class VendorLeadService {
                                 : null));
 
         return mapToResponse(savedLead);
+    }
+
+    private void createBookingForBookedLead(VendorLead lead) {
+        if (vendorServiceBookingRepository.findByLead_Id(lead.getId()).isPresent()) return;
+
+        vendorQuoteRepository.findByLead_Id(lead.getId()).ifPresent(quote -> {
+            VendorServiceBooking booking = new VendorServiceBooking();
+            booking.setQuote(quote);
+            booking.setLead(lead);
+            booking.setRequirement(lead.getRequirement());
+            booking.setVendor(lead.getVendor());
+            booking.setCustomer(lead.getCustomer());
+            booking.setService(lead.getService());
+            booking.setPackageName(quote.getPackageName());
+            booking.setEventType(lead.getEventType());
+            booking.setEventDate(lead.getEventDate());
+            booking.setLocation(lead.getLocation());
+            booking.setAmount(quote.getAmount());
+            vendorServiceBookingRepository.save(booking);
+        });
     }
 
     private void validateTransition(
