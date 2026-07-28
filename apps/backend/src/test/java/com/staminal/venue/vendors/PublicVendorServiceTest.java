@@ -66,7 +66,7 @@ class PublicVendorServiceTest {
         Vendors vendor = vendor(501L, VendorStatus.APPROVED);
 
         when(vendorRepository.findByStatus(VendorStatus.APPROVED)).thenReturn(List.of(vendor));
-        when(vendorMediaRepository.findByVendor_Id(501L)).thenReturn(List.of(media(vendor)));
+        when(vendorMediaRepository.findByVendor_IdAndApprovedTrue(501L)).thenReturn(List.of(media(vendor)));
         when(vendorPackageRepository.findByVendor_Id(501L)).thenReturn(List.of(vendorPackage(vendor)));
         when(vendorReviewRepository.findByVendor_IdAndActiveTrueAndModerationStatus(
                 501L,
@@ -108,7 +108,7 @@ class PublicVendorServiceTest {
         Vendors vendor = vendor(501L, VendorStatus.APPROVED);
 
         when(vendorRepository.findByStatus(VendorStatus.APPROVED)).thenReturn(List.of(vendor));
-        when(vendorMediaRepository.findByVendor_Id(501L)).thenReturn(List.of());
+        when(vendorMediaRepository.findByVendor_IdAndApprovedTrue(501L)).thenReturn(List.of());
         when(vendorPackageRepository.findByVendor_Id(501L)).thenReturn(List.of());
         when(vendorReviewRepository.findByVendor_IdAndActiveTrueAndModerationStatus(
                 501L,
@@ -170,6 +170,7 @@ class PublicVendorServiceTest {
         media.setVendor(vendor);
         media.setMediaUrl("https://cdn.example.com/vendor-cover.jpg");
         media.setIsPrimary(true);
+        media.setApproved(true);
         return media;
     }
 

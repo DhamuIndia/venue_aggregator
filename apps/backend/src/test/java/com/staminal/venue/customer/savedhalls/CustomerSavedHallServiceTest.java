@@ -76,8 +76,6 @@ class CustomerSavedHallServiceTest {
 
         when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
         when(savedHallRepository.findByCustomer_IdOrderByCreatedAtDesc(101L)).thenReturn(List.of(savedHall));
-        when(hallMediaRepository.findByHallId_Id(11L)).thenReturn(List.of());
-
         CustomerSavedHallsResponse response = savedHallService.getSavedHalls(auth(101L, UserRole.CUSTOMER));
 
         assertThat(response.total()).isEqualTo(1);
@@ -95,8 +93,6 @@ class CustomerSavedHallServiceTest {
         when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
         when(hallRepository.findById(11L)).thenReturn(Optional.of(hall));
         when(savedHallRepository.findByCustomer_IdAndHall_Id(101L, 11L)).thenReturn(Optional.of(savedHall));
-        when(hallMediaRepository.findByHallId_Id(11L)).thenReturn(List.of());
-
         HallResponse response = savedHallService.saveHall("11", auth(101L, UserRole.CUSTOMER));
 
         assertThat(response.getId()).isEqualTo(11L);

@@ -31,6 +31,15 @@ export type AdminVendorReview = {
   moderatedAt?: string;
 };
 
+export type AdminPendingMedia = {
+  id: string;
+  type: "HALL" | "VENDOR";
+  listingId: string;
+  listingName: string;
+  url: string;
+  isPrimary: boolean;
+};
+
 export type AdminRequirementNotificationSummary = {
   requirementId: number;
   customerName: string;

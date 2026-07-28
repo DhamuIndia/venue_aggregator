@@ -75,7 +75,7 @@ class HallsServiceTest {
         approvedHall.setCoverImageUrl(media.getUrl());
 
         when(hallRepository.findByStatus(HallStatus.APPROVED)).thenReturn(List.of(approvedHall));
-        when(hallMediaRepository.findByHallId_Id(11L)).thenReturn(List.of(media));
+        when(hallMediaRepository.findByHallId_IdAndApprovedTrue(11L)).thenReturn(List.of(media));
 
         HallListResponse response = hallsService.searchPublicHalls(
                 "emerald",
@@ -110,7 +110,7 @@ class HallsServiceTest {
         approvedHall.setCoverImageUrl(selectedCover.getUrl());
 
         when(hallRepository.findById(11L)).thenReturn(Optional.of(approvedHall));
-        when(hallMediaRepository.findByHallId_Id(11L)).thenReturn(List.of(firstUpload, selectedCover));
+        when(hallMediaRepository.findByHallId_IdAndApprovedTrue(11L)).thenReturn(List.of(firstUpload, selectedCover));
 
         HallResponse response = hallsService.getPublicHall("11");
 
@@ -201,6 +201,7 @@ class HallsServiceTest {
         media.setMediaType("IMAGE");
         media.setUrl(url);
         media.setIsPrimary(true);
+        media.setApproved(true);
         media.setSortOrder(0);
         return media;
     }

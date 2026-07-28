@@ -67,9 +67,11 @@ class VendorMediaServiceTest {
     }
 
     @Test
-    void createMyMediaUsesAuthenticatedVendorAndNormalizesCover() {
+    void createMyMediaKeepsCurrentCoverUntilTheNewUploadIsApproved() {
         Vendors vendor = vendor(501L, 301L);
         VendorMedia oldCover = media(701L, vendor, "https://cdn.example.com/vendors/saffron/old.jpg", true, 0);
+        oldCover.setApproved(true);
+        vendor.setCoverImageUrl(oldCover.getMediaUrl());
         CreateVendorMediaRequest request = createRequest();
 
         when(vendorRepository.findByUserId(301L)).thenReturn(Optional.of(vendor));
@@ -93,14 +95,17 @@ class VendorMediaServiceTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(oldCover.getIsPrimary()).isFalse();
+        assertThat(oldCover.getIsPrimary()).isTrue();
         assertThat(savedMedia.getVendor()).isSameAs(vendor);
+        assertThat(savedMedia.getIsPrimary()).isTrue();
+        assertThat(savedMedia.isApproved()).isFalse();
         assertThat(savedMedia.getStorageKey()).isEqualTo("vendors/saffron/portfolio-1.jpg");
         assertThat(savedMedia.getCaption()).isEqualTo("Reception buffet setup");
         assertThat(savedMedia.getSortOrder()).isEqualTo(1);
         assertThat(savedMedia.getServiceType()).isEqualTo(VendorServiceType.CATERING);
-        assertThat(vendor.getCoverImageUrl()).isEqualTo("https://cdn.example.com/vendors/saffron/portfolio-1.jpg");
+        assertThat(vendor.getCoverImageUrl()).isEqualTo("https://cdn.example.com/vendors/saffron/old.jpg");
         assertThat(response.getUrl()).isEqualTo("https://cdn.example.com/vendors/saffron/portfolio-1.jpg");
+        assertThat(response.isApproved()).isFalse();
     }
 
     @Test
