@@ -1,5 +1,7 @@
 package com.staminal.venue.reviews.HallReview;
 
+import java.util.List;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +33,16 @@ public class ReviewController {
             Authentication authentication) {
 
         return reviewService.getEligibility(enquiryId, authentication);
+    }
+
+    @GetMapping("/reviews")
+    public List<ReviewResponse> getReview(Authentication authentication) {
+        return reviewService.getMyReviews(authentication);
+    }
+
+    @GetMapping("/reviews/{reviewId}")
+    public ReviewResponse getReviewById(@PathVariable Long reviewId, Authentication authentication) {
+        return reviewService.getReviewById(reviewId, authentication);
     }
 
     @PostMapping("/reviews")
