@@ -210,9 +210,16 @@ function toRequestPayload(draft: OwnerOnboardingDraft) {
     amenities: draft.amenities,
     acAvailable: draft.amenities.includes("Air conditioned"),
     carParking: draft.amenities.includes("Parking"),
+    bikeParking: false,
+
     diningAvailable: draft.amenities.includes("Dining hall"),
     generatorAvailable: draft.amenities.includes("Generator"),
-    liftAvailable: draft.amenities.includes("Lift")
+    liftAvailable: draft.amenities.includes("Lift"),
+
+    bridalRoomAvailable: draft.amenities.includes("Bridal room"),
+    cateringKitchenAvailable: draft.amenities.includes("Catering kitchen"),
+
+    rooms: draft.amenities.includes("Guest rooms") ? 1 : null
   };
 }
 

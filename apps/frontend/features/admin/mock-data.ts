@@ -68,6 +68,7 @@ export type AdminEnquiry = {
   eventDate: string;
   submittedAt: string;
   status: EnquiryStatus;
+  source?: "HALL" | "VENDOR";
 };
 
 export type AdminUserStatus = "ACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION";

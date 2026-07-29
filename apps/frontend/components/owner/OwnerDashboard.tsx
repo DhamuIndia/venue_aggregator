@@ -739,9 +739,15 @@ export function OwnerDashboard() {
       }
       const confirmedEnquiry = updated ?? currentEnquiry;
       if (status === "CONFIRMED" && confirmedEnquiry) {
-        const booking = upsertLocalBooking(lifecycleBookingFromEnquiry({ ...confirmedEnquiry, status: "CONFIRMED" }));
-        setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
-        setAvailabilityBookings((current) => [availabilityBookingFromLifecycle(booking), ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+        // const booking = upsertLocalBooking(lifecycleBookingFromEnquiry({ ...confirmedEnquiry, status: "CONFIRMED" }));
+        // setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+        const bookings = await getOwnerBookings(activeHallId, accessToken);
+
+        setBookings(bookings.bookings);
+
+        setAvailabilityBookings(
+          bookings.bookings.map(availabilityBookingFromLifecycle)
+        );
       }
       setNotice(status === "CONFIRMED" ? "Enquiry confirmed and booking created." : "Enquiry declined and the customer status was updated.");
     } catch (exception) {
@@ -1569,8 +1575,14 @@ export function OwnerDashboard() {
               <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_420px]">
                 <section className="rounded-lg border border-border bg-white p-5 sm:p-6">
                   <div className="grid gap-5 sm:grid-cols-2">
-                    <label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("name", event.target.value)} value={listingForm.name} /></label>
-                    <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label>
+                    <label className="text-sm font-medium sm:col-span-2">
+                      Venue name
+                      <input
+                        className="mt-2 h-11 w-full rounded-md border border-border bg-muted px-3 font-normal text-muted-foreground cursor-not-allowed"
+                        value={listingForm.name}
+                        readOnly
+                      />
+                    </label>                    <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label>
                     <label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><select className="h-11 w-full appearance-none rounded-md border border-border bg-white px-3 pr-10 font-normal outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15" onChange={(event) => updateListingField("capacity", event.target.value)} value={listingForm.capacity}><option value="">Choose guest capacity</option>{listingCapacityOptions.map((option) => <option key={option} value={option}>{formatGuestCapacityOption(option)}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /></span></label>
                     <label className="text-sm font-medium">City<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("city", event.target.value)} value={listingForm.city} /></label>
                     <label className="text-sm font-medium">Area<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("area", event.target.value)} value={listingForm.area} /></label>

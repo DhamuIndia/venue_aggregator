@@ -17,6 +17,7 @@ import {
   Pencil,
   Plus,
   Sparkles,
+  Star,
   Store,
   Trash2,
   X
@@ -33,13 +34,14 @@ import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-
 import { deleteVendorMedia, getVendorMedia, mediaFromVendor, setVendorMediaCover, type VendorMediaItem, uploadAndCreateVendorMedia } from "@/features/vendors/media-client";
 import { createVendorPackage, deleteVendorPackage, getVendorPackages, updateVendorPackage, type VendorPackagePayload } from "@/features/vendors/package-client";
 import { fallbackVendorProfile, getVendorProfile, type VendorProfileDraft } from "@/features/vendors/profile-client";
+import { getVendorReviews, type VendorReview } from "@/features/vendors/review-client";
 import { createSubscriptionOrder, fallbackSubscriptionPlans, fallbackVendorSubscription, getSubscriptionPlans, getVendorSubscription, type SubscriptionPlan, type VendorSubscription } from "@/features/vendors/subscription-client";
 import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/vendors/types";
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
 import { VendorLeadInbox } from "./VendorLeadInbox";
 import { VendorWhatsAppNotificationSettings } from "./VendorWhatsAppNotificationSettings";
 
-type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "notifications" | "subscription";
+type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "reviews" | "notifications" | "subscription";
 
 const tabs: { id: VendorTab; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -47,6 +49,7 @@ const tabs: { id: VendorTab; label: string }[] = [
   { id: "reports", label: "Reports" },
   { id: "services", label: "Services" },
   { id: "portfolio", label: "Portfolio" },
+  { id: "reviews", label: "Reviews" },
   { id: "notifications", label: "Notifications" },
   { id: "subscription", label: "Subscription" }
 ];
@@ -153,6 +156,11 @@ export function VendorDashboard() {
   const [analytics, setAnalytics] = useState<VendorAnalytics>(useVendorDemoFallbacks ? fallbackVendorAnalytics : emptyVendorAnalytics);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
+  const [reviews, setReviews] = useState<VendorReview[]>([]);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
   const activeVendorId = vendorProfile.id ?? "";
 
   useEffect(() => {
@@ -174,6 +182,27 @@ export function VendorDashboard() {
     return () => {
       isCurrent = false;
     };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    async function loadReviews() {
+      setIsLoadingReviews(true);
+      setReviewsError("");
+      try {
+        const response = await getVendorReviews(accessToken);
+        if (!isCurrent) return;
+        setReviews(response.reviews);
+        setReviewCount(response.reviewCount);
+        setAverageRating(response.averageRating);
+      } catch {
+        if (isCurrent) setReviewsError("Could not load customer reviews.");
+      } finally {
+        if (isCurrent) setIsLoadingReviews(false);
+      }
+    }
+    loadReviews();
+    return () => { isCurrent = false; };
   }, [accessToken]);
 
   useEffect(() => {
@@ -701,6 +730,14 @@ export function VendorDashboard() {
             ) : (
               <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><ImagePlus className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No portfolio photos yet</h3><p className="mt-2 text-sm text-muted-foreground">Add clear examples of your recent event work.</p></div>
             )}
+          </section>
+        )}
+
+        {activeTab === "reviews" && (
+          <section className="py-7">
+            <div><h2 className="text-xl font-semibold">Customer reviews</h2><p className="mt-1 text-sm text-muted-foreground">Verified feedback from completed services.</p></div>
+            {reviewsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{reviewsError}</p>}
+            {isLoadingReviews ? <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]"><div className="h-64 animate-pulse rounded-lg border border-border bg-white" /><div className="grid gap-3">{[1, 2].map((item) => <div className="h-32 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div></div> : reviews.length > 0 ? <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]"><div className="h-fit rounded-lg border border-border bg-white p-6 text-center"><p className="text-5xl font-semibold">{averageRating.toFixed(1)}</p><div className="mt-3 flex justify-center gap-1 text-amber-400">{[1, 2, 3, 4, 5].map((star) => <Star className="fill-current" key={star} size={18} />)}</div><p className="mt-2 text-sm text-muted-foreground">Based on {reviewCount} verified review{reviewCount === 1 ? "" : "s"}</p></div><div className="grid gap-3">{reviews.map((review) => <article className="rounded-lg border border-border bg-white p-5" key={review.id}><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{review.customerName}</h3>{review.verifiedService && <BadgeCheck className="text-emerald-700" size={16} />}</div><p className="mt-1 text-xs text-muted-foreground">{review.eventType} {review.eventDate ? `| ${review.eventDate}` : ""}</p></div><div className="flex gap-1 text-amber-400">{Array.from({ length: Math.round(review.rating) }, (_, index) => <Star className="fill-current" key={index} size={14} />)}</div></div><p className="mt-4 text-sm leading-6 text-muted-foreground">{review.comment}</p></article>)}</div></div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><Star className="mx-auto text-muted-foreground" size={30} /><h3 className="mt-4 font-semibold">No verified customer reviews yet.</h3><p className="mt-2 text-sm text-muted-foreground">Reviews from completed services will appear here after admin publication.</p></div>}
           </section>
         )}
 

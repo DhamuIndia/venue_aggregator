@@ -412,9 +412,13 @@ export async function rejectAdminMedia(
 }
 
 async function getAdminEnquiries(accessToken: string) {
-  const response = await apiRequest<unknown>("/admin/enquiries", { token: accessToken });
-  const enquiries = extractList(response).map(toAdminEnquiry).filter(Boolean) as AdminEnquiry[];
-  return enquiries;
+  const [hallResponse, vendorResponse] = await Promise.all([
+    apiRequest<unknown>("/admin/enquiries", { token: accessToken }),
+    apiRequest<unknown>("/admin/vendor-leads", { token: accessToken })
+  ]);
+  const halls = extractList(hallResponse).map(toAdminEnquiry).filter(Boolean) as AdminEnquiry[];
+  const vendorLeads = extractList(vendorResponse).map(toAdminVendorLead).filter(Boolean) as AdminEnquiry[];
+  return [...halls, ...vendorLeads];
 }
 
 async function getAdminUsers(accessToken: string) {
@@ -691,7 +695,25 @@ function toAdminEnquiry(value: unknown): AdminEnquiry | undefined {
     customerName: stringValue(value, ["customerName", "customer_name", "name"]) ?? "Customer",
     eventDate: stringValue(value, ["eventDate", "event_date"]) ?? "",
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at"]) ?? "",
-    status: enquiryStatus(value) ?? "PENDING_OWNER_RESPONSE"
+    status: enquiryStatus(value) ?? "PENDING_OWNER_RESPONSE",
+    source: "HALL"
+  };
+}
+
+function toAdminVendorLead(value: unknown): AdminEnquiry | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = stringValue(value, ["leadReference", "id"]);
+  if (!id) return undefined;
+  const leadStatus = stringValue(value, ["status"]);
+  const status: AdminEnquiry["status"] = leadStatus === "BOOKED" ? "CONFIRMED" : leadStatus === "COMPLETED" ? "COMPLETED" : leadStatus === "DECLINED" || leadStatus === "NOT_SELECTED" ? "DECLINED" : "PENDING_OWNER_RESPONSE";
+  return {
+    id,
+    hallName: stringValue(value, ["vendorName", "vendor_name"]) ?? "Vendor",
+    customerName: stringValue(value, ["customerName", "customer_name"]) ?? "Customer",
+    eventDate: stringValue(value, ["eventDate", "event_date"]) ?? "",
+    submittedAt: stringValue(value, ["createdAt", "created_at"]) ?? "",
+    status,
+    source: "VENDOR"
   };
 }
 

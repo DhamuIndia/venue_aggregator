@@ -34,6 +34,7 @@ import com.staminal.venue.leads.Dto.UpdateVendorLeadStatusRequest;
 import com.staminal.venue.leads.Dto.VendorLeadResponse;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
+import com.staminal.venue.quotes.VendorQuoteRepository;
 import com.staminal.venue.requirements.CustomerRequirement;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
@@ -62,6 +63,9 @@ class VendorLeadServiceTest {
     @Mock
     private VendorServiceBookingRepository vendorServiceBookingRepository;
 
+    @Mock
+    private VendorQuoteRepository vendorQuoteRepository;
+
     private VendorLeadService vendorLeadService;
 
     @BeforeEach
@@ -72,7 +76,8 @@ class VendorLeadServiceTest {
                 userRepository,
                 auditService,
                 notificationService,
-                vendorServiceBookingRepository);
+                vendorServiceBookingRepository,
+                vendorQuoteRepository);
     }
 
     @Test

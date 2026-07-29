@@ -114,7 +114,8 @@ public class HallsService {
     }
 
     public void approvePendingUpdate(Halls hall) {
-        if (hall.getPendingUpdatePayload() == null) return;
+        if (hall.getPendingUpdatePayload() == null)
+            return;
         try {
             applyRequest(hall, objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class));
             hall.setPendingUpdatePayload(null);
@@ -123,17 +124,26 @@ public class HallsService {
         }
     }
 
-    public void rejectPendingUpdate(Halls hall) { hall.setPendingUpdatePayload(null); }
+    public void rejectPendingUpdate(Halls hall) {
+        hall.setPendingUpdatePayload(null);
+    }
 
     public UpdateHallRequest pendingUpdateFor(Halls hall) {
-        if (hall.getPendingUpdatePayload() == null) return null;
-        try { return objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class); }
-        catch (JsonProcessingException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending hall update is invalid", exception); }
+        if (hall.getPendingUpdatePayload() == null)
+            return null;
+        try {
+            return objectMapper.readValue(hall.getPendingUpdatePayload(), UpdateHallRequest.class);
+        } catch (JsonProcessingException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending hall update is invalid", exception);
+        }
     }
 
     private String serializePendingUpdate(UpdateHallRequest request) {
-        try { return objectMapper.writeValueAsString(request); }
-        catch (JsonProcessingException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not save hall update", exception); }
+        try {
+            return objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not save hall update", exception);
+        }
     }
 
     private boolean isBlank(String value) {
@@ -420,8 +430,10 @@ public class HallsService {
                 .average()
                 .orElse(0);
 
-        response.setRating(avg);
-        response.setRatings(avg);
+        double rounded = Math.round(avg * 10.0) / 10.0;
+
+        response.setRating(rounded);
+        response.setRatings(rounded);
         AvailabilitySummary summary = availabilityService.getAvailabilitySummary(hall.getId());
         response.setAvailabilitySummary(summary);
 
@@ -507,13 +519,16 @@ public class HallsService {
     private List<String> amenities(Halls hall) {
         List<String> amenities = new ArrayList<>();
         addAmenity(amenities, hall.getAcAvailable(), "Air conditioned");
-        addAmenity(amenities, hall.getCarParking(), "Car parking");
+        addAmenity(amenities, hall.getCarParking(), "Parking");
         addAmenity(amenities, hall.getBikeParking(), "Bike parking");
         addAmenity(amenities, hall.getDiningAvailable(), "Dining hall");
         addAmenity(amenities, hall.getGeneratorAvailable(), "Generator");
         addAmenity(amenities, hall.getLiftAvailable(), "Lift");
         addAmenity(amenities, hall.getBridalRoomAvailable(), "Bridal room");
         addAmenity(amenities, hall.getCateringKitchenAvailable(), "Catering kitchen");
+        if (hall.getRooms() != null && hall.getRooms() > 0) {
+            amenities.add("Guest rooms");
+        }
         return amenities;
     }
 
