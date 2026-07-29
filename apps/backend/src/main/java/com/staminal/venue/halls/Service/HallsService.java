@@ -519,13 +519,16 @@ public class HallsService {
     private List<String> amenities(Halls hall) {
         List<String> amenities = new ArrayList<>();
         addAmenity(amenities, hall.getAcAvailable(), "Air conditioned");
-        addAmenity(amenities, hall.getCarParking(), "Car parking");
+        addAmenity(amenities, hall.getCarParking(), "Parking");
         addAmenity(amenities, hall.getBikeParking(), "Bike parking");
         addAmenity(amenities, hall.getDiningAvailable(), "Dining hall");
         addAmenity(amenities, hall.getGeneratorAvailable(), "Generator");
         addAmenity(amenities, hall.getLiftAvailable(), "Lift");
         addAmenity(amenities, hall.getBridalRoomAvailable(), "Bridal room");
         addAmenity(amenities, hall.getCateringKitchenAvailable(), "Catering kitchen");
+        if (hall.getRooms() != null && hall.getRooms() > 0) {
+            amenities.add("Guest rooms");
+        }
         return amenities;
     }
 

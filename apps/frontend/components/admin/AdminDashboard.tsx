@@ -862,9 +862,38 @@ export function AdminDashboard() {
 
         {activeTab === "reviews" && (
           <section className="py-7">
-            <div><h2 className="text-xl font-semibold">Hall reviews</h2><p className="mt-1 text-sm text-muted-foreground">Moderate customer reviews submitted for halls.</p></div>
+            <div>
+              <h2 className="text-xl font-semibold">Hall Reviews</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Moderate customer reviews submitted for halls.</p>
+            </div>
             <div className="mt-5 grid gap-4">
-              {reviews.map((review) => <article className="rounded-lg border border-border bg-white p-5" key={review.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{review.hallName}</h3>{review.verifiedService && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800"><BadgeCheck size={13} /> Verified service</span>}</div><p className="mt-1 text-sm text-muted-foreground">{review.customerName} | {review.rating}/5 | {review.id}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${review.status === "REPORTED" ? "bg-rose-50 text-rose-700" : review.status === "HIDDEN" ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-800"}`}>{review.status.toLowerCase()}</span></div><blockquote className="mt-4 border-l-2 border-border pl-4 text-sm leading-6">&ldquo;{review.comment}&rdquo;</blockquote><p className="mt-4 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800"><CircleAlert size={16} /> Report: {review.reportReason}</p>{review.status === "REPORTED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => moderateReview(review.id, "PUBLISHED")}><Check size={17} /> Keep published</button><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => moderateReview(review.id, "HIDDEN")}><MessageSquareWarning size={17} /> Hide review</button></div>}</article>)}
+              {reviews.length === 0 && (
+                <div className="rounded-lg border border-dashed border-border bg-white px-5 py-10 text-center text-muted-foreground">
+                  No hall reviews found.
+                </div>
+              )}
+              {reviews.map((review) => (
+                <article className="rounded-lg border border-border bg-white p-5" key={review.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">{review.hallName}</h3>
+                        {review.verifiedService && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800"><BadgeCheck size={13} /> Verified service</span>}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{review.customerName}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${review.status === "REPORTED" ? "bg-rose-100 text-rose-700" : review.status === "HIDDEN" ? "bg-slate-100 text-slate-700" : "bg-emerald-100 text-emerald-700"}`}>
+                      {review.status}
+                    </span>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm">⭐ {review.rating}/5</p>
+                    <blockquote className="mt-3 border-l-2 border-border pl-4 text-sm leading-6">&ldquo;{review.comment}&rdquo;</blockquote>
+                  </div>
+                  {review.reportReason && <p className="mt-4 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800"><CircleAlert size={16} /> Report: {review.reportReason}</p>}
+                  {review.status === "REPORTED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => moderateReview(review.id, "PUBLISHED")}><Check size={17} /> Keep published</button><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => moderateReview(review.id, "HIDDEN")}><MessageSquareWarning size={17} /> Hide review</button></div>}
+                </article>
+              ))}
             </div>
           </section>
         )}
@@ -982,8 +1011,19 @@ export function AdminDashboard() {
           <section className="py-7">
             <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Enquiry tracking</h2><p className="mt-1 text-sm text-muted-foreground">Marketplace-wide status visibility for support and reconciliation.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setEnquiryFilter(event.target.value as "ALL" | EnquiryStatus)} value={enquiryFilter}><option value="ALL">All enquiries</option><option value="PENDING_OWNER_RESPONSE">Pending owner response</option><option value="CONFIRMED">Confirmed</option><option value="DECLINED">Declined</option><option value="COMPLETED">Completed</option></select></label></div>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
-              <div className="hidden grid-cols-[130px_1.4fr_1fr_1fr_150px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>ID</span><span>Venue</span><span>Customer</span><span>Event date</span><span>Status</span></div>
-              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[72px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredEnquiries.map((enquiry) => <article className="grid gap-2 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[130px_1.4fr_1fr_1fr_150px] md:items-center" key={enquiry.id}><p className="text-sm font-medium">{enquiry.id}</p><div><p className="font-medium">{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground md:hidden">Submitted {enquiry.submittedAt}</p></div><p className="text-sm">{enquiry.customerName}</p><p className="text-sm text-muted-foreground">{enquiry.eventDate}</p><span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span></article>)}
+              <div className="hidden grid-cols-[minmax(6.5rem,0.9fr)_minmax(6rem,0.75fr)_minmax(11rem,1.55fr)_minmax(9rem,1.2fr)_minmax(7rem,0.85fr)_minmax(7.5rem,0.9fr)] gap-x-5 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:grid">
+                <span>ID</span><span>Type</span><span>Venue / vendor</span><span>Customer</span><span>Event date</span><span>Status</span>
+              </div>
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[72px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredEnquiries.map((enquiry) => (
+                <article className="grid gap-x-5 gap-y-3 border-b border-border px-5 py-4 last:border-0 lg:grid-cols-[minmax(6.5rem,0.9fr)_minmax(6rem,0.75fr)_minmax(11rem,1.55fr)_minmax(9rem,1.2fr)_minmax(7rem,0.85fr)_minmax(7.5rem,0.9fr)] lg:items-center" key={`${enquiry.source ?? "HALL"}-${enquiry.id}`}>
+                  <p className="text-sm font-medium lg:truncate" title={enquiry.id}>{enquiry.id}</p>
+                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${enquiry.source === "VENDOR" ? "bg-violet-50 text-violet-700" : "bg-blue-50 text-blue-700"}`}>{enquiry.source === "VENDOR" ? "Vendor lead" : "Hall"}</span>
+                  <div className="min-w-0"><p className="truncate font-medium" title={enquiry.hallName}>{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground lg:hidden">Submitted {enquiry.submittedAt}</p></div>
+                  <p className="truncate text-sm" title={enquiry.customerName}>{enquiry.customerName}</p>
+                  <p className="text-sm text-muted-foreground">{enquiry.eventDate}</p>
+                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span>
+                </article>
+              ))}
               {!isLoadingQueues && filteredEnquiries.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No enquiries match this filter.</p>}
             </div>
           </section>

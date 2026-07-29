@@ -473,6 +473,14 @@ public class VendorLeadService {
         return mapToResponse(savedLead);
     }
 
+    public List<VendorLeadResponse> getAdminLeads(Authentication authentication) {
+        currentUser(authentication, UserRole.ADMIN);
+        return vendorLeadRepository.findAll().stream()
+                .sorted((first, second) -> second.getCreatedAt().compareTo(first.getCreatedAt()))
+                .map(this::mapToResponse)
+                .toList();
+    }
+
     private void createBookingForBookedLead(VendorLead lead) {
         if (vendorServiceBookingRepository.findByLead_Id(lead.getId()).isPresent()) return;
 

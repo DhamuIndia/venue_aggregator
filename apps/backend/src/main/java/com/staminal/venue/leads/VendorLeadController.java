@@ -42,6 +42,11 @@ public class VendorLeadController {
         return vendorLeadService.getMyCustomerLeads(authentication);
     }
 
+    @GetMapping("/admin/vendor-leads")
+    public List<VendorLeadResponse> getAdminVendorLeads(Authentication authentication) {
+        return vendorLeadService.getAdminLeads(authentication);
+    }
+
     @GetMapping("/vendor/leads/{leadId}")
     public VendorLeadResponse getLead(
             @PathVariable Long leadId,
