@@ -39,7 +39,7 @@ export function SiteHeader() {
           <MarketplaceRequirementNavLink />
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          {(!user || user.role === "CUSTOMER") && <Link aria-label="Saved venues" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" href={user ? "/customer" : "/auth/login"} title="Saved venues"><Heart aria-hidden="true" size={19} /></Link>}
+          {(!user || user.role === "CUSTOMER") && <Link aria-label="Saved venues" className="grid size-10 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground" href={user ? "/customer?tab=saved" : "/auth/login"} title="Saved venues"><Heart aria-hidden="true" size={19} /></Link>}
           {user && <NotificationBell />}
           {!isLoading && user ? (
             <>

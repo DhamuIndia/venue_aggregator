@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { NotificationActivity } from "@/components/notifications/NotificationCenter";
@@ -47,6 +46,7 @@ import type { VendorLead } from "@/features/vendors/types";
 import { isQuoteExpired, QuoteComparisonDialog } from "./QuoteComparisonDialog";
 import { QuoteAcceptanceDialog } from "./QuoteAcceptanceDialog";
 import { ReviewDialog } from "./ReviewDialog";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type DashboardTab = "overview" | "requirements" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
 
@@ -192,10 +192,17 @@ export function CustomerDashboard() {
   const [comparisonRequirementId, setComparisonRequirementId] = useState<string | null>(null);
   const [workflowRefresh, setWorkflowRefresh] = useState(0);
 
+  const searchParams = useSearchParams();
+
   useEffect(() => {
-    const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    if (tabs.some((tab) => tab.id === requestedTab)) setActiveTab(requestedTab as DashboardTab);
-  }, []);
+    const requestedTab = searchParams.get("tab");
+
+    if (tabs.some((tab) => tab.id === requestedTab)) {
+      setActiveTab(requestedTab as DashboardTab);
+    } else {
+      setActiveTab("overview");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -628,8 +635,21 @@ export function CustomerDashboard() {
 
         <div className="mt-8 flex gap-1 overflow-x-auto border-b border-border" role="tablist" aria-label="Customer account">
           {tabs.map((tab) => (
-            <button aria-selected={activeTab === tab.id} className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}</button>
-          ))}
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              onClick={() => {
+                router.push(`/customer?tab=${tab.id}`);
+              }}
+            >
+              {tab.label}
+            </button>))}
         </div>
 
         {activeTab === "overview" && (
@@ -882,7 +902,11 @@ export function CustomerDashboard() {
                     </p>
 
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {review.createdAt}
+                      {new Intl.DateTimeFormat("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(review.createdAt))}
                     </p>
 
                   </article>
