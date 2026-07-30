@@ -51,7 +51,6 @@ public class HallMediaService {
     }
 
     public List<HallMediaResponse> getByHall(Long hallId, Authentication authentication) {
-        Halls hall = findOwnedHall(hallId, authentication);
 
         return hallMediaRepository.findByHallId_Id(hallId)
                 .stream()
