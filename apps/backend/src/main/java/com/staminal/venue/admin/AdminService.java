@@ -16,6 +16,9 @@ import com.staminal.venue.vendors.Entity.Vendors;
 import com.staminal.venue.vendors.Hall.VendorHallDetails;
 import com.staminal.venue.vendors.Hall.VendorHallRepository;
 import com.staminal.venue.vendors.Repository.VendorRepository;
+import com.staminal.venue.vendors.Repository.VendorMediaRepository;
+import com.staminal.venue.vendors.Dto.VendorMediaResponse;
+import com.staminal.venue.vendors.Entity.VendorMedia;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,8 +32,7 @@ public class AdminService {
     private final VendorHallRepository vendorHallRepository;
     private final VendorDjRepository vendorDjRepository;
     private final VendorCateringRepository vendorCateringRepository;
-
-    // private final HallsRepository hallsRepository;
+    private final VendorMediaRepository vendorMediaRepository;
 
     public Admin createAdmin(Admin admin) {
         admin.setStatus("ACTIVE");
@@ -73,6 +75,7 @@ public class AdminService {
         response.setWhatsAppNumber(savedVendor.getWhatsAppNumber());
         response.setStatus(savedVendor.getStatus().name());
         response.setRejectionReason(savedVendor.getRejectionReason());
+        response.setMedia(mapVendorMedia(savedVendor.getId()));
 
         return response;
     }
@@ -100,6 +103,7 @@ public class AdminService {
         response.setWhatsAppNumber(savedVendor.getWhatsAppNumber());
         response.setStatus(savedVendor.getStatus().name());
         response.setRejectionReason(savedVendor.getRejectionReason());
+        response.setMedia(mapVendorMedia(savedVendor.getId()));
 
         return response;
     }
@@ -124,6 +128,7 @@ public class AdminService {
                     response.setWhatsAppNumber(vendor.getWhatsAppNumber());
                     response.setStatus(vendor.getStatus().name());
                     response.setRejectionReason(vendor.getRejectionReason());
+                    response.setMedia(mapVendorMedia(vendor.getId()));
 
                     return response;
                 })
@@ -234,6 +239,35 @@ public class AdminService {
 
         return vendorCateringRepository.findByStatus(
                 VendorStatus.PENDING);
+    }
+
+    private List<VendorMediaResponse> mapVendorMedia(Long vendorId) {
+
+        List<VendorMedia> mediaList = vendorMediaRepository.findByVendor_Id(vendorId);
+
+        System.out.println("Vendor ID = " + vendorId);
+        System.out.println("Media Count = " + mediaList.size());
+
+        return mediaList.stream()
+                .map(item -> {
+
+                    VendorMediaResponse response = new VendorMediaResponse();
+
+                    response.setId(item.getId());
+                    response.setMediaUrl(item.getMediaUrl());
+                    response.setPrimary(item.getIsPrimary());
+                    response.setApproved(item.isApproved());
+                    response.setCaption(item.getCaption());
+                    response.setFileName(item.getFileName());
+                    response.setMediaType(item.getMediaType());
+                    response.setStorageKey(item.getStorageKey());
+                    response.setSortOrder(item.getSortOrder());
+                    response.setServiceType(item.getServiceType());
+                    response.setServiceId(item.getServiceId());
+
+                    return response;
+                })
+                .toList();
     }
 
 }

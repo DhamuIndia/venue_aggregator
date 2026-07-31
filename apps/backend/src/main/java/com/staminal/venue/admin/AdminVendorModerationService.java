@@ -31,6 +31,7 @@ import com.staminal.venue.vendors.Repository.VendorRepository;
 import com.staminal.venue.vendors.Service.VendorService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
+import com.staminal.venue.vendors.Dto.VendorMediaResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -52,7 +53,8 @@ public class AdminVendorModerationService {
         VendorStatus vendorStatus = toVendorStatus(status);
 
         List<Vendors> filtered = (vendorStatus == VendorStatus.PENDING
-                ? java.util.stream.Stream.concat(vendorRepository.findByStatus(VendorStatus.PENDING).stream(), vendorRepository.findByPendingUpdatePayloadIsNotNull().stream()).distinct().toList()
+                ? java.util.stream.Stream.concat(vendorRepository.findByStatus(VendorStatus.PENDING).stream(),
+                        vendorRepository.findByPendingUpdatePayloadIsNotNull().stream()).distinct().toList()
                 : vendorStatus == null ? vendorRepository.findAll() : vendorRepository.findByStatus(vendorStatus))
                 .stream()
                 .sorted(Comparator.comparing(Vendors::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -89,8 +91,10 @@ public class AdminVendorModerationService {
 
         Admin reviewer = currentAdmin(authentication).orElse(null);
         if (pendingUpdate) {
-            if (decision == VendorStatus.APPROVED) vendorService.approvePendingUpdate(vendor);
-            else vendorService.rejectPendingUpdate(vendor);
+            if (decision == VendorStatus.APPROVED)
+                vendorService.approvePendingUpdate(vendor);
+            else
+                vendorService.rejectPendingUpdate(vendor);
             vendor = vendorRepository.findById(vendor.getId()).orElseThrow();
         } else {
             vendor.setStatus(decision);
@@ -156,7 +160,8 @@ public class AdminVendorModerationService {
         UpdateVendorRequest pending = vendorService.pendingUpdateFor(vendor);
         return new AdminVendorResponse(
                 String.valueOf(vendor.getId()),
-                firstText(pending == null ? null : pending.getBusinessName(), vendor.getBusinessName(), vendor.getVendorName(), "Vendor"),
+                firstText(pending == null ? null : pending.getBusinessName(), vendor.getBusinessName(),
+                        vendor.getVendorName(), "Vendor"),
                 firstText(vendor.getVendorName(), vendor.getUser() == null ? null : vendor.getUser().getFullName(),
                         "Vendor"),
                 firstText(pending == null ? null : pending.getCategory(), category(vendor)),
@@ -342,6 +347,31 @@ public class AdminVendorModerationService {
             response.setPackageDescription(pending.getPackageDescription());
             response.setStatus("PENDING_APPROVAL");
         }
+
+        List<VendorMediaResponse> media = vendorMediaRepository
+                .findByVendor_Id(vendor.getId())
+                .stream()
+                .map(item -> {
+
+                    VendorMediaResponse mediaResponse = new VendorMediaResponse();
+
+                    mediaResponse.setId(item.getId());
+                    mediaResponse.setMediaUrl(item.getMediaUrl());
+                    mediaResponse.setPrimary(item.getIsPrimary());
+                    mediaResponse.setApproved(item.isApproved());
+                    mediaResponse.setCaption(item.getCaption());
+                    mediaResponse.setFileName(item.getFileName());
+                    mediaResponse.setMediaType(item.getMediaType());
+                    mediaResponse.setStorageKey(item.getStorageKey());
+                    mediaResponse.setSortOrder(item.getSortOrder());
+                    mediaResponse.setServiceType(item.getServiceType());
+                    mediaResponse.setServiceId(item.getServiceId());
+
+                    return mediaResponse;
+                })
+                .toList();
+
+        response.setMedia(media);
 
         return response;
     }

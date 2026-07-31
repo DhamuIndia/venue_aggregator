@@ -55,6 +55,8 @@ public class VendorResponse {
 
     private String packageName;
 
+    private List<VendorMediaResponse> media;
+
     private BigDecimal startingPrice;
 
     private String packageDescription;
@@ -275,6 +277,14 @@ public class VendorResponse {
 
     public void setPendingUpdate(boolean pendingUpdate) {
         this.pendingUpdate = pendingUpdate;
+    }
+
+    public List<VendorMediaResponse> getMedia() {
+        return media;
+    }
+
+    public void setMedia(List<VendorMediaResponse> media) {
+        this.media = media;
     }
 
 }

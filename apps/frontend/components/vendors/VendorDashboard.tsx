@@ -40,6 +40,8 @@ import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/ven
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
 import { VendorLeadInbox } from "./VendorLeadInbox";
 import { VendorWhatsAppNotificationSettings } from "./VendorWhatsAppNotificationSettings";
+import ImageCropDialog from "@/components/shared/ImageCropDialog";
+import { validateImage } from "@/lib/imageValidation";
 
 type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "reviews" | "notifications" | "subscription";
 
@@ -162,6 +164,9 @@ export function VendorDashboard() {
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [reviewsError, setReviewsError] = useState("");
   const activeVendorId = vendorProfile.id ?? "";
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   useEffect(() => {
     let isCurrent = true;
@@ -392,12 +397,20 @@ export function VendorDashboard() {
   async function addPortfolioImages(files: FileList | null) {
     if (!files?.length) return;
     try {
+      const file = files[0];
+
+      if (!file) return;
+
+      const validationError = await validateImage(file);
+      if (validationError) {
+        setPortfolioError(validationError);
+        return;
+      }
+
       setPortfolioError("");
-      setIsUploadingPortfolio(true);
-      const currentLength = portfolio.length;
-      const uploaded = await Promise.all(Array.from(files).map((file, index) => uploadAndCreateVendorMedia(file, currentLength + index, accessToken)));
-      setPortfolio((current) => [...uploaded, ...current]);
-      setNotice(`${files.length} portfolio image${files.length === 1 ? "" : "s"} added.`);
+      setPendingFile(file);
+      setImageToCrop(URL.createObjectURL(file));
+      setCropDialogOpen(true);
     } catch (exception) {
       setPortfolioError(exception instanceof Error ? exception.message : "Could not upload portfolio photos.");
     } finally {
@@ -745,6 +758,62 @@ export function VendorDashboard() {
 
         {activeTab === "subscription" && <section className="py-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Subscription</h2><p className="mt-1 text-sm text-muted-foreground">Choose how prominently your business appears and how many leads you can receive.</p></div><div className="rounded-md border border-border bg-white px-4 py-3 text-sm"><span className="text-muted-foreground">Current status</span><strong className="ml-2 capitalize">{subscriptionStatusLabel(subscription.status)}</strong>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-muted-foreground">Renews {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(subscription.currentPeriodEnd))}</p>}{subscription.pendingOrderId && <p className="mt-1 text-xs text-muted-foreground">Order {subscription.pendingOrderId}</p>}</div></div>{subscriptionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{subscriptionError}</p>}{isLoadingSubscription ? <div className="mt-5 grid gap-5 lg:grid-cols-2">{[1, 2].map((item) => <div className="h-72 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : <div className="mt-5 grid gap-5 lg:grid-cols-2">{subscriptionPlans.map((item) => { const isActive = subscription.planId === item.id && subscription.status === "ACTIVE"; const isPending = subscription.planId === item.id && subscription.status === "PENDING_PAYMENT"; return <article className={`rounded-lg border bg-white p-6 ${isActive || isPending ? "border-primary" : "border-border"}`} key={item.id}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-semibold">{item.name}</h3><p className="mt-1 text-sm text-muted-foreground">{item.description}</p></div>{isActive && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Current plan</span>}{isPending && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Payment pending</span>}{item.isPopular && !isActive && !isPending && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">Popular</span>}</div><p className="mt-6 text-3xl font-semibold">INR {formatMoney(item.price)} <span className="text-sm font-normal text-muted-foreground">/ {billingLabel(item.billingCycle)}</span></p><div className="mt-6 grid gap-3 text-sm">{item.features.map((feature) => <p className="flex items-center gap-2" key={feature}><Check className="text-emerald-700" size={16} />{feature}</p>)}</div><button className={`mt-7 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${isActive ? "border border-border text-muted-foreground" : "bg-primary text-white"}`} disabled={isActive || checkoutPlanId === item.id} onClick={() => chooseSubscription(item.id)}>{checkoutPlanId === item.id ? <><LoaderCircle className="animate-spin" size={17} /> Creating order</> : isActive ? "Active plan" : isPending ? <>Retry payment <ArrowUpRight size={17} /></> : <>Choose {item.name} <ArrowUpRight size={17} /></>}</button></article>; })}</div>}<p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><Sparkles className="text-amber-600" size={17} /> Razorpay order creation and payment verification are handled by the backend.</p></section>}
       </div>
+      <ImageCropDialog
+        open={cropDialogOpen}
+        image={imageToCrop}
+        onCancel={() => {
+          setCropDialogOpen(false);
+          setPendingFile(null);
+          URL.revokeObjectURL(imageToCrop);
+          setImageToCrop("");
+        }}
+        onSave={async (blob) => {
+
+          if (!pendingFile) return;
+
+          try {
+
+            setIsUploadingPortfolio(true);
+
+            const croppedFile = new File(
+              [blob],
+              pendingFile.name,
+              {
+                type: "image/jpeg",
+              }
+            );
+
+            const uploaded = await uploadAndCreateVendorMedia(
+              croppedFile,
+              portfolio.length,
+              accessToken
+            );
+
+            setPortfolio((current) => [
+              uploaded,
+              ...current,
+            ]);
+
+            setNotice("Portfolio image added.");
+            setCropDialogOpen(false);
+            setPendingFile(null);
+            URL.revokeObjectURL(imageToCrop);
+            setImageToCrop("");
+
+          } catch (exception) {
+
+            setPortfolioError(
+              exception instanceof Error
+                ? exception.message
+                : "Could not upload portfolio photo."
+            );
+
+          } finally {
+            setIsUploadingPortfolio(false);
+          }
+
+        }}
+      />
     </main>
   );
 }

@@ -21,6 +21,8 @@ import { createOwnerMedia } from "@/features/owner/media-client";
 import { emptyOwnerOnboardingDraft, getOwnerOnboardingDraft, saveOwnerOnboardingDraft, submitOwnerOnboardingDraft, type OwnerOnboardingDraft } from "@/features/owner/onboarding-client";
 import { uploadImageFile } from "@/features/uploads/upload-client";
 import { formatGuestCapacityOption, formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
+import ImageCropDialog from "@/components/shared/ImageCropDialog";
+import { validateImage } from "@/lib/imageValidation";
 
 const steps = ["Venue details", "Facilities & pricing", "Photos", "Review"];
 const amenityOptions = ["Air conditioned", "Parking", "Dining hall", "Guest rooms", "Lift", "Generator", "Bridal room", "Catering kitchen"];
@@ -40,6 +42,9 @@ export function OwnerOnboarding() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedPhotoPreviews, setSelectedPhotoPreviews] = useState<Array<{ name: string; url: string }>>([]);
   const [selectedCoverIndex, setSelectedCoverIndex] = useState(0);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const selectedPhotoPreviewsRef = useRef(selectedPhotoPreviews);
   const [amenities, setAmenities] = useState<string[]>(emptyOwnerOnboardingDraft.amenities);
   const [form, setForm] = useState(formFromDraft(emptyOwnerOnboardingDraft));
@@ -94,26 +99,21 @@ export function OwnerOnboarding() {
     setError("");
   }
 
-  function selectVenuePhotos(files: FileList | null) {
-    const nextFiles = Array.from(files ?? []);
-    if (nextFiles.length === 0) return;
-    const availableSlots = Math.max(0, 10 - selectedFiles.length);
-    const filesToAdd = nextFiles.slice(0, availableSlots);
-    if (filesToAdd.length === 0) {
-      setError("You can upload up to 10 venue photos.");
+  async function selectVenuePhotos(files: FileList | null) {
+
+    const file = files?.[0];
+
+    if (!file) return;
+
+    const validationError = await validateImage(file);
+    if (validationError) {
+      setError(validationError); // or your existing error state
       return;
     }
 
-    const hadNoSelectedPhotos = selectedFiles.length === 0;
-    setSelectedFiles((current) => [...current, ...filesToAdd]);
-    setSelectedPhotoPreviews((current) => {
-      const additions = filesToAdd.map((file) => ({ name: file.name, url: URL.createObjectURL(file) }));
-      const combined = [...current, ...additions];
-      return combined;
-    });
-    if (hadNoSelectedPhotos) setSelectedCoverIndex(0);
-    setForm((current) => ({ ...current, coverImageUrl: "" }));
-    setError("");
+    setPendingFile(file);
+    setImageToCrop(URL.createObjectURL(file));
+    setCropDialogOpen(true);
   }
 
   function chooseCoverPhoto(index: number) {
@@ -361,6 +361,51 @@ export function OwnerOnboarding() {
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-medium disabled:opacity-40" disabled={step === 0 || isSavingDraft || isSubmitting} onClick={() => setStep((current) => current - 1)}><ArrowLeft size={16} /> Back</button><div className="flex flex-wrap gap-2"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={isLoadingDraft || isSavingDraft || isSubmitting} onClick={saveDraft}>{isSavingDraft && <LoaderCircle className="animate-spin" size={16} />} Save draft</button>{step < steps.length - 1 ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={isLoadingDraft || isSubmitting} onClick={continueStep}>Continue <ArrowRight size={16} /></button> : <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!confirmed || isSubmitting} onClick={submitListing}>{isSubmitting ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit for approval</button>}</div></div>
         </section>
       </div>
+      <ImageCropDialog
+        open={cropDialogOpen}
+        image={imageToCrop}
+        onCancel={() => {
+          setCropDialogOpen(false);
+          setPendingFile(null);
+
+          URL.revokeObjectURL(imageToCrop);
+
+          setImageToCrop("");
+        }}
+        onSave={(blob) => {
+
+          if (!pendingFile) return;
+
+          const croppedFile = new File(
+            [blob],
+            pendingFile.name,
+            {
+              type: "image/jpeg",
+            }
+          );
+
+          setSelectedFiles((current) => [...current, croppedFile]);
+
+          const previewUrl = URL.createObjectURL(croppedFile);
+
+          setSelectedPhotoPreviews((current) => [
+            ...current,
+            {
+              name: croppedFile.name,
+              url: previewUrl,
+            },
+          ]);
+
+          if (selectedFiles.length === 0) {
+            setSelectedCoverIndex(0);
+          }
+
+          setCropDialogOpen(false);
+          setPendingFile(null);
+          URL.revokeObjectURL(imageToCrop);
+          setImageToCrop("");
+        }}
+      />
     </main>
   );
 }
