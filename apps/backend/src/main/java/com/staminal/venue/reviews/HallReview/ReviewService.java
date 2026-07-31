@@ -1,5 +1,6 @@
 package com.staminal.venue.reviews.HallReview;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -118,17 +119,11 @@ public class ReviewService {
 
                 User customer = currentUser(authentication);
 
-                Review review = reviewRepository.findById(reviewId)
+                Review review = reviewRepository
+                                .findByIdAndCustomer_Id(reviewId, customer.getId())
                                 .orElseThrow(() -> new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND,
                                                 "Review not found"));
-
-                if (!review.getCustomer().getId().equals(customer.getId())) {
-
-                        throw new ResponseStatusException(
-                                        HttpStatus.FORBIDDEN,
-                                        "Review does not belong to this customer");
-                }
 
                 Integer oldRating = review.getRating();
                 String oldComment = review.getComment();
@@ -283,6 +278,32 @@ public class ReviewService {
                                 review.getCreatedAt(),
 
                                 review.getUpdatedAt());
+        }
+
+        public List<ReviewResponse> getMyReviews(Authentication authentication) {
+
+                User customer = currentUser(authentication);
+
+                return reviewRepository
+                                .findByCustomer_IdOrderByCreatedAtDesc(customer.getId())
+                                .stream()
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        public ReviewResponse getReviewById(
+                        Long reviewId,
+                        Authentication authentication) {
+
+                User customer = currentUser(authentication);
+
+                Review review = reviewRepository
+                                .findByIdAndCustomer_Id(reviewId, customer.getId())
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND,
+                                                "Review not found"));
+
+                return toResponse(review);
         }
 
 }

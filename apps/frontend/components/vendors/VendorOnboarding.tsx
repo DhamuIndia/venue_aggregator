@@ -8,6 +8,8 @@ import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/icons/So
 import { useAuth } from "@/features/auth/AuthProvider";
 import { categoryLabels } from "@/features/vendors/mock-data";
 import { uploadAndCreateVendorMedia } from "@/features/vendors/media-client";
+import ImageCropDialog from "@/components/shared/ImageCropDialog";
+import { validateImage } from "@/lib/imageValidation";
 import { createVendorPackage, getVendorPackages } from "@/features/vendors/package-client";
 import { fallbackVendorProfile, getVendorProfile, saveVendorProfile, submitVendorProfile, type VendorProfileDraft } from "@/features/vendors/profile-client";
 import { normalizeSocialProfileInput, type SocialPlatform } from "@/features/vendors/social-links";
@@ -44,6 +46,9 @@ export function VendorOnboarding() {
   const [additionalPackages, setAdditionalPackages] = useState<AdditionalPackageDraft[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedPhotoPreviews, setSelectedPhotoPreviews] = useState<Array<{ name: string; url: string }>>([]);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [form, setForm] = useState(formFromProfile(fallbackVendorProfile));
 
   useEffect(() => {
@@ -127,11 +132,23 @@ export function VendorOnboarding() {
     setServices((current) => current.includes(service) ? current.filter((item) => item !== service) : [...current, service]);
   }
 
-  function selectPortfolioPhotos(files: FileList | null) {
-    const nextFiles = Array.from(files ?? []);
-    setSelectedFiles(nextFiles);
-    setSelectedPhotoPreviews(nextFiles.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })));
+  async function selectPortfolioPhotos(files: FileList | null) {
+
+    const file = files?.[0];
+
+    if (!file) return;
+
+    const validationError = await validateImage(file);
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setError("");
+    setPendingFile(file);
+    setImageToCrop(URL.createObjectURL(file));
+    setCropDialogOpen(true);
   }
 
   function continueStep() {
@@ -265,6 +282,57 @@ export function VendorOnboarding() {
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-medium disabled:opacity-40" disabled={isEditMode || step === 0 || isSavingDraft || isSubmitting} onClick={() => { setStep((current) => current - 1); setError(""); }}><ArrowLeft size={16} /> Back</button><div className="flex flex-wrap gap-2">{isEditMode ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={hasPendingUpdate || !confirmed || isSubmitting || isLoadingProfile} onClick={submit}>{isSubmitting ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit changes for approval</button> : <><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50" disabled={isLoadingProfile || isSavingDraft || isSubmitting} onClick={saveDraft}>{isSavingDraft && <LoaderCircle className="animate-spin" size={16} />} Save draft</button>{step < steps.length - 1 ? <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-50" disabled={isLoadingProfile || isSubmitting} onClick={continueStep}>Continue <ArrowRight size={16} /></button> : <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!confirmed || isSubmitting} onClick={submit}>{isSubmitting ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit for approval</button>}</>}</div></div>
         </section>
       </div>
+      <ImageCropDialog
+        open={cropDialogOpen}
+        image={imageToCrop}
+        onCancel={() => {
+
+          setCropDialogOpen(false);
+          setPendingFile(null);
+
+          if (imageToCrop) {
+            URL.revokeObjectURL(imageToCrop);
+          }
+          setImageToCrop("");
+        }}
+        onSave={async (blob) => {
+
+          if (!pendingFile) return;
+
+          const croppedFile = new File(
+            [blob],
+            pendingFile.name,
+            {
+              type: "image/jpeg",
+            }
+          );
+
+          const previewUrl = URL.createObjectURL(croppedFile);
+
+          setSelectedFiles((current) => [
+            ...current,
+            croppedFile,
+          ]);
+
+          setSelectedPhotoPreviews((current) => [
+            ...current,
+            {
+              name: croppedFile.name,
+              url: previewUrl,
+            },
+          ]);
+
+          setCropDialogOpen(false);
+          setPendingFile(null);
+
+          if (imageToCrop) {
+            URL.revokeObjectURL(imageToCrop);
+          }
+
+          setImageToCrop("");
+          setError("");
+        }}
+      />
     </main>
   );
 }

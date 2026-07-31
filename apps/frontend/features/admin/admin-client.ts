@@ -613,6 +613,24 @@ function toVendorApplication(value: unknown): VendorApplication | undefined {
     categories: Array.isArray(value.categories)
       ? value.categories.map(String)
       : [],
+      
+    media: Array.isArray(value.media)
+      ? value.media.map((item) => ({
+        id: Number(item.id),
+        url: String(item.url ?? item.mediaUrl ?? ""),
+        mediaUrl: String(item.mediaUrl ?? item.url ?? ""),
+        primary: Boolean(item.primary),
+        isCover: Boolean(item.isCover),
+        storageKey: String(item.storageKey ?? ""),
+        fileName: String(item.fileName ?? ""),
+        caption: String(item.caption ?? ""),
+        sortOrder: Number(item.sortOrder ?? 0),
+        mediaType: String(item.mediaType ?? ""),
+        serviceType: String(item.serviceType ?? ""),
+        serviceId: Number(item.serviceId ?? 0),
+        approved: Boolean(item.approved),
+      }))
+      : [],
   };
 }
 

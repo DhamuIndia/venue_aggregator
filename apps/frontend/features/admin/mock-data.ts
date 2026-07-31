@@ -21,6 +21,22 @@ export type VenueApplication = {
   documentReviewRequired?: boolean;
 };
 
+export type VendorMedia = {
+  id: number;
+  url: string;
+  mediaUrl: string;
+  primary: boolean;
+  isCover: boolean;
+  storageKey: string;
+  fileName: string;
+  caption: string;
+  sortOrder: number;
+  mediaType: string;
+  serviceType: string;
+  serviceId: number;
+  approved: boolean;
+};
+
 export type VendorApplication = {
   id: string;
   businessName: string;
@@ -48,6 +64,7 @@ export type VendorApplication = {
   startingPrice?: number;
   packageDescription?: string;
   rejectionReason?: string;
+  media?: VendorMedia[];
 };
 
 export type ReportedReview = {

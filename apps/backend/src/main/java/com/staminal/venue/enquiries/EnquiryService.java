@@ -571,7 +571,12 @@ public class EnquiryService {
     @Transactional(readOnly = true)
     public List<EnquiryResponse> getAllEnquiries(Authentication authentication) {
 
-        currentUser(authentication, UserRole.ADMIN);
+        if (!hasRole(authentication, UserRole.ADMIN)
+                && !hasRole(authentication, UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "ADMIN or SUPER_ADMIN role is required");
+        }
 
         return enquiryRepository.findAll()
                 .stream()

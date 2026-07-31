@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { Route } from "next";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { HallCard } from "@/components/halls/HallCard";
 import { NotificationActivity } from "@/components/notifications/NotificationCenter";
@@ -29,7 +28,9 @@ import { bookingFromEnquiry, getCustomerBookings, type BookingItem, type Booking
 import { getCustomerVendorServiceBookings, vendorServiceBookingToBookingItem } from "@/features/bookings/vendor-service-booking-client";
 import { createBookingAdvanceOrder, verifyBookingAdvancePayment } from "@/features/bookings/payment-client";
 import { customerEnquiries, reviewEligibleBooking, type CustomerEnquiry } from "@/features/customer/mock-data";
-import { getVendorReviewEligibility, submitVendorReview, getCustomerReviewEligibility, submitCustomerReview, type ReviewEligibility } from "@/features/customer/review-client";
+import {
+  getVendorReviewEligibility, submitVendorReview, getCustomerReviewEligibility, submitCustomerReview, getCustomerReviews, type CustomerReview, type ReviewEligibility
+} from "@/features/customer/review-client";
 import { getCustomerSavedHalls, subscribeToSavedHallChanges } from "@/features/customer/saved-halls-client";
 import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
@@ -45,6 +46,7 @@ import type { VendorLead } from "@/features/vendors/types";
 import { isQuoteExpired, QuoteComparisonDialog } from "./QuoteComparisonDialog";
 import { QuoteAcceptanceDialog } from "./QuoteAcceptanceDialog";
 import { ReviewDialog } from "./ReviewDialog";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type DashboardTab = "overview" | "requirements" | "enquiries" | "bookings" | "saved" | "reviews" | "activity";
 
@@ -159,6 +161,8 @@ export function CustomerDashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [customerReviews, setCustomerReviews] = useState<CustomerReview[]>([]);
+  const [isLoadingCustomerReviews, setIsLoadingCustomerReviews] = useState(true);
   const [reviewEligibility, setReviewEligibility] = useState<ReviewEligibility>(() => useCustomerReviewDemoFallback ? fallbackReviewEligibility : emptyReviewEligibility());
   const [isLoadingReviewEligibility, setIsLoadingReviewEligibility] = useState(true);
   const [reviewError, setReviewError] = useState("");
@@ -188,10 +192,17 @@ export function CustomerDashboard() {
   const [comparisonRequirementId, setComparisonRequirementId] = useState<string | null>(null);
   const [workflowRefresh, setWorkflowRefresh] = useState(0);
 
+  const searchParams = useSearchParams();
+
   useEffect(() => {
-    const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    if (tabs.some((tab) => tab.id === requestedTab)) setActiveTab(requestedTab as DashboardTab);
-  }, []);
+    const requestedTab = searchParams.get("tab");
+
+    if (tabs.some((tab) => tab.id === requestedTab)) {
+      setActiveTab(requestedTab as DashboardTab);
+    } else {
+      setActiveTab("overview");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -314,64 +325,6 @@ export function CustomerDashboard() {
 
   useEffect(() => {
     let isCurrent = true;
-
-    // async function loadReviewEligibility() {
-    //   if (isLoadingBookings) return;
-
-    //   setIsLoadingReviewEligibility(true);
-    //   setReviewError("");
-
-    //   const completedReviewBooking = bookings.find((booking): booking is BookingItem & { enquiryId: string } => (
-    //     booking.status === "COMPLETED" && Boolean(booking.enquiryId)
-    //   ));
-    //   const isVendorReview =
-    //     completedReviewBooking?.enquiryId.startsWith("VLEAD-") ?? false;
-    //   const fallback = completedReviewBooking ? reviewEligibilityFromBooking(completedReviewBooking) : fallbackReviewEligibility;
-
-    //   if (!useCustomerReviewDemoFallback && !completedReviewBooking) {
-    //     if (!isCurrent) return;
-    //     setReviewEligibility(emptyReviewEligibility());
-    //     setReviewSubmitted(false);
-    //     setIsLoadingReviewEligibility(false);
-    //     return;
-    //   }
-
-    //   try {
-    //     let eligibility: ReviewEligibility;
-
-    //     if (isVendorReview) {
-    //       const response = await getVendorReviewEligibility(
-    //         completedReviewBooking!.enquiryId,
-    //         accessToken
-    //       );
-
-    //       eligibility = {
-    //         eligible: response.eligible,
-    //         enquiryId: response.leadId,
-    //         hallName: response.vendorName,
-    //         eventDate: response.eventDate,
-    //         eventType: response.eventType,
-    //         reason: response.reason,
-    //         submittedReviewId: response.submittedReviewId
-    //       };
-    //     } else {
-    //       eligibility = await getCustomerReviewEligibility(
-    //         completedReviewBooking!.enquiryId,
-    //         accessToken,
-    //         fallback
-    //       );
-    //     }
-    //     if (!isCurrent) return;
-    //     setReviewEligibility(eligibility);
-    //     setReviewSubmitted(Boolean(eligibility.submittedReviewId));
-    //   } catch {
-    //     if (!isCurrent) return;
-    //     setReviewEligibility(useCustomerReviewDemoFallback ? fallback : emptyReviewEligibility());
-    //     setReviewError("Could not load review eligibility.");
-    //   } finally {
-    //     if (isCurrent) setIsLoadingReviewEligibility(false);
-    //   }
-    // }
     async function loadReviewEligibility() {
       if (isLoadingBookings) return;
 
@@ -500,6 +453,45 @@ export function CustomerDashboard() {
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadCustomerReviews() {
+
+      setIsLoadingCustomerReviews(true);
+
+      try {
+
+        const reviews = await getCustomerReviews(accessToken);
+
+        if (!isCurrent) return;
+
+        setCustomerReviews(reviews);
+
+      } catch {
+
+        if (!isCurrent) return;
+
+        setCustomerReviews([]);
+
+      } finally {
+
+        if (isCurrent) {
+          setIsLoadingCustomerReviews(false);
+        }
+
+      }
+
+    }
+
+    loadCustomerReviews();
+
+    return () => {
+      isCurrent = false;
+    };
+
+  }, [accessToken]);
+
   async function submitReview(payload: { rating: number; comment: string }) {
     if (!reviewEligibility.eligible) {
       throw new Error(reviewEligibility.reason ?? "This completed service is not eligible for review.");
@@ -537,6 +529,7 @@ export function CustomerDashboard() {
       submittedReviewId: review.id
     }));
     setReviewOpen(false);
+    window.location.reload();
   }
 
   function updateSavedHall(hallId: string, isSaved: boolean) {
@@ -642,8 +635,21 @@ export function CustomerDashboard() {
 
         <div className="mt-8 flex gap-1 overflow-x-auto border-b border-border" role="tablist" aria-label="Customer account">
           {tabs.map((tab) => (
-            <button aria-selected={activeTab === tab.id} className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}</button>
-          ))}
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              onClick={() => {
+                router.push(`/customer?tab=${tab.id}`);
+              }}
+            >
+              {tab.label}
+            </button>))}
         </div>
 
         {activeTab === "overview" && (
@@ -835,18 +841,79 @@ export function CustomerDashboard() {
         {activeTab === "reviews" && (
           <section className="py-7">
             <h2 className="text-xl font-semibold">Your reviews</h2><p className="mt-1 text-sm text-muted-foreground">Only completed bookings can receive a verified review.</p>
-            {reviewError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{reviewError}</p>}
             {isLoadingReviewEligibility ? (
               <div className="mt-5 h-28 animate-pulse rounded-lg border border-border bg-white" />
-            ) : reviewSubmitted ? (
-              <div className="mt-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-5"><CheckCircle2 className="mt-0.5 shrink-0 text-emerald-700" size={21} /><div><h3 className="font-semibold">Review submitted</h3><p className="mt-1 text-sm text-muted-foreground">Your verified review for {reviewVenueName} is pending moderation.</p></div></div>
             ) : reviewEligibility.eligible ? (
               <article className="mt-5 rounded-lg border border-border bg-white p-5">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><span className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><BadgeCheck size={23} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h3 className="font-semibold">{reviewVenueName}</h3><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Verified service</span></div><p className="mt-2 text-sm text-muted-foreground">{reviewEligibility.eventType ?? reviewEligibleBooking.serviceType} | {reviewEligibility.eventDate}</p></div><button className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => setReviewOpen(true)}>Write review</button></div>
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700">
+                    <BadgeCheck size={23} />
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{reviewVenueName}</h3>
+
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        Verified service
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {reviewEligibility.eventType} | {reviewEligibility.eventDate}
+                    </p>
+                  </div>
+
+                  <button
+                    className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white"
+                    onClick={() => setReviewOpen(true)}
+                  >
+                    Write Review
+                  </button>
+                </div>
               </article>
-            ) : (
-              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-6"><h3 className="font-semibold">No review available</h3><p className="mt-2 text-sm text-muted-foreground">{reviewEligibility.reason ?? "Completed eligible services will appear here."}</p></div>
+            ) : customerReviews.length === 0 ? (
+              <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-6">
+                <h3 className="font-semibold">No review available</h3>
+
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {reviewEligibility.reason ?? "Completed eligible services will appear here."}
+                </p>
+              </div>
+            ) : null}
+            {reviewError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{reviewError}</p>}
+            {customerReviews.length > 0 && (
+              <div className="mt-5 space-y-4">
+                {customerReviews.map((review) => (
+                  <article
+                    key={review.id}
+                    className="rounded-lg border border-border bg-white p-5"
+                  >
+                    <h3 className="font-semibold">
+                      {review.hallName}
+                    </h3>
+
+                    <p className="mt-2">
+                      Rating : ⭐ {review.rating}/5
+                    </p>
+
+                    <p className="mt-2 text-sm">
+                      {review.comment}
+                    </p>
+
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {new Intl.DateTimeFormat("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(review.createdAt))}
+                    </p>
+
+                  </article>
+                ))}
+              </div>
             )}
+
             <div className="mt-8 flex items-center gap-3 border-t border-border pt-6 text-sm text-muted-foreground"><Clock3 size={18} /><span>Reviews appear publicly after moderation.</span></div>
           </section>
         )}

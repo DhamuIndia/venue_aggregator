@@ -19,12 +19,45 @@ export type CreateCustomerReviewPayload = {
   comment: string;
 };
 
-export type CustomerReview = CreateCustomerReviewPayload & {
+export type CustomerReview = {
   id: string;
-  submittedAt: string;
+  bookingId?: string;
+  enquiryId: string;
+  hallId?: string;
+  hallName?: string;
+  rating: number;
+  comment: string;
   verifiedService: boolean;
+  createdAt: string;
+  updatedAt: string;
   status: "PENDING_MODERATION" | "PUBLISHED";
 };
+
+export async function getCustomerReviews(
+  accessToken?: string | null
+): Promise<CustomerReview[]> {
+
+  if (useMockCustomerReviews || !accessToken) {
+    return getLocalReviews();
+  }
+
+  try {
+    const response = await apiRequest<unknown>("/customer/reviews", {
+      token: accessToken
+    });
+
+    if (!Array.isArray(response)) {
+      return [];
+    }
+
+    return response
+      .map((item) => toCustomerReview(item))
+      .filter(Boolean) as CustomerReview[];
+
+  } catch {
+    return getLocalReviews();
+  }
+}
 
 export async function getCustomerReviewEligibility(enquiryId: string, accessToken: string | null | undefined, fallback: ReviewEligibility) {
   if (useMockCustomerReviews || !accessToken) return localEligibility(fallback);
@@ -77,10 +110,20 @@ function localEligibility(fallback: ReviewEligibility): ReviewEligibility {
 
 function createLocalReview(payload: CreateCustomerReviewPayload): CustomerReview {
   const review: CustomerReview = {
-    ...payload,
     id: `REV-${Date.now().toString().slice(-6)}`,
-    submittedAt: new Date().toISOString(),
+    enquiryId: payload.enquiryId,
+    rating: payload.rating,
+    comment: payload.comment,
+
+    bookingId: undefined,
+    hallId: undefined,
+    hallName: undefined,
+
     verifiedService: true,
+
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+
     status: "PENDING_MODERATION"
   };
   cacheLocalReview(review);
@@ -134,12 +177,25 @@ function toCustomerReview(value: unknown, fallback?: CreateCustomerReviewPayload
 
   return {
     id,
+    bookingId: stringValue(record, ["bookingId"]),
     enquiryId,
+    hallId: stringValue(record, ["hallId"]),
+    hallName: stringValue(record, ["hallName"]),
     rating,
     comment,
-    submittedAt: stringValue(record, ["submittedAt", "createdAt", "created_at"]) ?? new Date().toISOString(),
-    verifiedService: booleanValue(record, ["verifiedService", "verified_service", "verified"]) ?? true,
-    status: statusValue(record) ?? "PENDING_MODERATION"
+    verifiedService:
+      booleanValue(record, ["verifiedService"]) ?? true,
+
+    createdAt:
+      stringValue(record, ["createdAt"]) ??
+      new Date().toISOString(),
+
+    updatedAt:
+      stringValue(record, ["updatedAt"]) ??
+      new Date().toISOString(),
+
+    status:
+      statusValue(record) ?? "PENDING_MODERATION"
   };
 }
 

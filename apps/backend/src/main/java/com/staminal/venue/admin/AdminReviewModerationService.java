@@ -20,7 +20,6 @@ import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.reviews.HallReview.Review;
 import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
 import com.staminal.venue.reviews.HallReview.ReviewRepository;
-import com.staminal.venue.reviews.VendorReview.VendorRatingAggregateService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -34,7 +33,6 @@ public class AdminReviewModerationService {
     private final AdminRepository adminRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
-    // private final VendorRatingAggregateService vendorRatingAggregateService;
 
     @Transactional(readOnly = true)
     public AdminReviewListResponse getReviews(String status, int page, int size) {
@@ -81,7 +79,6 @@ public class AdminReviewModerationService {
         review.setActive(nextStatus == ReviewModerationStatus.PUBLISHED);
 
         Review savedReview = reviewRepository.save(review);
-        // vendorRatingAggregateService.refreshFor(savedReview);
 
         auditService.record(new AuditCommand(
                 reviewer.actorUserId(),

@@ -88,4 +88,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
         boolean existsByCustomer_IdAndHall_Id(Long customerId, Long hallId);
 
+        List<Review> findByCustomer_IdOrderByCreatedAtDesc(Long customerId);
+
+        Optional<Review> findByIdAndCustomer_Id(Long reviewId, Long customerId);
+
 }

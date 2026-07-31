@@ -58,6 +58,27 @@ export function VendorDetailsDrawer({
                         </div>
                     )}
 
+                    {vendor.media && vendor.media.length > 0 && (
+                        <Section title="Portfolio Images">
+                            <div className="grid grid-cols-2 gap-3">
+                                {vendor.media.map((image) => (
+                                    <div
+                                        key={image.id}
+                                        className="relative h-40 overflow-hidden rounded-lg border"
+                                    >
+                                        <Image
+                                            src={image.mediaUrl}
+                                            alt={image.caption ?? "Vendor Image"}
+                                            fill
+                                            className="object-cover"
+                                            unoptimized
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </Section>
+                    )}
+
                     {/* Business Details */}
 
                     <Section title="Business Details">

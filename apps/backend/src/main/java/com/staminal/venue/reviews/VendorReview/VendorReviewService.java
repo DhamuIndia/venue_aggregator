@@ -19,10 +19,7 @@ import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.enums.VendorLeadStatus;
 import com.staminal.venue.leads.VendorLeadRepository;
 import com.staminal.venue.users.Repository.UserRepository;
-import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.reviews.HallReview.ReviewModerationStatus;
-import com.staminal.venue.reviews.VendorReview.CreateVendorReviewRequest;
-import com.staminal.venue.reviews.VendorReview.VendorReviewResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -34,8 +31,6 @@ public class VendorReviewService {
         private final VendorReviewRepository vendorReviewRepository;
         private final VendorLeadRepository vendorLeadRepository;
         private final UserRepository userRepository;
-        private final AuditService auditService;
-        private final VendorRatingAggregateService vendorRatingAggregateService;
 
         @Transactional(readOnly = true)
         public VendorReviewListResponse getMyReviews(Authentication authentication) {

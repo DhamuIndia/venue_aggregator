@@ -18,10 +18,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import com.staminal.venue.leads.VendorLead;
-import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.leads.VendorLeadRepository;
 import com.staminal.venue.reviews.VendorReview.VendorReview;
-import com.staminal.venue.reviews.VendorReview.VendorRatingAggregateService;
 import com.staminal.venue.reviews.VendorReview.VendorReviewRepository;
 import com.staminal.venue.reviews.VendorReview.VendorReviewService;
 import com.staminal.venue.users.Entity.User;
@@ -47,21 +45,13 @@ class VendorReviewServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @Mock
-    private AuditService auditService;
-
-    @Mock
-    private VendorRatingAggregateService vendorRatingAggregateService;
-
     @BeforeEach
     void setUp() {
         vendorReviewService = new VendorReviewService(
                 vendorRepository,
                 vendorReviewRepository,
                 vendorLeadRepository,
-                userRepository,
-                auditService,
-                vendorRatingAggregateService);
+                userRepository);
     }
 
     @Test

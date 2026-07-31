@@ -474,7 +474,13 @@ public class VendorLeadService {
     }
 
     public List<VendorLeadResponse> getAdminLeads(Authentication authentication) {
-        currentUser(authentication, UserRole.ADMIN);
+        // currentUser(authentication, UserRole.ADMIN);
+        if (!hasRole(authentication, UserRole.ADMIN)
+                && !hasRole(authentication, UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "ADMIN or SUPER_ADMIN role is required");
+        }
         return vendorLeadRepository.findAll().stream()
                 .sorted((first, second) -> second.getCreatedAt().compareTo(first.getCreatedAt()))
                 .map(this::mapToResponse)
@@ -482,7 +488,8 @@ public class VendorLeadService {
     }
 
     private void createBookingForBookedLead(VendorLead lead) {
-        if (vendorServiceBookingRepository.findByLead_Id(lead.getId()).isPresent()) return;
+        if (vendorServiceBookingRepository.findByLead_Id(lead.getId()).isPresent())
+            return;
 
         vendorQuoteRepository.findByLead_Id(lead.getId()).ifPresent(quote -> {
             VendorServiceBooking booking = new VendorServiceBooking();

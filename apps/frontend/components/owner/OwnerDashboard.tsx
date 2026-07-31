@@ -29,6 +29,8 @@ import { NotificationActivity } from "@/components/notifications/NotificationCen
 import { formatGuestCapacityOption, formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
 import { fallbackOwnerAnalytics, getOwnerAnalytics, type OwnerAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
+import ImageCropDialog from "@/components/shared/ImageCropDialog";
+import { validateImage } from "@/lib/imageValidation";
 import {
   bookingFromEnquiry as lifecycleBookingFromEnquiry,
   getOwnerBookings,
@@ -460,6 +462,10 @@ export function OwnerDashboard() {
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
   const [expandedEnquiryId, setExpandedEnquiryId] = useState<string | null>(null);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -907,30 +913,22 @@ export function OwnerDashboard() {
   }
 
   async function uploadMedia(files: FileList | null) {
-    const selectedFiles = Array.from(files ?? []);
-    if (selectedFiles.length === 0) return;
 
-    try {
-      setIsUploadingMedia(true);
-      setMediaError("");
+    const file = files?.[0];
 
-      const uploaded = await Promise.all(selectedFiles.map((file, index) => uploadAndCreateOwnerMedia(
-        listing.id,
-        file,
-        media.length + index,
-        media.length === 0 && index === 0,
-        accessToken
-      )));
+    if (!file) return;
 
-      setMedia((current) => normalizeMediaCover([...current, ...uploaded].sort((first, second) => first.sortOrder - second.sortOrder)));
-      const cover = uploaded.find((item) => item.isCover);
-      if (cover) setListing((current) => ({ ...current, imageUrl: cover.url }));
-      setNotice(`${uploaded.length} photo${uploaded.length === 1 ? "" : "s"} added.`);
-    } catch (exception) {
-      setMediaError(exception instanceof Error ? exception.message : "Could not upload media.");
-    } finally {
-      setIsUploadingMedia(false);
+    const validationError = await validateImage(file);
+    if (validationError) {
+      setMediaError(validationError);
+      return;
     }
+
+    setPendingFile(file);
+    setImageToCrop(URL.createObjectURL(file));
+    setCropDialogOpen(true);
+
+    return;
   }
 
   async function setCoverMedia(mediaId: string) {
@@ -1776,6 +1774,87 @@ export function OwnerDashboard() {
 
 
       </main>
+
+      <ImageCropDialog
+        open={cropDialogOpen}
+        image={imageToCrop}
+        onCancel={() => {
+          setCropDialogOpen(false);
+          setPendingFile(null);
+
+          if (imageToCrop) {
+            URL.revokeObjectURL(imageToCrop);
+          }
+
+          setImageToCrop("");
+        }}
+        onSave={async (blob) => {
+
+          if (!pendingFile) return;
+
+          try {
+
+            setIsUploadingMedia(true);
+            setMediaError("");
+
+            const croppedFile = new File(
+              [blob],
+              pendingFile.name,
+              {
+                type: "image/jpeg",
+              }
+            );
+
+            const uploaded = await uploadAndCreateOwnerMedia(
+              listing.id,
+              croppedFile,
+              media.length,
+              media.length === 0,
+              accessToken
+            );
+
+            setMedia((current) =>
+              normalizeMediaCover(
+                [...current, uploaded].sort(
+                  (a, b) => a.sortOrder - b.sortOrder
+                )
+              )
+            );
+
+            if (uploaded.isCover) {
+              setListing((current) => ({
+                ...current,
+                imageUrl: uploaded.url,
+              }));
+            }
+
+            setNotice("Photo uploaded successfully.");
+
+          } catch (error) {
+
+            setMediaError(
+              error instanceof Error
+                ? error.message
+                : "Could not upload media."
+            );
+
+          } finally {
+
+            setIsUploadingMedia(false);
+
+            setCropDialogOpen(false);
+
+            setPendingFile(null);
+
+            if (imageToCrop) {
+              URL.revokeObjectURL(imageToCrop);
+            }
+
+            setImageToCrop("");
+          }
+
+        }}
+      />
 
       <BlockDateDialog onAdd={addBlockedDate} initialDate={selectedBlockDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
     </>

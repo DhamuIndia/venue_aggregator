@@ -79,23 +79,23 @@ const tabs: { id: AdminTab; label: string }[] = [
 ];
 
 const moderationStyle: Record<ModerationStatus, string> = {
-  PENDING_APPROVAL: "bg-amber-50 text-amber-800",
-  APPROVED: "bg-emerald-50 text-emerald-800",
-  REJECTED: "bg-rose-50 text-rose-700"
+  PENDING_APPROVAL: "bg-amber-100 text-amber-800",
+  APPROVED: "bg-emerald-100 text-emerald-800",
+  REJECTED: "bg-rose-100 text-rose-700",
 };
 
 const enquiryStyle: Record<EnquiryStatus, string> = {
-  NEW: "bg-blue-50 text-blue-700",
-  PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
-  CONFIRMED: "bg-emerald-50 text-emerald-800",
-  DECLINED: "bg-rose-50 text-rose-700",
-  COMPLETED: "bg-violet-50 text-violet-700"
+  NEW: "bg-sky-100 text-sky-800",
+  PENDING_OWNER_RESPONSE: "bg-amber-100 text-amber-800",
+  CONFIRMED: "bg-emerald-100 text-emerald-800",
+  DECLINED: "bg-rose-100 text-rose-700",
+  COMPLETED: "bg-violet-100 text-violet-800",
 };
 
 const userStatusStyle: Record<AdminUserStatus, string> = {
-  ACTIVE: "bg-emerald-50 text-emerald-800",
-  SUSPENDED: "bg-rose-50 text-rose-700",
-  PENDING_VERIFICATION: "bg-amber-50 text-amber-800"
+  ACTIVE: "bg-emerald-100 text-emerald-800",
+  SUSPENDED: "bg-rose-100 text-rose-700",
+  PENDING_VERIFICATION: "bg-amber-100 text-amber-800",
 };
 
 const userRoleLabels: Record<AuthRole, string> = {
@@ -107,7 +107,11 @@ const userRoleLabels: Record<AuthRole, string> = {
 };
 
 function readableStatus(status: string) {
-  return status.toLowerCase().replaceAll("_", " ");
+  return status
+    .toLowerCase()
+    .split("_")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function formatPrice(value: number) {
@@ -116,6 +120,19 @@ function formatPrice(value: number) {
 
 function formatCompactMoney(value: number) {
   return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
+}
+
+function formatDate(date: string) {
+  return new Date(date).toLocaleDateString("en-IN", {
+    dateStyle: "medium",
+  });
+}
+
+function formatDateTime(date: string) {
+  return new Date(date).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function VenueImage({ venue, sizes }: { venue: VenueApplication; sizes: string }) {
@@ -149,6 +166,7 @@ export function AdminDashboard() {
   const [adminError, setAdminError] = useState("");
   const [venueFilter, setVenueFilter] = useState<"ALL" | ModerationStatus>("PENDING_APPROVAL");
   const [enquiryFilter, setEnquiryFilter] = useState<"ALL" | EnquiryStatus>("ALL");
+  const [enquirySearch, setEnquirySearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | AuthRole>("ALL");
   const [userStatusFilter, setUserStatusFilter] = useState<"ALL" | AdminUserStatus>("ALL");
   const [userSearch, setUserSearch] = useState("");
@@ -184,16 +202,102 @@ export function AdminDashboard() {
   const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const suspendedUserCount = users.filter((user) => user.status === "SUSPENDED").length;
   const pendingUserCount = users.filter((user) => user.status === "PENDING_VERIFICATION").length;
+  const totalUsers = users.length;
+  const totalEnquiries = enquiries.length;
+  const totalReviews = reviews.length + vendorReviews.length;
+  const activeUsers = users.filter(user => user.status === "ACTIVE").length;
   const isSuperAdmin = authUser?.role === "SUPER_ADMIN";
+
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<
+    "ALL" | "REPORTED" | "PUBLISHED" | "HIDDEN"
+  >("ALL");
+
+  const [vendorReviewSearch, setVendorReviewSearch] = useState("");
+  const [vendorReviewFilter, setVendorReviewFilter] = useState<
+    "ALL" | "PENDING" | "PUBLISHED" | "HIDDEN"
+  >("ALL");
+
+  const filteredVendorReviews = useMemo(() => {
+    const query = vendorReviewSearch.trim().toLowerCase();
+
+    return vendorReviews.filter(review => {
+      const matchesStatus =
+        vendorReviewFilter === "ALL" ||
+        review.status === vendorReviewFilter;
+
+      const matchesSearch =
+        !query ||
+        [
+          review.vendorName,
+          review.customerName,
+          review.comment,
+          review.id,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [vendorReviews, vendorReviewSearch, vendorReviewFilter]);
+
+  const filteredReviews = useMemo(() => {
+    const query = reviewSearch.trim().toLowerCase();
+
+    return reviews.filter((review) => {
+      const matchesStatus =
+        reviewFilter === "ALL" ||
+        review.status === reviewFilter;
+
+      const matchesSearch =
+        !query ||
+        [
+          review.hallName,
+          review.customerName,
+          review.comment,
+          review.reportReason,
+          review.id,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [reviews, reviewSearch, reviewFilter]);
 
   const filteredVenues = useMemo(
     () => venueFilter === "ALL" ? venues : venues.filter((venue) => venue.status === venueFilter),
     [venueFilter, venues]
   );
-  const filteredEnquiries = useMemo(
-    () => enquiryFilter === "ALL" ? enquiries : enquiries.filter((enquiry) => enquiry.status === enquiryFilter),
-    [enquiries, enquiryFilter]
-  );
+  const filteredEnquiries = useMemo(() => {
+    const query = enquirySearch.trim().toLowerCase();
+
+    return enquiries.filter((enquiry) => {
+      const matchesStatus =
+        enquiryFilter === "ALL" ||
+        enquiry.status === enquiryFilter;
+
+      const matchesSearch =
+        !query ||
+        [
+          enquiry.customerName,
+          enquiry.hallName,
+          enquiry.eventDate,
+          enquiry.id,
+          enquiry.source,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [enquiries, enquiryFilter, enquirySearch]);
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLowerCase();
     return users.filter((user) => {
@@ -553,14 +657,64 @@ export function AdminDashboard() {
 
         {activeTab === "overview" && (
           <section className="py-7">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {[
-                { label: "Pending venues", value: pendingVenueCount, icon: Building2, color: "text-blue-700", tab: "venues" as const },
-                { label: "Pending vendors", value: pendingVendorCount, icon: Store, color: "text-violet-700", tab: "vendors" as const },
-                { label: "User actions", value: suspendedUserCount + pendingUserCount, icon: UserCog, color: "text-slate-700", tab: "users" as const },
-                { label: "Conversion rate", value: `${analytics.conversionRate}%`, icon: TrendingUp, color: "text-emerald-700", tab: "reports" as const },
-                { label: "Reported reviews", value: reportedReviewCount, icon: MessageSquareWarning, color: "text-rose-700", tab: "reviews" as const },
-                { label: "Enquiries this month", value: analytics.monthlyEnquiries, icon: Activity, color: "text-emerald-700", tab: "enquiries" as const }
+                {
+                  label: "Pending venues",
+                  value: pendingVenueCount + pendingHallMediaCount,
+                  icon: Building2,
+                  color: "text-blue-700",
+                  tab: "venues" as const,
+                },
+                {
+                  label: "Pending vendors",
+                  value: pendingVendorCount + pendingVendorMediaCount,
+                  icon: Store,
+                  color: "text-violet-700",
+                  tab: "vendors" as const,
+                },
+                {
+                  label: "Total users",
+                  value: totalUsers,
+                  icon: UserCog,
+                  color: "text-slate-700",
+                  tab: "users" as const,
+                },
+                {
+                  label: "Active users",
+                  value: activeUsers,
+                  icon: ShieldCheck,
+                  color: "text-emerald-700",
+                  tab: "users" as const,
+                },
+                {
+                  label: "Total enquiries",
+                  value: totalEnquiries,
+                  icon: Activity,
+                  color: "text-cyan-700",
+                  tab: "enquiries" as const,
+                },
+                {
+                  label: "Total reviews",
+                  value: totalReviews,
+                  icon: MessageSquareWarning,
+                  color: "text-amber-700",
+                  tab: "reviews" as const,
+                },
+                {
+                  label: "Conversion rate",
+                  value: `${analytics.conversionRate}%`,
+                  icon: TrendingUp,
+                  color: "text-emerald-700",
+                  tab: "reports" as const,
+                },
+                {
+                  label: "Revenue",
+                  value: formatCompactMoney(analytics.bookingRevenue),
+                  icon: BadgeCheck,
+                  color: "text-indigo-700",
+                  tab: "reports" as const,
+                },
               ].map((stat) => <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}><stat.icon className={stat.color} size={21} /><p className="mt-5 text-2xl font-semibold">{stat.value}</p><p className="mt-1 text-sm text-muted-foreground">{stat.label}</p></button>)}
             </div>
 
@@ -621,7 +775,7 @@ export function AdminDashboard() {
                 const documentReviewRequired = venue.documentReviewRequired ?? true;
                 const documentChecks = [{ label: "Ownership", ready: venue.documents.ownership }, { label: "Identity", ready: venue.documents.identity }, { label: "Address", ready: venue.documents.address }];
                 const complete = !documentReviewRequired || documentChecks.every((document) => document.ready);
-                return <article className="rounded-lg border border-border bg-white p-4 sm:p-5" key={venue.id}><div className="grid gap-5 lg:grid-cols-[160px_minmax(0,1fr)_240px]"><div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted lg:aspect-auto lg:min-h-32"><VenueImage sizes="(min-width: 1024px) 160px, 100vw" venue={venue} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{venue.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[venue.status]}`}>{readableStatus(venue.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{venue.location} | {venue.venueType} | {venue.capacity} guests</p><p className="mt-3 text-sm"><strong className="font-medium">Owner:</strong> {venue.ownerName} | {venue.ownerPhone}</p><p className="mt-1 text-sm"><strong className="font-medium">Starting price:</strong> {formatPrice(venue.startingPrice)}</p><p className="mt-3 text-xs text-muted-foreground">Submitted {new Date(venue.submittedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} | {venue.id}</p></div><div><p className="text-xs font-semibold uppercase text-muted-foreground">Review checks</p>{documentReviewRequired ? <div className="mt-3 grid gap-2 text-sm">{documentChecks.map((document) => <p className={`flex items-center gap-2 ${document.ready ? "text-emerald-700" : "text-amber-700"}`} key={document.label}>{document.ready ? <FileCheck2 size={16} /> : <CircleAlert size={16} />}{document.label}</p>)}</div> : <div className="mt-3 grid gap-2 text-sm"><p className="flex items-center gap-2 text-emerald-700"><FileCheck2 size={16} /> MVP manual review</p><p className="text-xs leading-5 text-muted-foreground">Document upload is not collected yet.</p></div>}<div className="mt-5 grid gap-2"><button className="inline-flex h-10 items-center justify-center rounded-md border border-border text-sm font-semibold hover:border-primary" onClick={() => setSelectedVenue(venue)} type="button">View details</button>{venue.status === "PENDING_APPROVAL" && <div className="grid grid-cols-2 gap-2"><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 text-sm font-semibold text-rose-700" onClick={() => setRejectTarget({ kind: "venue", id: venue.id, name: venue.ownerName })} type="button"><XCircle size={17} /> Reject</button><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!complete} onClick={() => updateVenue(venue.id, "APPROVED")} title={complete ? "Approve venue" : "Complete all document checks first"} type="button"><Check size={17} /> Approve</button></div>}</div></div></div></article>;
+                return <article className="rounded-lg border border-border bg-white p-4 sm:p-5" key={venue.id}><div className="grid gap-5 lg:grid-cols-[160px_minmax(0,1fr)_240px]"><div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted lg:aspect-auto lg:min-h-32"><VenueImage sizes="(min-width: 1024px) 160px, 100vw" venue={venue} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{venue.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[venue.status]}`}>{readableStatus(venue.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{venue.location} | {venue.venueType} | {venue.capacity} guests</p><p className="mt-3 text-sm"><strong className="font-medium">Owner:</strong> {venue.ownerName} | {venue.ownerPhone}</p><p className="mt-1 text-sm"><strong className="font-medium">Starting price:</strong> {formatPrice(venue.startingPrice)}</p><p className="mt-3 text-xs text-muted-foreground">Submitted {formatDateTime(venue.submittedAt)} | {venue.id}</p></div><div><p className="text-xs font-semibold uppercase text-muted-foreground">Review checks</p>{documentReviewRequired ? <div className="mt-3 grid gap-2 text-sm">{documentChecks.map((document) => <p className={`flex items-center gap-2 ${document.ready ? "text-emerald-700" : "text-amber-700"}`} key={document.label}>{document.ready ? <FileCheck2 size={16} /> : <CircleAlert size={16} />}{document.label}</p>)}</div> : <div className="mt-3 grid gap-2 text-sm"><p className="flex items-center gap-2 text-emerald-700"><FileCheck2 size={16} /> MVP manual review</p><p className="text-xs leading-5 text-muted-foreground">Document upload is not collected yet.</p></div>}<div className="mt-5 grid gap-2"><button className="inline-flex h-10 items-center justify-center rounded-md border border-border text-sm font-semibold hover:border-primary" onClick={() => setSelectedVenue(venue)} type="button">View details</button>{venue.status === "PENDING_APPROVAL" && <div className="grid grid-cols-2 gap-2"><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 text-sm font-semibold text-rose-700" onClick={() => setRejectTarget({ kind: "venue", id: venue.id, name: venue.ownerName })} type="button"><XCircle size={17} /> Reject</button><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!complete} onClick={() => updateVenue(venue.id, "APPROVED")} title={complete ? "Approve venue" : "Complete all document checks first"} type="button"><Check size={17} /> Approve</button></div>}</div></div></div></article>;
               })}
               {filteredVenues.length === 0 && <p className="rounded-lg border border-dashed border-border bg-white px-5 py-12 text-center text-sm text-muted-foreground">No venue applications match this filter.</p>}
             </div>
@@ -699,27 +853,6 @@ export function AdminDashboard() {
                 <h2 className="text-xl font-semibold">User management</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Search users, review roles, and control account access.</p>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="relative w-full sm:w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                  <input className="h-10 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm outline-none focus:border-primary" onChange={(event) => setUserSearch(event.target.value)} placeholder="Search user" value={userSearch} />
-                </label>
-                <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserRoleFilter(event.target.value as "ALL" | AuthRole)} value={userRoleFilter}>
-                  <option value="ALL">All roles</option>
-                  <option value="CUSTOMER">Customers</option>
-                  <option value="HALL_OWNER">Owners</option>
-                  <option value="VENDOR">Vendors</option>
-                  <option value="ADMIN">Admins</option>
-                  <option value="SUPER_ADMIN">Super admins</option>
-                </select>
-                <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
-                  <option value="ALL">All statuses</option>
-                  <option value="ACTIVE">Active</option>
-                  <option value="PENDING_VERIFICATION">Pending verification</option>
-                  <option value="SUSPENDED">Suspended</option>
-                </select>
-                <button className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-semibold hover:border-primary" onClick={() => { setUserSearch(""); setUserRoleFilter("ALL"); setUserStatusFilter("ALL"); }} type="button"><RotateCcw size={16} /> Reset</button>
-              </div>
             </div>
 
             {isSuperAdmin ? (
@@ -755,6 +888,30 @@ export function AdminDashboard() {
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Suspended</p><p className="mt-2 text-2xl font-semibold">{suspendedUserCount}</p></div>
             </div>
 
+            <br />
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                <input className="h-10 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm outline-none focus:border-primary" onChange={(event) => setUserSearch(event.target.value)} placeholder="Search user" value={userSearch} />
+              </label>
+              <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserRoleFilter(event.target.value as "ALL" | AuthRole)} value={userRoleFilter}>
+                <option value="ALL">All roles</option>
+                <option value="CUSTOMER">Customers</option>
+                <option value="HALL_OWNER">Owners</option>
+                <option value="VENDOR">Vendors</option>
+                <option value="ADMIN">Admins</option>
+                <option value="SUPER_ADMIN">Super admins</option>
+              </select>
+              <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
+                <option value="ALL">All statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="PENDING_VERIFICATION">Pending verification</option>
+                <option value="SUSPENDED">Suspended</option>
+              </select>
+              <button className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-semibold hover:border-primary" onClick={() => { setUserSearch(""); setUserRoleFilter("ALL"); setUserStatusFilter("ALL"); }} type="button"><RotateCcw size={16} /> Reset</button>
+            </div>
+
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
               <div className="hidden grid-cols-[1.5fr_180px_140px_180px_220px] items-center gap-6 border-b border-border bg-muted/60 px-6 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">              <span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[84px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredUsers.map((user) => {
@@ -780,8 +937,8 @@ export function AdminDashboard() {
                     <p className="text-sm font-medium whitespace-nowrap">{userRoleLabels[user.role]}</p>
                     <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${userStatusStyle[user.status]}`}>{readableStatus(user.status)}</span>
                     <div className="space-y-1 text-sm text-muted-foreground">
-                      <p>Joined {new Date(user.joinedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>
-                      {user.lastActiveAt && <p className="mt-1">Last active {new Date(user.lastActiveAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>}
+                      <p>Joined {formatDate(user.joinedAt)}</p>
+                      {user.lastActiveAt && <p className="mt-1">Last active {formatDate(user.lastActiveAt)}</p>}
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       {canManageAdminAccount && (
@@ -867,12 +1024,12 @@ export function AdminDashboard() {
               <p className="mt-1 text-sm text-muted-foreground">Moderate customer reviews submitted for halls.</p>
             </div>
             <div className="mt-5 grid gap-4">
-              {reviews.length === 0 && (
+              {filteredReviews.length === 0 && (
                 <div className="rounded-lg border border-dashed border-border bg-white px-5 py-10 text-center text-muted-foreground">
                   No hall reviews found.
                 </div>
               )}
-              {reviews.map((review) => (
+              {filteredReviews.map((review) => (
                 <article className="rounded-lg border border-border bg-white p-5" key={review.id}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -913,13 +1070,13 @@ export function AdminDashboard() {
 
             <div className="mt-5 grid gap-4">
 
-              {vendorReviews.length === 0 && (
+              {filteredReviews.length === 0 && (
                 <div className="rounded-lg border border-dashed border-border bg-white px-5 py-10 text-center text-muted-foreground">
                   No vendor reviews found.
                 </div>
               )}
 
-              {vendorReviews.map((review) => (
+              {filteredVendorReviews.map((review) => (
 
                 <article
                   key={review.id}
@@ -1006,6 +1163,33 @@ export function AdminDashboard() {
 
           </section>
         )}
+
+        {/* <div className="mb-5 flex flex-wrap gap-3">
+          <label className="relative w-full sm:w-80">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={16}
+            />
+            <input
+              className="h-10 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm outline-none focus:border-primary"
+              placeholder="Search customer, hall, email, phone..."
+              value={enquirySearch}
+              onChange={(e) => setEnquirySearch(e.target.value)}
+            />
+          </label>
+
+          <button
+            type="button"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm"
+            onClick={() => {
+              setEnquirySearch("");
+              setEnquiryFilter("ALL");
+            }}
+          >
+            <RotateCcw size={16} />
+            Reset
+          </button>
+        </div> */}
 
         {activeTab === "enquiries" && (
           <section className="py-7">
