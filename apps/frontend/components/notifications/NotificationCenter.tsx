@@ -2,7 +2,7 @@
 
 import { Bell, CheckCheck, Circle, LoaderCircle } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
   getNotifications,
@@ -27,6 +27,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -51,10 +52,29 @@ export function NotificationBell() {
     };
   }, [accessToken, user]);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
   if (!user) return null;
 
   return (
-    <div className="relative">
+    <div ref={dropdownRef} className="relative">
       <button
         aria-label="Notifications"
         className="relative grid size-10 place-items-center rounded-md border border-border bg-white text-muted-foreground hover:border-primary hover:text-primary"
@@ -66,16 +86,15 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] max-h-[70vh] overflow-hidden rounded-lg border border-border bg-white shadow-xl">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <div>
-              <h2 className="font-semibold">Notifications</h2>
-              <p className="text-xs text-muted-foreground">{unreadCount} unread</p>
-            </div>
-            <button className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-primary hover:bg-muted" onClick={() => markAllNotificationsRead(accessToken, user.role)} type="button">
-              <CheckCheck size={14} /> Read all
-            </button>
+        <div ref={dropdownRef} className="fixed top-16 right-4 left-4 z-[999] md:absolute md:top-12 md:right-0 md:left-auto w-auto md:w-[22rem] max-h-[70vh] overflow-hidden rounded-lg border border-border bg-white shadow-xl">          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div>
+            <h2 className="font-semibold">Notifications</h2>
+            <p className="text-xs text-muted-foreground">{unreadCount} unread</p>
           </div>
+          <button className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-primary hover:bg-muted" onClick={() => markAllNotificationsRead(accessToken, user.role)} type="button">
+            <CheckCheck size={14} /> Read all
+          </button>
+        </div>
           <div className="max-h-[50vh] overflow-y-auto">
             <NotificationList
               isLoading={isLoading}

@@ -661,14 +661,14 @@ export function AdminDashboard() {
               {[
                 {
                   label: "Pending venues",
-                  value: pendingVenueCount,
+                  value: pendingVenueCount + pendingHallMediaCount,
                   icon: Building2,
                   color: "text-blue-700",
                   tab: "venues" as const,
                 },
                 {
                   label: "Pending vendors",
-                  value: pendingVendorCount,
+                  value: pendingVendorCount + pendingVendorMediaCount,
                   icon: Store,
                   color: "text-violet-700",
                   tab: "vendors" as const,

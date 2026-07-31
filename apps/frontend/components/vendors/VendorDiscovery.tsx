@@ -7,6 +7,7 @@ import { categoryLabels, vendors } from "@/features/vendors/mock-data";
 import { searchPublicVendors, type VendorSort } from "@/features/vendors/vendor-client";
 import type { VendorCategory } from "@/features/vendors/types";
 import { VendorCard } from "./VendorCard";
+import { useAuth } from "@/features/auth/AuthProvider";
 
 type CategoryFilter = "ALL" | VendorCategory;
 
@@ -22,6 +23,7 @@ export function VendorDiscovery() {
   const [total, setTotal] = useState(vendors.length);
   const [isLoading, setIsLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const { user } = useAuth();
 
   useEffect(() => {
     let isCurrent = true;
@@ -69,7 +71,14 @@ export function VendorDiscovery() {
     <>
       <section className="border-b border-border bg-white">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
-          <div className="flex flex-wrap items-end justify-between gap-5"><div className="max-w-3xl"><p className="text-sm font-semibold text-primary">Trusted event professionals</p><h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Services that bring the event together</h1><p className="mt-3 text-muted-foreground">Compare verified teams, packages, starting prices, and completed-event reviews.</p></div><Link className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-semibold hover:border-primary hover:text-primary" href="/auth/register">Join as a vendor</Link></div>
+          <div className="flex flex-wrap items-end justify-between gap-5"><div className="max-w-3xl"><p className="text-sm font-semibold text-primary">Trusted event professionals</p><h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Services that bring the event together</h1><p className="mt-3 text-muted-foreground">Compare verified teams, packages, starting prices, and completed-event reviews.</p></div>{(!user || user.role === "CUSTOMER") && (
+            <Link
+              className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-semibold hover:border-primary hover:text-primary"
+              href="/auth/register"
+            >
+              Join as a vendor
+            </Link>
+          )}</div>
           <div className="mt-7 grid overflow-hidden rounded-lg border border-border bg-white shadow-sm lg:grid-cols-[1.35fr_1fr_auto]">
             <label className="flex min-h-16 items-center gap-3 border-b border-border px-4 lg:border-b-0 lg:border-r"><Search className="shrink-0 text-primary" size={20} /><span className="min-w-0 flex-1"><span className="block text-xs font-medium text-muted-foreground">Service</span><input className="mt-1 w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground" onChange={(event) => setQuery(event.target.value)} placeholder="Catering, photography, decoration..." value={query} /></span></label>
             <label className="flex min-h-16 items-center gap-3 border-b border-border px-4 lg:border-b-0 lg:border-r"><MapPin className="shrink-0 text-primary" size={20} /><span className="min-w-0 flex-1"><span className="block text-xs font-medium text-muted-foreground">Location</span><input className="mt-1 w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground" onChange={(event) => setLocation(event.target.value)} placeholder="City or area" value={location} /></span></label>
