@@ -7,9 +7,9 @@ create table roles (
 create table users (
     id bigserial primary key,
     email varchar(255) not null unique,
-    -- password_hash varchar(255) not null,
     full_name varchar(160) not null,
     phone varchar(32),
+    password_hash varchar(255) not null,
     status varchar(40) not null default 'ACTIVE',
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -21,61 +21,80 @@ create table user_roles (
     primary key (user_id, role_id)
 );
 
--- create table halls (
---     id bigserial primary key,
---     owner_user_id bigint not null references users(id),
---     owner_name varchar(100) not null,
---     name varchar(180) not null,
---     description text,
---     cover_image_url varchar(255) not null,
---     address_line varchar(120) not null,
---     city varchar(120) not null,
---     area varchar(120) not null,
---     pincode varchar(16),
---     latitude double precision,
---     longitude double precision,
---     capacity_min integer,
---     capacity_max integer,
---     floors integer,
---     ac_available boolean,
---     hall_type varchar(50),
---     ratings float,
---     rooms integer,
---     car_parking boolean,
---     bike_parking boolean,
---     dining_available boolean,
---     amount numeric(12, 2) not null,
---     contact_number varchar(20),
---     whatsapp_number varchar(20),
---     dining_capacity integer,
---     generator_available boolean,
---     lift_available boolean,
---     status varchar(40) not null default 'PENDING_APPROVAL',
---     rejection_reason varchar(120),
---     created_at timestamptz not null default now(),
---     updated_at timestamptz not null default now()
--- );
+create table admins (
+    id bigserial primary key,
+    full_name varchar(160) not null,
+    email varchar(255) not null unique,
+    password_hash varchar(255) not null,
+    contact_number varchar(20) not null,
+    status varchar(40) not null default 'ACTIVE',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
 
--- create table hall_media (
---     id bigserial primary key,
---     hall_id bigint not null references halls(id) on delete cascade,
---     media_type varchar(20) not null,
---     url text not null,
---     public_id varchar(255),
---     is_primary boolean not null default false,
---     sort_order integer not null default 0,
---     created_at timestamptz not null default now()
--- );
+create table halls (
+    id bigserial primary key,
+    owner_user_id bigint not null references users(id),
+    owner_name varchar(100) not null,
+    name varchar(180) not null,
+    description text,
+    -- cover_image_url varchar(255) not null,
+    --  address_line varchar(120) not null,
+    cover_image_url varchar(255) ,
+    address_line varchar(120) ,
+    city varchar(120) not null,
+    area varchar(120) not null,
+    pincode varchar(16),
+    latitude double precision,
+    longitude double precision,
+    capacity_min integer,
+    capacity_max integer,
+    floors integer,
+    ac_available boolean,
+    hall_type varchar(50),
+    ratings float,
+    rooms integer,
+    car_parking boolean,
+    bike_parking boolean,
+    dining_available boolean,
+    contact_number varchar(20),
+    whatsapp_number varchar(20),
+    dining_capacity integer,
+    generator_available boolean,
+    lift_available boolean,
+    bridal_room_available boolean,
+    catering_kitchen_available boolean,
+    morning_amount numeric(12,2),
+    evening_amount numeric(12,2),
+    full_day_amount numeric(12,2),
+    status varchar(40) not null default 'PENDING_APPROVAL',
+    rejection_reason varchar(120),
+    approved_by bigint references admins(id),
+    approved_at timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
 
--- create table hall_blocked_dates (
---     id bigserial primary key,
---     hall_id bigint not null references halls(id) on delete cascade,
---     event_date date not null,
---     slot_type varchar(30) not null,
---     reason varchar(255),
---     created_at timestamptz not null default now(),
---     unique (hall_id, event_date, slot_type)
--- );
+create table hall_media (
+    id bigserial primary key,
+    hall_id bigint not null references halls(id) on delete cascade,
+    media_type varchar(20) not null,
+    url text not null,
+    public_id varchar(255),
+    is_primary boolean not null default false,
+    sort_order integer not null default 0,
+    created_at timestamptz not null default now()
+);
+
+create table hall_blocked_dates (
+    id bigserial primary key,
+    hall_id bigint not null references halls(id) on delete cascade,
+    event_date date not null,
+    slot_type varchar(30) not null,
+    reason varchar(255),
+    created_at timestamptz not null default now(),
+    unique (hall_id, event_date, slot_type)
+);
 
 create table bookings (
     id bigserial primary key,
@@ -103,7 +122,7 @@ create table vendor_categories (
 
 create table vendors (
     id bigserial primary key,
-    -- user_id bigint not null references users(id),
+    user_id bigint not null references users(id),
     vendor_name varchar(100) not null,
     cover_image_url varchar(255) not null,
     business_name varchar(180) not null,
@@ -118,6 +137,11 @@ create table vendors (
     contact_number varchar(20),
     whatsapp_number varchar(20),
     password_hash varchar(100) not null,
+    years_in_business integer,
+    service_radius integer,
+    package_name varchar(150),
+    package_description text,
+    starting_price numeric(12,2),
     status varchar(40) not null default 'PENDING',
     rejection_reason varchar(255),
     created_at timestamptz not null default now(),
@@ -219,6 +243,14 @@ create table vendor_category_mapping (
         references vendor_categories(id)
 );
 
+create table vendor_services (
+    id bigserial primary key,
+
+    vendor_id bigint not null references vendors(id) on delete cascade,
+
+    service_name varchar(120) not null
+);
+
 create table subscription_plans (
     id bigserial primary key,
     name varchar(120) not null unique,
@@ -267,15 +299,19 @@ create table payments (
     created_at timestamptz not null default now()
 );
 
-create table admins (
-    id bigserial primary key,
-    full_name varchar(160) not null,
-    email varchar(255) not null unique,
-    password_hash varchar(255) not null,
-    contact_number varchar(20) not null,
-    status varchar(40) not null default 'ACTIVE',
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+CREATE TABLE reviews (
+    id BIGSERIAL PRIMARY KEY,
+    booking_id BIGINT NOT NULL REFERENCES bookings(id),
+    enquiry_id BIGINT NOT NULL REFERENCES enquiries(id),
+    hall_id BIGINT NOT NULL REFERENCES halls(id),
+    customer_user_id BIGINT NOT NULL REFERENCES users(id),
+    rating INTEGER NOT NULL,
+    comment VARCHAR(500) NOT NULL,
+    verified_service BOOLEAN NOT NULL DEFAULT TRUE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_review_per_enquiry UNIQUE(enquiry_id)
 );
 
 create table vendor_media (
@@ -308,6 +344,24 @@ create table vendor_blocked_dates (
     slot_type varchar(30) not null,
     reason varchar(255),
     created_at timestamptz default now()
+);
+
+create table vendor_leads (
+    id bigserial primary key,
+    vendor_id bigint not null references vendors(id),
+    customer_user_id bigint not null references users(id),
+    customer_name varchar(160) not null,
+    customer_phone varchar(32),
+    customer_email varchar(255),
+    service varchar(120) not null,
+    event_type varchar(120),
+    event_date date,
+    location varchar(255),
+    budget numeric(12,2),
+    notes text,
+    status varchar(40) not null default 'NEW',
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
 insert into roles(name) values

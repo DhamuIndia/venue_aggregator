@@ -25,9 +25,10 @@ type AuthContextValue = {
   user: AuthUser | null;
   accessToken: string | null;
   isLoading: boolean;
-  login: (payload: LoginPayload) => Promise<void>;
-  loginDemo: (role: AuthRole) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  getValidAccessToken: () => Promise<string | null>;
+  login: (payload: LoginPayload) => Promise<AuthUser>;
+  loginDemo: (role: AuthRole) => Promise<AuthUser>;
+  register: (payload: RegisterPayload) => Promise<AuthUser>;
   logout: () => void;
 };
 
@@ -61,7 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         saveSession({ ...activeSession, user: currentUser });
       } catch {
         window.localStorage.removeItem(SESSION_KEY);
-        if (isMounted) setUser(null);
+        if (isMounted) {
+          setUser(null);
+          setAccessToken(null);
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -75,9 +79,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function ensureFreshSession(session: StoredSession) {
-    const expiresSoon = session.expiresAt <= Date.now() + 30_000;
+    const expiresSoon = session.expiresAt <= Date.now() + 60_000;
     return expiresSoon ? refreshSession(session.refreshToken) : session;
   }
+
+  async function getValidAccessToken() {
+    const storedSession = getStoredSession();
+    if (!storedSession) return null;
+    if (isMockAuthMode()) return storedSession.accessToken;
+
+    try {
+      const activeSession = await ensureFreshSession(storedSession);
+      if (
+        activeSession.accessToken !== storedSession.accessToken ||
+        activeSession.refreshToken !== storedSession.refreshToken ||
+        activeSession.expiresAt !== storedSession.expiresAt
+      ) {
+        saveSession(activeSession);
+      }
+      return activeSession.accessToken;
+    } catch {
+      clearSession();
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    if (isMockAuthMode() || !accessToken) return;
+
+    const storedSession = getStoredSession();
+    if (!storedSession) return;
+
+    const refreshDelay = Math.max(storedSession.expiresAt - Date.now() - 60_000, 0);
+    const refreshTimer = window.setTimeout(() => {
+      void getValidAccessToken();
+    }, refreshDelay);
+
+    return () => window.clearTimeout(refreshTimer);
+  }, [accessToken]);
 
   function saveSession(session: StoredSession) {
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -105,9 +144,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       accessToken,
       isLoading,
-      login: async (payload) => saveSession(await loginCustomer(payload)),
-      loginDemo: async (role) => saveSession(await loginDemo(role)),
-      register: async (payload) => saveSession(await registerCustomer(payload)),
+      getValidAccessToken,
+      login: async (payload) => {
+        const session = await loginCustomer(payload);
+        saveSession(session);
+        return session.user;
+      },
+      loginDemo: async (role) => {
+        const session = await loginDemo(role);
+        saveSession(session);
+        return session.user;
+      },
+      register: async (payload) => {
+        const session = await registerCustomer(payload);
+        saveSession(session);
+        return session.user;
+      },
       logout: () => {
         const session = getStoredSession();
         if (session && !isMockAuthMode()) {

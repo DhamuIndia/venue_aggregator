@@ -240,7 +240,7 @@ function slotValue(record: Record<string, unknown>, keys: string[]): EnquirySlot
 }
 
 function isSlot(value: unknown): value is EnquirySlot {
-  return value === "MORNING" || value === "EVENING" || value === "FULL_DAY";
+  return value === "MORNING" || value === "AFTERNOON" || value === "EVENING" || value === "FULL_DAY";
 }
 
 function stringValue(record: Record<string, unknown>, keys: string[]) {

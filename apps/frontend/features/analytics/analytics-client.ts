@@ -69,6 +69,18 @@ export const fallbackAdminAnalytics: AdminAnalytics = {
   ]
 };
 
+export const emptyAdminAnalytics: AdminAnalytics = {
+  totalUsers: 0,
+  activeListings: 0,
+  monthlyEnquiries: 0,
+  confirmedBookings: 0,
+  bookingRevenue: 0,
+  vendorRevenue: 0,
+  conversionRate: 0,
+  trends: [],
+  topCities: []
+};
+
 export const fallbackOwnerAnalytics: OwnerAnalytics = {
   enquiries: 42,
   confirmedBookings: 11,
@@ -90,6 +102,18 @@ export const fallbackOwnerAnalytics: OwnerAnalytics = {
     { eventType: "Reception", count: 3 },
     { eventType: "Engagement", count: 2 }
   ]
+};
+
+export const emptyOwnerAnalytics: OwnerAnalytics = {
+  enquiries: 0,
+  confirmedBookings: 0,
+  completedBookings: 0,
+  estimatedRevenue: 0,
+  conversionRate: 0,
+  averageRating: 0,
+  occupancyRate: 0,
+  trends: [],
+  eventMix: []
 };
 
 export const fallbackVendorAnalytics: VendorAnalytics = {
@@ -116,15 +140,25 @@ export const fallbackVendorAnalytics: VendorAnalytics = {
   ]
 };
 
-export async function getAdminAnalytics(accessToken?: string | null): Promise<AdminAnalytics> {
-  if (useMockAnalytics || !accessToken) return fallbackAdminAnalytics;
+export const emptyVendorAnalytics: VendorAnalytics = {
+  leads: 0,
+  contacted: 0,
+  quotesSent: 0,
+  booked: 0,
+  bookedValue: 0,
+  conversionRate: 0,
+  averageBudget: 0,
+  responseRate: 0,
+  trends: [],
+  serviceMix: []
+};
 
-  try {
-    const response = await apiRequest<unknown>("/admin/reports/summary", { token: accessToken });
-    return toAdminAnalytics(response) ?? fallbackAdminAnalytics;
-  } catch {
-    return fallbackAdminAnalytics;
-  }
+export async function getAdminAnalytics(accessToken?: string | null): Promise<AdminAnalytics> {
+  if (useMockAnalytics) return fallbackAdminAnalytics;
+  if (!accessToken) return emptyAdminAnalytics;
+
+  const response = await apiRequest<unknown>("/admin/reports/summary", { token: accessToken });
+  return toAdminAnalytics(response) ?? emptyAdminAnalytics;
 }
 
 export async function getOwnerAnalytics(hallId: string, accessToken?: string | null): Promise<OwnerAnalytics> {
@@ -132,9 +166,9 @@ export async function getOwnerAnalytics(hallId: string, accessToken?: string | n
 
   try {
     const response = await apiRequest<unknown>(`/owner/halls/${encodeURIComponent(hallId)}/reports/summary`, { token: accessToken });
-    return toOwnerAnalytics(response) ?? fallbackOwnerAnalytics;
+    return toOwnerAnalytics(response) ?? emptyOwnerAnalytics;
   } catch {
-    return fallbackOwnerAnalytics;
+    return emptyOwnerAnalytics;
   }
 }
 
@@ -143,9 +177,9 @@ export async function getVendorAnalytics(vendorId: string, accessToken?: string 
 
   try {
     const response = await apiRequest<unknown>(`/vendor/reports/summary?vendorId=${encodeURIComponent(vendorId)}`, { token: accessToken });
-    return toVendorAnalytics(response) ?? fallbackVendorAnalytics;
+    return toVendorAnalytics(response) ?? emptyVendorAnalytics;
   } catch {
-    return fallbackVendorAnalytics;
+    return emptyVendorAnalytics;
   }
 }
 
@@ -154,15 +188,15 @@ function toAdminAnalytics(value: unknown): AdminAnalytics | undefined {
   if (!record) return undefined;
 
   return {
-    totalUsers: numberValue(record, ["totalUsers", "total_users"]) ?? fallbackAdminAnalytics.totalUsers,
-    activeListings: numberValue(record, ["activeListings", "active_listings"]) ?? fallbackAdminAnalytics.activeListings,
-    monthlyEnquiries: numberValue(record, ["monthlyEnquiries", "monthly_enquiries", "enquiries"]) ?? fallbackAdminAnalytics.monthlyEnquiries,
-    confirmedBookings: numberValue(record, ["confirmedBookings", "confirmed_bookings", "bookings"]) ?? fallbackAdminAnalytics.confirmedBookings,
-    bookingRevenue: numberValue(record, ["bookingRevenue", "booking_revenue"]) ?? fallbackAdminAnalytics.bookingRevenue,
-    vendorRevenue: numberValue(record, ["vendorRevenue", "vendor_revenue", "subscriptionRevenue"]) ?? fallbackAdminAnalytics.vendorRevenue,
-    conversionRate: numberValue(record, ["conversionRate", "conversion_rate"]) ?? fallbackAdminAnalytics.conversionRate,
-    trends: trendList(record.trends) ?? fallbackAdminAnalytics.trends,
-    topCities: cityList(record.topCities) ?? fallbackAdminAnalytics.topCities
+    totalUsers: numberValue(record, ["totalUsers", "total_users"]) ?? emptyAdminAnalytics.totalUsers,
+    activeListings: numberValue(record, ["activeListings", "active_listings"]) ?? emptyAdminAnalytics.activeListings,
+    monthlyEnquiries: numberValue(record, ["monthlyEnquiries", "monthly_enquiries", "enquiries"]) ?? emptyAdminAnalytics.monthlyEnquiries,
+    confirmedBookings: numberValue(record, ["confirmedBookings", "confirmed_bookings", "bookings"]) ?? emptyAdminAnalytics.confirmedBookings,
+    bookingRevenue: numberValue(record, ["bookingRevenue", "booking_revenue"]) ?? emptyAdminAnalytics.bookingRevenue,
+    vendorRevenue: numberValue(record, ["vendorRevenue", "vendor_revenue", "subscriptionRevenue"]) ?? emptyAdminAnalytics.vendorRevenue,
+    conversionRate: numberValue(record, ["conversionRate", "conversion_rate"]) ?? emptyAdminAnalytics.conversionRate,
+    trends: trendList(record.trends) ?? emptyAdminAnalytics.trends,
+    topCities: cityList(record.topCities) ?? emptyAdminAnalytics.topCities
   };
 }
 
@@ -188,16 +222,16 @@ function toVendorAnalytics(value: unknown): VendorAnalytics | undefined {
   if (!record) return undefined;
 
   return {
-    leads: numberValue(record, ["leads", "totalLeads", "total_leads"]) ?? fallbackVendorAnalytics.leads,
-    contacted: numberValue(record, ["contacted"]) ?? fallbackVendorAnalytics.contacted,
-    quotesSent: numberValue(record, ["quotesSent", "quotes_sent"]) ?? fallbackVendorAnalytics.quotesSent,
-    booked: numberValue(record, ["booked", "bookedLeads", "booked_leads"]) ?? fallbackVendorAnalytics.booked,
-    bookedValue: numberValue(record, ["bookedValue", "booked_value", "revenue"]) ?? fallbackVendorAnalytics.bookedValue,
-    conversionRate: numberValue(record, ["conversionRate", "conversion_rate"]) ?? fallbackVendorAnalytics.conversionRate,
-    averageBudget: numberValue(record, ["averageBudget", "average_budget"]) ?? fallbackVendorAnalytics.averageBudget,
-    responseRate: numberValue(record, ["responseRate", "response_rate"]) ?? fallbackVendorAnalytics.responseRate,
-    trends: trendList(record.trends) ?? fallbackVendorAnalytics.trends,
-    serviceMix: serviceMix(record.serviceMix) ?? fallbackVendorAnalytics.serviceMix
+    leads: numberValue(record, ["leads", "totalLeads", "total_leads"]) ?? emptyVendorAnalytics.leads,
+    contacted: numberValue(record, ["contacted"]) ?? emptyVendorAnalytics.contacted,
+    quotesSent: numberValue(record, ["quotesSent", "quotes_sent"]) ?? emptyVendorAnalytics.quotesSent,
+    booked: numberValue(record, ["booked", "bookedLeads", "booked_leads"]) ?? emptyVendorAnalytics.booked,
+    bookedValue: numberValue(record, ["bookedValue", "booked_value", "revenue"]) ?? emptyVendorAnalytics.bookedValue,
+    conversionRate: numberValue(record, ["conversionRate", "conversion_rate"]) ?? emptyVendorAnalytics.conversionRate,
+    averageBudget: numberValue(record, ["averageBudget", "average_budget"]) ?? emptyVendorAnalytics.averageBudget,
+    responseRate: numberValue(record, ["responseRate", "response_rate"]) ?? emptyVendorAnalytics.responseRate,
+    trends: trendList(record.trends) ?? emptyVendorAnalytics.trends,
+    serviceMix: serviceMix(record.serviceMix) ?? emptyVendorAnalytics.serviceMix
   };
 }
 

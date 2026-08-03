@@ -6,7 +6,6 @@ const useMockCustomerReviews = process.env.NEXT_PUBLIC_CUSTOMER_REVIEWS_MODE ===
 export type ReviewEligibility = {
   eligible: boolean;
   enquiryId: string;
-  hallId: string;
   hallName?: string;
   eventDate: string;
   eventType?: string;
@@ -16,7 +15,6 @@ export type ReviewEligibility = {
 
 export type CreateCustomerReviewPayload = {
   enquiryId: string;
-  hallId: string;
   rating: number;
   comment: string;
 };
@@ -48,7 +46,11 @@ export async function submitCustomerReview(payload: CreateCustomerReviewPayload,
     const response = await apiRequest<unknown>("/customer/reviews", {
       method: "POST",
       token: accessToken,
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        enquiryId: payload.enquiryId,
+        rating: payload.rating,
+        comment: payload.comment
+      })
     });
     const review = toCustomerReview(response, payload) ?? createLocalReview(payload);
     cacheLocalReview(review);
@@ -62,7 +64,7 @@ export async function submitCustomerReview(payload: CreateCustomerReviewPayload,
 }
 
 function localEligibility(fallback: ReviewEligibility): ReviewEligibility {
-  const existingReview = getLocalReviews().find((review) => review.enquiryId === fallback.enquiryId);
+  const existingReview = getLocalReviews().find((review) => sameEnquiryId(review.enquiryId, fallback.enquiryId));
   if (!existingReview) return fallback;
 
   return {
@@ -87,7 +89,7 @@ function createLocalReview(payload: CreateCustomerReviewPayload): CustomerReview
 
 function cacheLocalReview(review: CustomerReview) {
   if (typeof window === "undefined") return;
-  const existing = getLocalReviews().filter((item) => item.id !== review.id && item.enquiryId !== review.enquiryId);
+  const existing = getLocalReviews().filter((item) => item.id !== review.id && !sameEnquiryId(item.enquiryId, review.enquiryId));
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify([review, ...existing]));
 }
 
@@ -111,7 +113,6 @@ function toReviewEligibility(value: unknown, fallback: ReviewEligibility): Revie
   return localEligibility({
     eligible,
     enquiryId,
-    hallId: stringValue(record, ["hallId", "hall_id"]) ?? fallback.hallId,
     hallName: stringValue(record, ["hallName", "hall_name", "venue"]) ?? fallback.hallName,
     eventDate: stringValue(record, ["eventDate", "event_date"]) ?? fallback.eventDate,
     eventType: stringValue(record, ["eventType", "event_type"]) ?? fallback.eventType,
@@ -125,23 +126,31 @@ function toCustomerReview(value: unknown, fallback?: CreateCustomerReviewPayload
   if (!record) return undefined;
 
   const id = stringValue(record, ["id", "reviewId", "review_id"]);
-  const enquiryId = stringValue(record, ["enquiryId", "enquiry_id"]) ?? fallback?.enquiryId;
-  const hallId = stringValue(record, ["hallId", "hall_id"]) ?? fallback?.hallId;
+  const enquiryId = fallback?.enquiryId ?? stringValue(record, ["enquiryId", "enquiry_id"]);
   const rating = numberValue(record, ["rating", "stars", "score"]) ?? fallback?.rating;
   const comment = stringValue(record, ["comment", "review", "message"]) ?? fallback?.comment;
 
-  if (!id || !enquiryId || !hallId || !rating || !comment) return undefined;
+  if (!id || !enquiryId || !rating || !comment) return undefined;
 
   return {
     id,
     enquiryId,
-    hallId,
     rating,
     comment,
     submittedAt: stringValue(record, ["submittedAt", "createdAt", "created_at"]) ?? new Date().toISOString(),
     verifiedService: booleanValue(record, ["verifiedService", "verified_service", "verified"]) ?? true,
     status: statusValue(record) ?? "PENDING_MODERATION"
   };
+}
+
+function apiEnquiryId(enquiryId: string) {
+  const value = enquiryId.trim();
+  const match = /^(?:ENQ-)?0*(\d+)$/i.exec(value);
+  return match ? match[1] : value;
+}
+
+function sameEnquiryId(left: string, right: string) {
+  return apiEnquiryId(left) === apiEnquiryId(right);
 }
 
 function statusValue(record: Record<string, unknown>): CustomerReview["status"] | undefined {
@@ -188,4 +197,45 @@ function booleanValue(record: Record<string, unknown>, keys: string[]) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+type VendorReviewEligibilityResponse = {
+  eligible: boolean;
+  leadId: string;
+  vendorName: string;
+  eventDate: string;
+  eventType?: string;
+  reason?: string | null;
+  submittedReviewId?: string;
+};
+
+export async function getVendorReviewEligibility(
+  leadId: string,
+  accessToken: string | null
+): Promise<VendorReviewEligibilityResponse> {
+  return apiRequest<VendorReviewEligibilityResponse>(
+    `/customer/vendor-review-eligibility?leadId=${encodeURIComponent(leadId)}`,
+    {
+      token: accessToken ?? undefined
+    }
+  );
+}
+
+export async function submitVendorReview(
+  payload: {
+    leadId: string;
+    rating: number;
+    comment: string;
+  },
+  accessToken: string | null
+) {
+  return apiRequest<CustomerReview>("/customer/vendor-reviews", {
+    method: "POST",
+    token: accessToken ?? undefined,
+    body: JSON.stringify({
+      leadId: payload.leadId,
+      rating: payload.rating,
+      comment: payload.comment
+    })
+  });
 }

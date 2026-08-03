@@ -1,8 +1,10 @@
 package com.staminal.venue.enums;
 
 public enum HallStatus {
-    PENDING,
+    DRAFT,
+    PENDING_APPROVAL,
     APPROVED,
     REJECTED,
-    BLOCKED
+    BLOCKED,
+    SUSPENDED
 }

@@ -20,6 +20,7 @@ export type VendorSearchResult = {
 type ApiVendorRecord = Record<string, unknown>;
 
 const useMockVendors = process.env.NEXT_PUBLIC_VENDORS_MODE === "mock";
+const DEFAULT_VENDOR_IMAGE_URL = "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=82";
 
 export async function searchPublicVendors(filters: VendorSearchFilters = {}): Promise<VendorSearchResult> {
   if (useMockVendors) return searchMockVendors(filters);
@@ -106,50 +107,74 @@ function toVendorSummary(value: unknown): VendorSummary | undefined {
   const businessName = stringValue(value, ["businessName", "business_name", "name"]);
   if (!id || !businessName) return undefined;
 
-  const fallback = getMockVendorById(id) ?? mockVendors[0];
-  const category = vendorCategory(value) ?? fallback.category;
-  const imageUrl = stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl"]) ?? fallback.imageUrl;
+  const fallback = getMockVendorById(id);
+  const category = vendorCategory(value) ?? fallback?.category ?? "CATERING";
+  const imageUrl = usableImageUrl(stringValue(value, [
+    "imageUrl",
+    "image_url",
+    "coverImageUrl",
+    "cover_image_url",
+    "primaryImageUrl",
+    "primary_image_url",
+    "mediaUrl",
+    "media_url",
+    "portfolioImageUrl",
+    "portfolio_image_url",
+    "logoUrl",
+    "logo_url"
+  ])) ?? fallback?.imageUrl ?? DEFAULT_VENDOR_IMAGE_URL;
 
   return {
     id,
     businessName,
-    ownerName: stringValue(value, ["ownerName", "owner_name", "contactName"]) ?? fallback.ownerName,
+    ownerName: stringValue(value, ["ownerName", "owner_name", "contactName"]) ?? fallback?.ownerName ?? "",
     category,
-    city: stringValue(value, ["city"]) ?? fallback.city,
-    area: stringValue(value, ["area", "locality", "location"]) ?? fallback.area,
-    rating: numberValue(value, ["rating", "ratings", "averageRating", "average_rating"]) ?? fallback.rating,
-    reviewCount: numberValue(value, ["reviewCount", "reviewsCount", "totalReviews", "review_count"]) ?? fallback.reviewCount,
-    startingPrice: numberValue(value, ["startingPrice", "starting_price", "price", "basePrice"], ["pricing", "startingPrice"]) ?? fallback.startingPrice,
+    city: stringValue(value, ["city"]) ?? fallback?.city ?? "",
+    area: stringValue(value, ["area", "locality", "location"]) ?? fallback?.area ?? "",
+    rating: numberValue(value, ["rating", "ratings", "averageRating", "average_rating"]) ?? fallback?.rating ?? 0,
+    reviewCount: numberValue(value, ["reviewCount", "reviewsCount", "totalReviews", "review_count"]) ?? fallback?.reviewCount ?? 0,
+    startingPrice: numberValue(value, ["startingPrice", "starting_price", "price", "basePrice"], ["pricing", "startingPrice"]) ?? fallback?.startingPrice ?? 0,
     imageUrl,
-    galleryUrls: galleryUrls(value, imageUrl, fallback.galleryUrls),
-    verified: booleanValue(value, ["verified", "isVerified", "identityVerified"]) ?? statusIsApproved(value) ?? fallback.verified,
-    responseTime: stringValue(value, ["responseTime", "response_time", "typicalResponseTime"]) ?? fallback.responseTime,
-    completedEvents: numberValue(value, ["completedEvents", "completed_events", "eventsCompleted"]) ?? fallback.completedEvents,
-    services: arrayOfStrings(value.services) ?? arrayOfStrings(value.serviceNames) ?? fallback.services,
-    description: stringValue(value, ["description", "summary", "about"]) ?? fallback.description,
-    packages: packages(value, fallback.packages),
-    reviews: reviews(value, fallback.reviews)
+    galleryUrls: galleryUrls(value, imageUrl, fallback?.galleryUrls ?? []),
+    verified: booleanValue(value, ["verified", "isVerified", "identityVerified"]) ?? statusIsApproved(value) ?? fallback?.verified ?? false,
+    responseTime: stringValue(value, ["responseTime", "response_time", "typicalResponseTime"]) ?? fallback?.responseTime ?? "",
+    completedEvents: numberValue(value, ["completedEvents", "completed_events", "eventsCompleted"]) ?? fallback?.completedEvents ?? 0,
+    services: arrayOfStrings(value.services) ?? arrayOfStrings(value.serviceNames) ?? [],
+    description: stringValue(value, ["description", "summary", "about"]) ?? "",
+    instagramUrl: stringValue(value, ["instagramUrl", "instagram_url"]),
+    facebookUrl: stringValue(value, ["facebookUrl", "facebook_url"]),
+    whatsAppUrl: stringValue(value, ["whatsAppUrl", "whatsappUrl", "whatsapp_url"]),
+    packages: packages(value),
+    reviews: reviews(value)
   };
 }
 
 function galleryUrls(record: ApiVendorRecord, coverImageUrl: string, fallback: string[]) {
-  const direct = arrayOfStrings(record.galleryUrls) ?? arrayOfStrings(record.gallery);
-  if (direct?.length) return direct;
+  const direct = arrayOfStrings(record.galleryUrls)
+    ?? arrayOfStrings(record.gallery_urls)
+    ?? arrayOfStrings(record.gallery)
+    ?? arrayOfStrings(record.mediaUrls)
+    ?? arrayOfStrings(record.media_urls)
+    ?? arrayOfStrings(record.portfolioUrls)
+    ?? arrayOfStrings(record.portfolio_urls)
+    ?? arrayOfStrings(record.images);
+  if (direct?.length) return cleanImageUrls(direct);
 
   const media = Array.isArray(record.media) ? record.media : [];
   const urls = media
     .filter(isRecord)
-    .map((item) => stringValue(item, ["url", "mediaUrl", "imageUrl"]))
+    .map((item) => stringValue(item, ["url", "mediaUrl", "media_url", "imageUrl", "image_url", "fileUrl", "file_url", "publicUrl", "public_url"]))
     .filter(Boolean) as string[];
 
-  if (urls.length) return urls;
-  return fallback.length ? fallback : [coverImageUrl];
+  if (urls.length) return cleanImageUrls(urls);
+  if (fallback.length) return fallback;
+  return coverImageUrl ? [coverImageUrl] : [];
 }
 
-function packages(record: ApiVendorRecord, fallback: VendorPackage[]) {
+function packages(record: ApiVendorRecord) {
   const list = Array.isArray(record.packages) ? record.packages : Array.isArray(record.servicePackages) ? record.servicePackages : [];
   const mapped = list.map(toVendorPackage).filter(Boolean) as VendorPackage[];
-  return mapped.length ? mapped : fallback;
+  return mapped;
 }
 
 function toVendorPackage(value: unknown): VendorPackage | undefined {
@@ -167,10 +192,10 @@ function toVendorPackage(value: unknown): VendorPackage | undefined {
   };
 }
 
-function reviews(record: ApiVendorRecord, fallback: VendorReview[]) {
+function reviews(record: ApiVendorRecord) {
   const list = Array.isArray(record.reviews) ? record.reviews : [];
   const mapped = list.map(toVendorReview).filter(Boolean) as VendorReview[];
-  return mapped.length ? mapped : fallback;
+  return mapped;
 }
 
 function toVendorReview(value: unknown): VendorReview | undefined {
@@ -252,6 +277,17 @@ function arrayOfStrings(value: unknown) {
   if (!Array.isArray(value)) return undefined;
   const strings = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
   return strings.length ? strings : undefined;
+}
+
+function cleanImageUrls(urls: string[]) {
+  return Array.from(new Set(urls.map(usableImageUrl).filter(Boolean) as string[]));
+}
+
+function usableImageUrl(url?: string) {
+  const trimmed = url?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith("/images/")) return undefined;
+  return trimmed;
 }
 
 function isRecord(value: unknown): value is ApiVendorRecord {

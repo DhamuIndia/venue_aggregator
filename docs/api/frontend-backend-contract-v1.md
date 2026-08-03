@@ -203,6 +203,9 @@ Vendor search/detail response items should include:
   "completedEvents": 212,
   "services": ["Wedding catering", "Live counters"],
   "description": "South Indian celebration menus with transparent per-plate pricing.",
+  "instagramUrl": "https://instagram.com/saffronleafcatering",
+  "facebookUrl": "https://facebook.com/saffronleafcatering",
+  "whatsAppUrl": "https://wa.me/919884012345",
   "packages": [
     {
       "id": "PKG-C1",
@@ -240,16 +243,16 @@ Create vendor lead request:
 }
 ```
 
-The server derives customer and vendor identity. Return `201` with status `NEW`.
+`vendorId` may be the public vendor slug or numeric id. The server derives customer identity from JWT and only creates leads for approved vendors. Return `201` with status `NEW`.
 
 Create vendor lead response:
 
 ```json
 {
   "id": "LEAD-804231",
-  "vendorId": "saffron-leaf-catering",
+  "vendorId": "501",
   "vendorName": "Saffron Leaf Catering",
-  "customerId": "customer-411",
+  "customerId": "411",
   "customerName": "Deepa Raj",
   "eventDate": "2026-08-02",
   "eventType": "Reception",
@@ -262,7 +265,7 @@ Create vendor lead response:
 }
 ```
 
-Return `401` when the user is not logged in, `403` when the logged-in user is not a customer, and `400` for invalid event date, service, location, or budget.
+Return `401` when the user is not logged in, `403` when the logged-in user is not a customer, `404` when the vendor is not approved or not found, and `400` for invalid event date, service, location, or budget.
 
 ## Customer APIs
 
@@ -575,8 +578,16 @@ Vendor profile request:
 {
   "businessName": "Saffron Leaf Catering",
   "category": "CATERING",
+  "coverImageUrl": "https://cdn.example.com/vendor-cover.jpg",
+  "addressLine": "12 South Mada Street",
   "city": "Chennai",
   "area": "Adyar",
+  "pincode": "600020",
+  "contactNumber": "9884012345",
+  "whatsAppNumber": "9884012345",
+  "instagramUrl": "https://instagram.com/saffronleafcatering",
+  "facebookUrl": "https://facebook.com/saffronleafcatering",
+  "whatsAppUrl": "https://wa.me/919884012345",
   "serviceRadius": 25,
   "yearsInBusiness": 5,
   "description": "South Indian celebration menus with trained event service staff.",
@@ -588,6 +599,8 @@ Vendor profile request:
 ```
 
 Vendor profile response should return the same editable fields plus `status` (`DRAFT`, `PENDING_APPROVAL`, `APPROVED`, `REJECTED`) and `updatedAt`. `POST /vendor/profile/submit` does not require a body; it validates the latest saved draft and returns the profile with `status=PENDING_APPROVAL`.
+
+The three social profile fields are optional. When present, they must point to the matching Instagram, Facebook, or WhatsApp host. Only these explicit public links are returned by public vendor discovery; vendor login contact fields remain private.
 
 Vendor package request:
 
@@ -632,6 +645,26 @@ Vendor media request:
 ```
 
 Vendor media response should include `id`, `url`, `caption`, `isCover`, `sortOrder`, and optional `storageKey`. Cover updates should normalize the previous cover to `isCover=false`.
+
+Vendor reviews response:
+
+```json
+{
+  "reviews": [
+    {
+      "id": "901",
+      "customerName": "Priya Raman",
+      "rating": 5,
+      "eventType": "Wedding",
+      "comment": "Excellent service.",
+      "eventDate": "2026-08-12",
+      "verifiedService": true
+    }
+  ],
+  "reviewCount": 1,
+  "averageRating": 5.0
+}
+```
 
 Vendor lead status: `NEW`, `CONTACTED`, `QUOTE_SENT`, `BOOKED`, `DECLINED`.
 
@@ -796,6 +829,11 @@ Hall moderation list items should include:
   "startingPrice": 145000,
   "submittedAt": "2026-06-22T08:45:00Z",
   "imageUrl": "https://example.com/hall.jpg",
+  "imageUrls": [
+    "https://example.com/hall.jpg",
+    "https://example.com/hall-dining.jpg",
+    "https://example.com/hall-entrance.jpg"
+  ],
   "status": "PENDING_APPROVAL",
   "documents": {
     "ownership": true,
@@ -804,6 +842,8 @@ Hall moderation list items should include:
   }
 }
 ```
+
+`imageUrl` is the selected cover image. `imageUrls` contains every uploaded hall image, ordered with the cover first. Admin clients must expose the complete gallery before approving or rejecting the venue.
 
 Vendor moderation list items should include `id`, `businessName`, `contactName`, `category`, `city`, `submittedAt`, and `status`.
 
@@ -923,6 +963,8 @@ Return `403` when the requested owner hall or vendor profile is outside the logg
 ## Upload Contract
 
 Do not send large media through the Spring application.
+
+Use S3-compatible object storage behind this contract. Local and Hetzner deployments can use MinIO; AWS deployments can use S3. The frontend should not know which provider is active.
 
 1. `POST /uploads/presign` with `fileName`, `contentType`, `sizeBytes`, and `purpose`.
 2. API returns `uploadUrl`, `storageKey`, required headers, and expiry.

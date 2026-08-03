@@ -6,24 +6,27 @@ import {
   BadgeCheck,
   Building2,
   Check,
+  ChevronDown,
   ImagePlus,
   LoaderCircle,
   MapPin,
-  UploadCloud,
-  UsersRound
+  Phone,
+  UploadCloud
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { ownerHall } from "@/features/owner/mock-data";
+import { createOwnerMedia } from "@/features/owner/media-client";
 import { emptyOwnerOnboardingDraft, getOwnerOnboardingDraft, saveOwnerOnboardingDraft, submitOwnerOnboardingDraft, type OwnerOnboardingDraft } from "@/features/owner/onboarding-client";
+import { uploadImageFile } from "@/features/uploads/upload-client";
+import { formatGuestCapacityOption, formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
 
 const steps = ["Venue details", "Facilities & pricing", "Photos", "Review"];
 const amenityOptions = ["Air conditioned", "Parking", "Dining hall", "Guest rooms", "Lift", "Generator", "Bridal room", "Catering kitchen"];
 
 export function OwnerOnboarding() {
-  const { accessToken } = useAuth();
+  const { accessToken, getValidAccessToken } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
@@ -33,9 +36,20 @@ export function OwnerOnboarding() {
   const [isLoadingDraft, setIsLoadingDraft] = useState(true);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fileNames, setFileNames] = useState<string[]>([]);
+  const [isCapturingLocation, setIsCapturingLocation] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedPhotoPreviews, setSelectedPhotoPreviews] = useState<Array<{ name: string; url: string }>>([]);
+  const [selectedCoverIndex, setSelectedCoverIndex] = useState(0);
+  const selectedPhotoPreviewsRef = useRef(selectedPhotoPreviews);
   const [amenities, setAmenities] = useState<string[]>(emptyOwnerOnboardingDraft.amenities);
   const [form, setForm] = useState(formFromDraft(emptyOwnerOnboardingDraft));
+  const capacityOptions = (() => {
+    const currentCapacity = Number(form.capacity);
+    if (currentCapacity > 0 && !guestCapacityOptions.includes(currentCapacity)) {
+      return [currentCapacity, ...guestCapacityOptions].sort((first, second) => first - second);
+    }
+    return guestCapacityOptions;
+  })();
 
   useEffect(() => {
     let isCurrent = true;
@@ -45,7 +59,8 @@ export function OwnerOnboarding() {
       setError("");
 
       try {
-        const draft = await getOwnerOnboardingDraft(accessToken);
+        const token = await getValidAccessToken();
+        const draft = await getOwnerOnboardingDraft(token ?? accessToken);
         if (!isCurrent) return;
         setDraftId(draft.id);
         setForm(formFromDraft(draft));
@@ -66,8 +81,44 @@ export function OwnerOnboarding() {
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    selectedPhotoPreviewsRef.current = selectedPhotoPreviews;
+  }, [selectedPhotoPreviews]);
+
+  useEffect(() => () => {
+    selectedPhotoPreviewsRef.current.forEach((preview) => URL.revokeObjectURL(preview.url));
+  }, []);
+
   function updateField(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+    setError("");
+  }
+
+  function selectVenuePhotos(files: FileList | null) {
+    const nextFiles = Array.from(files ?? []);
+    if (nextFiles.length === 0) return;
+    const availableSlots = Math.max(0, 10 - selectedFiles.length);
+    const filesToAdd = nextFiles.slice(0, availableSlots);
+    if (filesToAdd.length === 0) {
+      setError("You can upload up to 10 venue photos.");
+      return;
+    }
+
+    const hadNoSelectedPhotos = selectedFiles.length === 0;
+    setSelectedFiles((current) => [...current, ...filesToAdd]);
+    setSelectedPhotoPreviews((current) => {
+      const additions = filesToAdd.map((file) => ({ name: file.name, url: URL.createObjectURL(file) }));
+      const combined = [...current, ...additions];
+      return combined;
+    });
+    if (hadNoSelectedPhotos) setSelectedCoverIndex(0);
+    setForm((current) => ({ ...current, coverImageUrl: "" }));
+    setError("");
+  }
+
+  function chooseCoverPhoto(index: number) {
+    setSelectedCoverIndex(index);
+    setForm((current) => ({ ...current, coverImageUrl: "" }));
     setError("");
   }
 
@@ -76,16 +127,83 @@ export function OwnerOnboarding() {
     setAmenities((current) => current.includes(amenity) ? current.filter((item) => item !== amenity) : [...current, amenity]);
   }
 
-  function continueStep() {
-    if (step === 0 && (!form.hallName.trim() || !form.area.trim() || Number(form.capacity) < 1)) {
-      setError("Enter the venue name, area, and guest capacity.");
+  function captureCurrentLocation() {
+    if (!navigator.geolocation) {
+      setError("Location capture is not supported in this browser.");
       return;
     }
-    if (step === 1 && (!form.fullDayPrice || amenities.length === 0)) {
-      setError("Add at least one facility and a full-day starting price.");
+
+    setError("");
+    setNotice("");
+    setIsCapturingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((current) => ({
+          ...current,
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6)
+        }));
+        setNotice("Location captured. Please confirm the pin belongs to the venue.");
+        setIsCapturingLocation(false);
+      },
+      () => {
+        setError("Could not capture location. Allow browser location access or enter latitude and longitude manually.");
+        setIsCapturingLocation(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+  }
+
+  function continueStep() {
+    if (step === 0) {
+      if (!form.hallName.trim()) {
+        setError("Enter the venue name.");
+        return;
+      }
+      if (Number(form.capacity) < 1) {
+        setError("Choose the maximum guest capacity.");
+        return;
+      }
+      if (!form.area.trim()) {
+        setError("Enter the venue area.");
+        return;
+      }
+      if (!form.pincode.trim()) {
+        setError("Enter the venue pincode.");
+        return;
+      }
+      if (!form.addressLine.trim()) {
+        setError("Enter the venue address.");
+        return;
+      }
+      if (!hasCapturedLocation(form)) {
+        setError("Capture or enter the venue location coordinates.");
+        return;
+      }
+      if (!form.contactNumber.trim()) {
+        setError("Enter the venue contact number.");
+        return;
+      }
+      if (!form.description.trim()) {
+        setError("Enter a short venue description.");
+        return;
+      }
+    }
+    if (step === 1 && amenities.length === 0) {
+      setError("Select at least one facility.");
+      return;
+    }
+    if (step === 1 && !hasAnyStartingPrice(form)) {
+      setError("Enter at least one starting price.");
+      return;
+    }
+    if (step === 2 && !form.coverImageUrl.trim() && selectedFiles.length === 0) {
+      setError("Upload at least one venue photo before review.");
       return;
     }
     setError("");
+    if (step === 0) setNotice("");
     setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
@@ -94,7 +212,14 @@ export function OwnerOnboarding() {
       setError("");
       setNotice("");
       setIsSavingDraft(true);
-      const draft = await saveOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), accessToken);
+      const token = await getValidAccessToken();
+      if (!token) {
+        setError("Your session expired. Sign in again to save this draft.");
+        router.push("/auth/login?next=/owner/onboarding");
+        return;
+      }
+
+      const draft = await saveOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), token);
       setDraftId(draft.id);
       setNotice("Draft saved.");
     } catch (exception) {
@@ -113,8 +238,37 @@ export function OwnerOnboarding() {
       setError("");
       setNotice("");
       setIsSubmitting(true);
-      await submitOwnerOnboardingDraft(draftFromForm(form, amenities, draftId), accessToken);
-      router.push("/owner?submitted=true");
+      const token = await getValidAccessToken();
+      if (!token) {
+        setError("Your session expired. Sign in again to submit this venue.");
+        router.push("/auth/login?next=/owner/onboarding");
+        return;
+      }
+
+      const uploadedFiles = selectedFiles.length > 0
+        ? await Promise.all(selectedFiles.map((file) => uploadImageFile(file, "OWNER_HALL_MEDIA", token)))
+        : [];
+      const draftPayload = draftFromForm(form, amenities, draftId);
+      const coverFile = uploadedFiles[selectedCoverIndex] ?? uploadedFiles[0];
+      const draftWithCover = coverFile?.url ? { ...draftPayload, coverImageUrl: coverFile.url } : draftPayload;
+      const savedDraft = await saveOwnerOnboardingDraft(draftWithCover, token);
+      setDraftId(savedDraft.id);
+      setForm(formFromDraft(savedDraft));
+
+      if (savedDraft.id && uploadedFiles.length > 0) {
+        await Promise.all(uploadedFiles.map((file, index) => createOwnerMedia(savedDraft.id as string, {
+          url: file.url,
+          storageKey: file.storageKey,
+          fileName: file.fileName,
+          caption: file.fileName,
+          isCover: index === selectedCoverIndex,
+          sortOrder: index
+        }, token)));
+      }
+
+      const submittedDraft = await submitOwnerOnboardingDraft(savedDraft, token);
+      const submittedHallId = submittedDraft.id ? `&hallId=${encodeURIComponent(submittedDraft.id)}` : "";
+      router.push(`/owner?submitted=true${submittedHallId}`);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Could not submit venue for approval.");
     } finally {
@@ -145,7 +299,7 @@ export function OwnerOnboarding() {
           {isLoadingDraft && <div className="mb-6 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-1/2 animate-pulse rounded-full bg-primary" /></div>}
           {notice && <p className="mb-6 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700" role="status">{notice}</p>}
           {step === 0 && (
-            <div><div className="flex items-center gap-3"><Building2 className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Venue details</h2><p className="mt-1 text-sm text-muted-foreground">Basic information customers will see.</p></div></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("hallName", e.target.value)} placeholder="e.g. Emerald Convention Centre" value={form.hallName} /></label><label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("venueType", e.target.value)} value={form.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label><label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><UsersRound className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" min="1" onChange={(e) => updateField("capacity", e.target.value)} placeholder="Guest capacity" type="number" value={form.capacity} /></span></label><label className="text-sm font-medium">City<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("city", e.target.value)} value={form.city}><option>Chennai</option><option>Coimbatore</option><option>Madurai</option><option>Bengaluru</option></select></label><label className="text-sm font-medium">Area<span className="relative mt-2 block"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("area", e.target.value)} placeholder="Locality or area" value={form.area} /></span></label><label className="text-sm font-medium">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(e) => updateField("pincode", e.target.value)} placeholder="6-digit pincode" value={form.pincode} /></label><label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(e) => updateField("description", e.target.value)} placeholder="Describe the venue, event spaces, and what makes it suitable for celebrations." value={form.description} /></label></div></div>
+            <div><div className="flex items-center gap-3"><Building2 className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Venue details</h2><p className="mt-1 text-sm text-muted-foreground">Basic information customers will see.</p></div></div><div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("hallName", e.target.value)} placeholder="e.g. Emerald Convention Centre" value={form.hallName} /></label><label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("venueType", e.target.value)} value={form.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label><label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><select className="h-11 w-full appearance-none rounded-md border border-border bg-white px-3 pr-10 font-normal outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15" onChange={(e) => updateField("capacity", e.target.value)} value={form.capacity}><option value="">Choose guest capacity</option>{capacityOptions.map((option) => <option key={option} value={option}>{formatGuestCapacityOption(option)}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /></span></label><label className="text-sm font-medium">City<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("city", e.target.value)} value={form.city}><option>Chennai</option><option>Coimbatore</option><option>Madurai</option><option>Bengaluru</option></select></label><label className="text-sm font-medium">Area<span className="relative mt-2 block"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("area", e.target.value)} placeholder="Locality or area" value={form.area} /></span></label><label className="text-sm font-medium">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(e) => updateField("pincode", e.target.value)} placeholder="6-digit pincode" value={form.pincode} /></label><label className="text-sm font-medium sm:col-span-2">Address line<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(e) => updateField("addressLine", e.target.value)} placeholder="Door number, street, landmark" value={form.addressLine} /></label><div className="rounded-lg border border-border bg-background p-4 sm:col-span-2"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Venue map location</h3><p className="mt-1 text-xs text-muted-foreground">Capture this while standing at the hall entrance.</p></div><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isCapturingLocation} onClick={captureCurrentLocation} type="button">{isCapturingLocation ? <LoaderCircle className="animate-spin" size={16} /> : <MapPin size={16} />} Use current location</button></div><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Latitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(e) => updateField("latitude", e.target.value)} placeholder="13.082680" value={form.latitude} /></label><label className="text-sm font-medium">Longitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(e) => updateField("longitude", e.target.value)} placeholder="80.270721" value={form.longitude} /></label></div>{hasCapturedLocation(form) && <a className="mt-3 inline-flex text-sm font-semibold text-primary" href={googleMapsUrl(form.latitude, form.longitude)} rel="noreferrer" target="_blank">Check pin in Google Maps</a>}</div><label className="text-sm font-medium">Contact number<span className="relative mt-2 block"><Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /><input className="h-11 w-full rounded-md border border-border pl-10 pr-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(e) => updateField("contactNumber", e.target.value)} placeholder="Owner or venue phone" value={form.contactNumber} /></span></label><label className="text-sm font-medium">WhatsApp number<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(e) => updateField("whatsappNumber", e.target.value)} placeholder="Optional" value={form.whatsappNumber} /></label><label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(e) => updateField("description", e.target.value)} placeholder="Describe the venue, event spaces, and what makes it suitable for celebrations." value={form.description} /></label></div></div>
           )}
 
           {step === 1 && (
@@ -153,11 +307,54 @@ export function OwnerOnboarding() {
           )}
 
           {step === 2 && (
-            <div><div className="flex items-center gap-3"><ImagePlus className="text-primary" size={23} /><div><h2 className="text-xl font-semibold">Venue photos</h2><p className="mt-1 text-sm text-muted-foreground">Add clear images of the hall, dining, entrance, and facilities.</p></div></div><label className="mt-7 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background px-5 text-center hover:border-primary"><UploadCloud className="text-primary" size={28} /><span className="mt-3 text-sm font-semibold">Choose venue photos</span><span className="mt-1 text-xs text-muted-foreground">JPG, PNG or WebP, up to 10 files</span><input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => setFileNames(Array.from(event.target.files ?? []).map((file) => file.name))} type="file" /></label>{fileNames.length > 0 && <p className="mt-3 text-sm text-emerald-700">{fileNames.length} photo{fileNames.length === 1 ? "" : "s"} selected</p>}<div className="mt-7"><div className="flex items-center justify-between"><h3 className="text-sm font-medium">Example gallery order</h3><span className="text-xs text-muted-foreground">First image is the cover</span></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{[ownerHall.imageUrl, ...ownerHall.galleryUrls].map((image, index) => <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted" key={`${image}-${index}`}><Image alt={`Venue example ${index + 1}`} className="object-cover" fill sizes="240px" src={image} />{index === 0 && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}</div>)}</div></div></div>
+            <div>
+              <div className="flex items-center gap-3">
+                <ImagePlus className="text-primary" size={23} />
+                <div>
+                  <h2 className="text-xl font-semibold">Venue photos</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Add clear images of the hall, dining, entrance, and facilities.</p>
+                </div>
+              </div>
+
+              <label className="mt-7 flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background px-5 text-center hover:border-primary">
+                <UploadCloud className="text-primary" size={28} />
+                <span className="mt-3 text-sm font-semibold">Choose venue photos</span>
+                <span className="mt-1 text-xs text-muted-foreground">JPG, PNG or WebP, up to 10 files. Choose the cover after upload.</span>
+                <input accept="image/jpeg,image/png,image/webp" className="sr-only" multiple onChange={(event) => { selectVenuePhotos(event.target.files); event.target.value = ""; }} type="file" />
+              </label>
+
+              {selectedFiles.length > 0 && <p className="mt-3 text-sm text-emerald-700">{selectedFiles.length} photo{selectedFiles.length === 1 ? "" : "s"} selected</p>}
+
+              {selectedPhotoPreviews.length > 0 ? (
+                <div className="mt-7">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium">Selected gallery</h3>
+                    <span className="text-xs text-muted-foreground">Pick one cover photo</span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {selectedPhotoPreviews.map((photo, index) => (
+                      <article className={`overflow-hidden rounded-lg border bg-white ${selectedCoverIndex === index ? "border-primary ring-2 ring-primary/15" : "border-border"}`} key={photo.url}>
+                        <div className="relative aspect-[4/3] bg-muted">
+                          <Image alt={photo.name} className="object-cover" fill sizes="240px" src={photo.url} unoptimized />
+                          {selectedCoverIndex === index && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-primary">Cover</span>}
+                        </div>
+                        <button aria-pressed={selectedCoverIndex === index} className={`h-10 w-full text-sm font-semibold ${selectedCoverIndex === index ? "bg-emerald-50 text-primary" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"}`} onClick={() => chooseCoverPhoto(index)} type="button">
+                          {selectedCoverIndex === index ? "Selected cover" : "Set as cover"}
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : form.coverImageUrl ? (
+                <div className="relative mt-7 aspect-[4/3] overflow-hidden rounded-lg bg-muted sm:max-w-md">
+                  <Image alt="Venue cover preview" className="object-cover" fill sizes="420px" src={form.coverImageUrl} unoptimized />
+                </div>
+              ) : null}
+            </div>
           )}
 
           {step === 3 && (
-            <div><div className="flex items-center gap-3"><BadgeCheck className="text-primary" size={24} /><div><h2 className="text-xl font-semibold">Review your listing</h2><p className="mt-1 text-sm text-muted-foreground">Admin approval is required before publication.</p></div></div><dl className="mt-7 divide-y divide-border rounded-lg border border-border">{[{ label: "Venue", value: form.hallName || "Not provided" }, { label: "Type", value: form.venueType }, { label: "Location", value: `${form.area || "Area"}, ${form.city}` }, { label: "Capacity", value: `${form.capacity || "0"} guests` }, { label: "Amenities", value: `${amenities.length} selected` }, { label: "Full-day price", value: form.fullDayPrice ? `INR ${new Intl.NumberFormat("en-IN").format(Number(form.fullDayPrice))}` : "Not provided" }, { label: "Photos", value: fileNames.length > 0 ? `${fileNames.length} selected` : "Add after submission" }].map((item) => <div className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr]" key={item.label}><dt className="text-sm text-muted-foreground">{item.label}</dt><dd className="text-sm font-medium">{item.value}</dd></div>)}</dl><label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground"><input checked={confirmed} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(event) => { setConfirmed(event.target.checked); setError(""); }} required type="checkbox" /><span>I confirm that the venue information is accurate and I am authorized to manage this listing.</span></label></div>
+            <div><div className="flex items-center gap-3"><BadgeCheck className="text-primary" size={24} /><div><h2 className="text-xl font-semibold">Review your listing</h2><p className="mt-1 text-sm text-muted-foreground">Admin approval is required before publication.</p></div></div><dl className="mt-7 divide-y divide-border rounded-lg border border-border">{[{ label: "Venue", value: form.hallName ? toTitleCase(form.hallName) : "Not provided" }, { label: "Type", value: form.venueType }, { label: "Location", value: `${form.area ? toTitleCase(form.area) : "Area"}, ${toTitleCase(form.city)}${form.pincode ? ` - ${form.pincode}` : ""}` }, { label: "Address", value: form.addressLine ? toTitleCase(form.addressLine) : "Not provided" }, { label: "Map pin", value: hasCapturedLocation(form) ? `${form.latitude}, ${form.longitude}` : "Not captured" }, { label: "Contact", value: form.contactNumber || "Not provided" }, { label: "Capacity", value: `${formatGuestCount(form.capacity || 0)} guests` }, { label: "Amenities", value: `${amenities.length} selected` }, { label: "Full-day price", value: form.fullDayPrice ? `INR ${new Intl.NumberFormat("en-IN").format(Number(form.fullDayPrice))}` : "Not provided" }, { label: "Cover image", value: form.coverImageUrl || selectedFiles.length > 0 ? "Added" : "Not provided" }, { label: "Photos", value: selectedFiles.length > 0 ? `${selectedFiles.length} selected` : "Add from the media tab" }].map((item) => <div className="grid gap-1 px-4 py-3 sm:grid-cols-[170px_1fr]" key={item.label}><dt className="text-sm text-muted-foreground">{item.label}</dt><dd className="text-sm font-medium">{item.value}</dd></div>)}</dl><label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground"><input checked={confirmed} className="mt-1 size-4 accent-[hsl(var(--primary))]" onChange={(event) => { setConfirmed(event.target.checked); setError(""); }} required type="checkbox" /><span>I confirm that the venue information is accurate and I am authorized to manage this listing.</span></label></div>
           )}
 
           {error && <p className="mt-6 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
@@ -173,9 +370,15 @@ function formFromDraft(draft: OwnerOnboardingDraft) {
     hallName: draft.hallName,
     venueType: draft.venueType,
     description: draft.description,
+    addressLine: draft.addressLine,
     city: draft.city,
     area: draft.area,
     pincode: draft.pincode,
+    latitude: draft.latitude ? String(draft.latitude) : "",
+    longitude: draft.longitude ? String(draft.longitude) : "",
+    contactNumber: draft.contactNumber,
+    whatsappNumber: draft.whatsappNumber,
+    coverImageUrl: draft.coverImageUrl,
     capacity: draft.capacity ? String(draft.capacity) : "",
     morningPrice: draft.morningPrice ? String(draft.morningPrice) : "",
     eveningPrice: draft.eveningPrice ? String(draft.eveningPrice) : "",
@@ -186,12 +389,18 @@ function formFromDraft(draft: OwnerOnboardingDraft) {
 function draftFromForm(form: ReturnType<typeof formFromDraft>, amenities: string[], id?: string): OwnerOnboardingDraft {
   return {
     id,
-    hallName: form.hallName.trim(),
+    hallName: toTitleCase(form.hallName),
     venueType: form.venueType,
     description: form.description.trim(),
-    city: form.city,
-    area: form.area.trim(),
+    addressLine: toTitleCase(form.addressLine),
+    city: toTitleCase(form.city),
+    area: toTitleCase(form.area),
     pincode: form.pincode.trim(),
+    latitude: parseCoordinate(form.latitude),
+    longitude: parseCoordinate(form.longitude),
+    contactNumber: form.contactNumber.trim(),
+    whatsappNumber: form.whatsappNumber.trim(),
+    coverImageUrl: form.coverImageUrl.trim(),
     capacity: Number(form.capacity) || 0,
     morningPrice: Number(form.morningPrice) || 0,
     eveningPrice: Number(form.eveningPrice) || 0,
@@ -199,4 +408,22 @@ function draftFromForm(form: ReturnType<typeof formFromDraft>, amenities: string
     amenities,
     status: "DRAFT"
   };
+}
+
+function hasAnyStartingPrice(form: ReturnType<typeof formFromDraft>) {
+  return [form.morningPrice, form.eveningPrice, form.fullDayPrice].some((price) => Number(price) > 0);
+}
+
+function hasCapturedLocation(form: ReturnType<typeof formFromDraft>) {
+  return parseCoordinate(form.latitude) !== undefined && parseCoordinate(form.longitude) !== undefined;
+}
+
+function googleMapsUrl(latitude: string, longitude: string) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}`;
+}
+
+function parseCoordinate(value: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }

@@ -2,7 +2,7 @@ import { ApiError, apiRequest } from "@/lib/api-client";
 import type { VendorPackage } from "./types";
 import { workspaceVendor } from "./workspace-data";
 
-const STORAGE_KEY = "venue-vendor-packages";
+const STORAGE_KEY_PREFIX = "venue-vendor-packages";
 const useMockVendorPackages = process.env.NEXT_PUBLIC_VENDOR_PACKAGES_MODE === "mock";
 
 export type VendorPackagePayload = {
@@ -18,22 +18,22 @@ export type VendorPackagesResult = {
 };
 
 export async function getVendorPackages(accessToken?: string | null): Promise<VendorPackagesResult> {
-  if (useMockVendorPackages || !accessToken) return { packages: getLocalPackages(), source: "mock" };
+  if (useMockVendorPackages || !accessToken) return { packages: getLocalPackages(accessToken, workspaceVendor.packages), source: "mock" };
 
   try {
     const response = await apiRequest<unknown>("/vendor/packages", {
       token: accessToken
     });
     const packages = extractPackages(response);
-    packages.forEach(cachePackage);
-    return { packages: packages.length ? packages : getLocalPackages(), source: "api" };
+    packages.forEach((packageItem) => cachePackage(packageItem, accessToken));
+    return { packages, source: "api" };
   } catch {
-    return { packages: getLocalPackages(), source: "mock" };
+    return { packages: getLocalPackages(accessToken), source: "mock" };
   }
 }
 
 export async function createVendorPackage(payload: VendorPackagePayload, accessToken?: string | null) {
-  if (useMockVendorPackages || !accessToken) return createLocalPackage(payload);
+  if (useMockVendorPackages || !accessToken) return createLocalPackage(payload, accessToken);
 
   try {
     const response = await apiRequest<unknown>("/vendor/packages", {
@@ -41,19 +41,19 @@ export async function createVendorPackage(payload: VendorPackagePayload, accessT
       token: accessToken,
       body: JSON.stringify(payload)
     });
-    const packageItem = toVendorPackage(response, payload) ?? createLocalPackage(payload);
-    cachePackage(packageItem);
+    const packageItem = toVendorPackage(response, payload) ?? createLocalPackage(payload, accessToken);
+    cachePackage(packageItem, accessToken);
     return packageItem;
   } catch (exception) {
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return createLocalPackage(payload);
+    return createLocalPackage(payload, accessToken);
   }
 }
 
 export async function updateVendorPackage(packageId: string, payload: VendorPackagePayload, accessToken?: string | null) {
-  if (useMockVendorPackages || !accessToken) return updateLocalPackage(packageId, payload);
+  if (useMockVendorPackages || !accessToken) return updateLocalPackage(packageId, payload, accessToken);
 
   try {
     const response = await apiRequest<unknown>(`/vendor/packages/${encodeURIComponent(packageId)}`, {
@@ -61,68 +61,89 @@ export async function updateVendorPackage(packageId: string, payload: VendorPack
       token: accessToken,
       body: JSON.stringify(payload)
     });
-    const packageItem = toVendorPackage(response, payload) ?? updateLocalPackage(packageId, payload);
-    cachePackage(packageItem);
+    const packageItem = toVendorPackage(response, payload) ?? updateLocalPackage(packageId, payload, accessToken);
+    cachePackage(packageItem, accessToken);
     return packageItem;
   } catch (exception) {
     if (exception instanceof ApiError && [400, 401, 403, 404, 409].includes(exception.status)) {
       throw exception;
     }
-    return updateLocalPackage(packageId, payload);
+    return updateLocalPackage(packageId, payload, accessToken);
   }
 }
 
 export async function deleteVendorPackage(packageId: string, accessToken?: string | null) {
-  if (useMockVendorPackages || !accessToken) return deleteLocalPackage(packageId);
+  if (useMockVendorPackages || !accessToken) return deleteLocalPackage(packageId, accessToken);
 
   try {
     await apiRequest<unknown>(`/vendor/packages/${encodeURIComponent(packageId)}`, {
       method: "DELETE",
       token: accessToken
     });
-    return deleteLocalPackage(packageId);
+    return deleteLocalPackage(packageId, accessToken);
   } catch (exception) {
     if (exception instanceof ApiError && [401, 403, 404, 409].includes(exception.status)) {
       throw exception;
     }
-    return deleteLocalPackage(packageId);
+    return deleteLocalPackage(packageId, accessToken);
   }
 }
 
-function getLocalPackages() {
-  if (typeof window === "undefined") return workspaceVendor.packages;
+function getLocalPackages(accessToken?: string | null, fallback: VendorPackage[] = []) {
+  if (typeof window === "undefined") return fallback;
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null") as unknown;
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey(accessToken)) ?? "null") as unknown;
     const packages = Array.isArray(parsed) ? parsed.map((item) => toVendorPackage(item)).filter(Boolean) as VendorPackage[] : [];
-    return packages.length ? packages : workspaceVendor.packages;
+    return packages.length ? packages : fallback;
   } catch {
-    return workspaceVendor.packages;
+    return fallback;
   }
 }
 
-function createLocalPackage(payload: VendorPackagePayload): VendorPackage {
+function createLocalPackage(payload: VendorPackagePayload, accessToken?: string | null): VendorPackage {
   const packageItem = { ...payload, id: `PKG-${Date.now().toString().slice(-6)}` };
-  cachePackage(packageItem);
+  cachePackage(packageItem, accessToken);
   return packageItem;
 }
 
-function updateLocalPackage(packageId: string, payload: VendorPackagePayload) {
+function updateLocalPackage(packageId: string, payload: VendorPackagePayload, accessToken?: string | null) {
   const packageItem = { ...payload, id: packageId };
-  cachePackage(packageItem);
+  cachePackage(packageItem, accessToken);
   return packageItem;
 }
 
-function deleteLocalPackage(packageId: string) {
+function deleteLocalPackage(packageId: string, accessToken?: string | null) {
   if (typeof window === "undefined") return packageId;
-  const packages = getLocalPackages().filter((item) => item.id !== packageId);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(packages));
+  const packages = getLocalPackages(accessToken).filter((item) => item.id !== packageId);
+  window.localStorage.setItem(storageKey(accessToken), JSON.stringify(packages));
   return packageId;
 }
 
-function cachePackage(packageItem: VendorPackage) {
+function cachePackage(packageItem: VendorPackage, accessToken?: string | null) {
   if (typeof window === "undefined") return;
-  const packages = getLocalPackages().filter((item) => item.id !== packageItem.id);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify([packageItem, ...packages]));
+  const packages = getLocalPackages(accessToken).filter((item) => item.id !== packageItem.id);
+  window.localStorage.setItem(storageKey(accessToken), JSON.stringify([packageItem, ...packages]));
+}
+
+function storageKey(accessToken?: string | null) {
+  return `${STORAGE_KEY_PREFIX}:${tokenSubject(accessToken) ?? "demo"}`;
+}
+
+function tokenSubject(accessToken?: string | null) {
+  if (!accessToken) return undefined;
+
+  try {
+    const [, payload] = accessToken.split(".");
+    if (!payload || !globalThis.atob) return undefined;
+
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const decoded = JSON.parse(globalThis.atob(padded)) as Record<string, unknown>;
+    const subject = decoded.sub;
+    return typeof subject === "string" || typeof subject === "number" ? `user-${subject}` : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function extractPackages(response: unknown) {

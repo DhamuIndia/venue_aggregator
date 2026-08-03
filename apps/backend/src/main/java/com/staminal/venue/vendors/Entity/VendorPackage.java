@@ -2,18 +2,24 @@ package com.staminal.venue.vendors.Entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.staminal.venue.enums.VendorServiceType;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 
 @Entity
@@ -42,8 +48,22 @@ public class VendorPackage {
     @Column(name = "service_id")
     private Long serviceId;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "vendor_package_includes", joinColumns = @JoinColumn(name = "package_id"))
+    @OrderColumn(name = "sort_order")
+    @Column(name = "include_text")
+    private List<String> includes = new ArrayList<>();
+
     @Column(name = "created_at")
     private Instant createdAt;
+
+    public List<String> getIncludes() {
+        return includes;
+    }
+
+    public void setIncludes(List<String> includes) {
+        this.includes = includes;
+    }
 
     public VendorServiceType getServiceType() {
         return serviceType;

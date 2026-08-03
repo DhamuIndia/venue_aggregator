@@ -15,8 +15,10 @@ export type VenueApplication = {
   startingPrice: number;
   submittedAt: string;
   imageUrl: string;
+  imageUrls: string[];
   status: ModerationStatus;
   documents: { ownership: boolean; identity: boolean; address: boolean };
+  documentReviewRequired?: boolean;
 };
 
 export type VendorApplication = {
@@ -27,6 +29,25 @@ export type VendorApplication = {
   city: string;
   submittedAt: string;
   status: ModerationStatus;
+  description?: string;
+  coverImageUrl?: string;
+  addressLine?: string;
+  area?: string;
+  pincode?: string;
+  phone?: string;
+  email?: string;
+  whatsAppNumber?: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  whatsAppUrl?: string;
+  categories?: string[];
+  yearsInBusiness?: number;
+  serviceRadius?: number;
+  services?: string[];
+  packageName?: string;
+  startingPrice?: number;
+  packageDescription?: string;
+  rejectionReason?: string;
 };
 
 export type ReportedReview = {
@@ -47,6 +68,7 @@ export type AdminEnquiry = {
   eventDate: string;
   submittedAt: string;
   status: EnquiryStatus;
+  source?: "HALL" | "VENDOR";
 };
 
 export type AdminUserStatus = "ACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION";
@@ -75,6 +97,7 @@ export const initialVenueApplications: VenueApplication[] = [
     startingPrice: 145000,
     submittedAt: "2026-06-22T08:45:00Z",
     imageUrl: halls[1].imageUrl,
+    imageUrls: [halls[1].imageUrl, halls[2].imageUrl, halls[4].imageUrl],
     status: "PENDING_APPROVAL",
     documents: { ownership: true, identity: true, address: true }
   },
@@ -89,6 +112,7 @@ export const initialVenueApplications: VenueApplication[] = [
     startingPrice: 48000,
     submittedAt: "2026-06-21T11:10:00Z",
     imageUrl: halls[2].imageUrl,
+    imageUrls: [halls[2].imageUrl],
     status: "PENDING_APPROVAL",
     documents: { ownership: true, identity: true, address: false }
   },
@@ -103,6 +127,7 @@ export const initialVenueApplications: VenueApplication[] = [
     startingPrice: 98000,
     submittedAt: "2026-06-20T15:25:00Z",
     imageUrl: halls[4].imageUrl,
+    imageUrls: [halls[4].imageUrl],
     status: "PENDING_APPROVAL",
     documents: { ownership: true, identity: true, address: true }
   }

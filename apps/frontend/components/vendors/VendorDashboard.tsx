@@ -16,25 +16,32 @@ import {
   MessageSquareText,
   Pencil,
   Plus,
-  Send,
   Sparkles,
+  Star,
   Store,
   Trash2,
   X
 } from "lucide-react";
 import Image from "next/image";
+import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { fallbackVendorAnalytics, getVendorAnalytics, type VendorAnalytics } from "@/features/analytics/analytics-client";
+import { emptyVendorAnalytics, fallbackVendorAnalytics, getVendorAnalytics, type VendorAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { getVendorQuotes, saveVendorQuote } from "@/features/quotes/quote-client";
+import type { UpsertVendorQuoteInput, VendorQuote } from "@/features/quotes/types";
 import { getVendorLeads, updateVendorLeadStatus } from "@/features/vendors/lead-client";
 import { deleteVendorMedia, getVendorMedia, mediaFromVendor, setVendorMediaCover, type VendorMediaItem, uploadAndCreateVendorMedia } from "@/features/vendors/media-client";
 import { createVendorPackage, deleteVendorPackage, getVendorPackages, updateVendorPackage, type VendorPackagePayload } from "@/features/vendors/package-client";
+import { fallbackVendorProfile, getVendorProfile, type VendorProfileDraft } from "@/features/vendors/profile-client";
+import { getVendorReviews, type VendorReview } from "@/features/vendors/review-client";
 import { createSubscriptionOrder, fallbackSubscriptionPlans, fallbackVendorSubscription, getSubscriptionPlans, getVendorSubscription, type SubscriptionPlan, type VendorSubscription } from "@/features/vendors/subscription-client";
 import type { VendorLead, VendorLeadStatus, VendorPackage } from "@/features/vendors/types";
 import { fallbackVendorLeads, workspaceVendor } from "@/features/vendors/workspace-data";
+import { VendorLeadInbox } from "./VendorLeadInbox";
+import { VendorWhatsAppNotificationSettings } from "./VendorWhatsAppNotificationSettings";
 
-type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "subscription";
+type VendorTab = "overview" | "leads" | "reports" | "services" | "portfolio" | "reviews" | "notifications" | "subscription";
 
 const tabs: { id: VendorTab; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -42,19 +49,53 @@ const tabs: { id: VendorTab; label: string }[] = [
   { id: "reports", label: "Reports" },
   { id: "services", label: "Services" },
   { id: "portfolio", label: "Portfolio" },
+  { id: "reviews", label: "Reviews" },
+  { id: "notifications", label: "Notifications" },
   { id: "subscription", label: "Subscription" }
 ];
 
+const useVendorDemoFallbacks = process.env.NEXT_PUBLIC_AUTH_MODE !== "api";
+
 const statusStyle: Record<VendorLeadStatus, string> = {
   NEW: "bg-blue-50 text-blue-700",
-  CONTACTED: "bg-amber-50 text-amber-800",
+  INTERESTED: "bg-emerald-50 text-emerald-700",
+  CONTACTED: "bg-amber-50 text-amber-700",
   QUOTE_SENT: "bg-violet-50 text-violet-700",
-  BOOKED: "bg-emerald-50 text-emerald-800",
-  DECLINED: "bg-rose-50 text-rose-700"
+  BOOKED: "bg-emerald-50 text-emerald-700",
+  NOT_SELECTED: "bg-slate-100 text-slate-700",
+  DECLINED: "bg-rose-50 text-rose-700",
+  COMPLETED: "bg-muted text-muted-foreground"
+};
+
+const emptyLiveVendorProfile: VendorProfileDraft = {
+  businessName: "Vendor workspace",
+  category: "CATERING",
+  city: "",
+  area: "",
+  serviceRadius: 0,
+  yearsInBusiness: 0,
+  description: "",
+  instagramUrl: "",
+  facebookUrl: "",
+  whatsAppUrl: "",
+  services: [],
+  packageName: "",
+  startingPrice: 0,
+  packageDescription: "",
+  status: "DRAFT"
 };
 
 function readableStatus(status: string) {
   return status.toLowerCase().replaceAll("_", " ");
+}
+
+function profileForWorkspace(profile: VendorProfileDraft) {
+  if (useVendorDemoFallbacks) return profile;
+  const isDemoProfile =
+    profile.businessName === fallbackVendorProfile.businessName &&
+    profile.area === fallbackVendorProfile.area &&
+    profile.city === fallbackVendorProfile.city;
+  return isDemoProfile ? emptyLiveVendorProfile : profile;
 }
 
 function formatMoney(value: number) {
@@ -87,12 +128,14 @@ function packagePayload(form: typeof emptyPackageForm): VendorPackagePayload {
 export function VendorDashboard() {
   const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState<VendorTab>("overview");
-  const [leads, setLeads] = useState<VendorLead[]>(fallbackVendorLeads);
+  const [vendorProfile, setVendorProfile] = useState<VendorProfileDraft>(useVendorDemoFallbacks ? fallbackVendorProfile : emptyLiveVendorProfile);
+  const [leads, setLeads] = useState<VendorLead[]>(useVendorDemoFallbacks ? fallbackVendorLeads : []);
+  const [quotes, setQuotes] = useState<VendorQuote[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(true);
   const [leadsError, setLeadsError] = useState("");
   const [leadFilter, setLeadFilter] = useState<"ALL" | VendorLeadStatus>("ALL");
   const [notice, setNotice] = useState("");
-  const [portfolio, setPortfolio] = useState<VendorMediaItem[]>(mediaFromVendor(workspaceVendor));
+  const [portfolio, setPortfolio] = useState<VendorMediaItem[]>(useVendorDemoFallbacks ? mediaFromVendor(workspaceVendor) : []);
   const [isLoadingPortfolio, setIsLoadingPortfolio] = useState(true);
   const [portfolioError, setPortfolioError] = useState("");
   const [isUploadingPortfolio, setIsUploadingPortfolio] = useState(false);
@@ -102,7 +145,7 @@ export function VendorDashboard() {
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
   const [subscriptionError, setSubscriptionError] = useState("");
   const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
-  const [packages, setPackages] = useState<VendorPackage[]>(workspaceVendor.packages);
+  const [packages, setPackages] = useState<VendorPackage[]>(useVendorDemoFallbacks ? workspaceVendor.packages : []);
   const [isLoadingPackages, setIsLoadingPackages] = useState(true);
   const [packagesError, setPackagesError] = useState("");
   const [isPackageEditorOpen, setIsPackageEditorOpen] = useState(false);
@@ -110,9 +153,57 @@ export function VendorDashboard() {
   const [packageForm, setPackageForm] = useState(emptyPackageForm);
   const [savingPackageId, setSavingPackageId] = useState<string | null>(null);
   const [deletingPackageId, setDeletingPackageId] = useState<string | null>(null);
-  const [analytics, setAnalytics] = useState<VendorAnalytics>(fallbackVendorAnalytics);
+  const [analytics, setAnalytics] = useState<VendorAnalytics>(useVendorDemoFallbacks ? fallbackVendorAnalytics : emptyVendorAnalytics);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
+  const [reviews, setReviews] = useState<VendorReview[]>([]);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
+  const activeVendorId = vendorProfile.id ?? "";
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadProfile() {
+      try {
+        const profile = await getVendorProfile(accessToken);
+        if (!isCurrent) return;
+        setVendorProfile(profileForWorkspace(profile));
+      } catch {
+        if (!isCurrent) return;
+        setVendorProfile(useVendorDemoFallbacks ? fallbackVendorProfile : emptyLiveVendorProfile);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    async function loadReviews() {
+      setIsLoadingReviews(true);
+      setReviewsError("");
+      try {
+        const response = await getVendorReviews(accessToken);
+        if (!isCurrent) return;
+        setReviews(response.reviews);
+        setReviewCount(response.reviewCount);
+        setAverageRating(response.averageRating);
+      } catch {
+        if (isCurrent) setReviewsError("Could not load customer reviews.");
+      } finally {
+        if (isCurrent) setIsLoadingReviews(false);
+      }
+    }
+    loadReviews();
+    return () => { isCurrent = false; };
+  }, [accessToken]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -122,12 +213,12 @@ export function VendorDashboard() {
       setAnalyticsError("");
 
       try {
-        const response = await getVendorAnalytics(workspaceVendor.id, accessToken);
+        const response = await getVendorAnalytics(activeVendorId, accessToken);
         if (!isCurrent) return;
         setAnalytics(response);
       } catch {
         if (!isCurrent) return;
-        setAnalytics(fallbackVendorAnalytics);
+        setAnalytics(useVendorDemoFallbacks ? fallbackVendorAnalytics : emptyVendorAnalytics);
         setAnalyticsError("Could not load latest reports.");
       } finally {
         if (isCurrent) setIsLoadingAnalytics(false);
@@ -139,7 +230,7 @@ export function VendorDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeVendorId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -148,17 +239,30 @@ export function VendorDashboard() {
       setIsLoadingLeads(true);
       setLeadsError("");
 
-      try {
-        const response = await getVendorLeads(workspaceVendor.id, accessToken);
-        if (!isCurrent) return;
-        setLeads(response.source === "api" ? response.leads : [...response.leads, ...fallbackVendorLeads]);
-      } catch {
-        if (!isCurrent) return;
-        setLeads(fallbackVendorLeads);
-        setLeadsError("Could not load latest leads.");
-      } finally {
-        if (isCurrent) setIsLoadingLeads(false);
+      const [leadResult, quoteResult] = await Promise.allSettled([
+        getVendorLeads(activeVendorId || workspaceVendor.id, accessToken),
+        getVendorQuotes(accessToken)
+      ]);
+      if (!isCurrent) return;
+
+      const errors: string[] = [];
+      if (leadResult.status === "fulfilled") {
+        const response = leadResult.value;
+        setLeads(response.source === "api" || !useVendorDemoFallbacks ? response.leads : [...response.leads, ...fallbackVendorLeads]);
+      } else {
+        setLeads(useVendorDemoFallbacks ? fallbackVendorLeads : []);
+        errors.push("Could not load latest leads.");
       }
+
+      if (quoteResult.status === "fulfilled") {
+        setQuotes(quoteResult.value);
+      } else {
+        setQuotes([]);
+        errors.push("Could not load saved quotations.");
+      }
+
+      setLeadsError(errors.join(" "));
+      setIsLoadingLeads(false);
     }
 
     loadLeads();
@@ -166,7 +270,7 @@ export function VendorDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeVendorId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -176,12 +280,12 @@ export function VendorDashboard() {
       setPortfolioError("");
 
       try {
-        const media = await getVendorMedia(accessToken, mediaFromVendor(workspaceVendor));
+        const media = await getVendorMedia(accessToken, useVendorDemoFallbacks ? mediaFromVendor(workspaceVendor) : []);
         if (!isCurrent) return;
         setPortfolio(media);
       } catch {
         if (!isCurrent) return;
-        setPortfolio(mediaFromVendor(workspaceVendor));
+        setPortfolio(useVendorDemoFallbacks ? mediaFromVendor(workspaceVendor) : []);
         setPortfolioError("Could not load portfolio photos.");
       } finally {
         if (isCurrent) setIsLoadingPortfolio(false);
@@ -208,7 +312,7 @@ export function VendorDashboard() {
         setPackages(response.packages);
       } catch {
         if (!isCurrent) return;
-        setPackages(workspaceVendor.packages);
+        setPackages(useVendorDemoFallbacks ? workspaceVendor.packages : []);
         setPackagesError("Could not load packages.");
       } finally {
         if (isCurrent) setIsLoadingPackages(false);
@@ -256,17 +360,33 @@ export function VendorDashboard() {
 
   const newCount = leads.filter((lead) => lead.status === "NEW").length;
   const bookedCount = leads.filter((lead) => lead.status === "BOOKED").length;
-  const bookedValue = leads.filter((lead) => lead.status === "BOOKED").reduce((total, lead) => total + lead.budget, 0);
-  const filteredLeads = useMemo(() => leadFilter === "ALL" ? leads : leads.filter((lead) => lead.status === leadFilter), [leadFilter, leads]);
+  const bookedValue = leads.filter((lead) => lead.status === "BOOKED").reduce((total, lead) => total + (lead.budget ?? 0), 0);
+  const vendorName = vendorProfile.businessName.trim() || "Vendor workspace";
+  const vendorLocation = [vendorProfile.area, vendorProfile.city].filter(Boolean).join(", ");
+  const publicVendorHref = (activeVendorId ? `/vendors/${activeVendorId}` : "/vendors") as Route;
+  const hasBusinessProfile = Boolean(vendorProfile.businessName && vendorProfile.city && vendorProfile.services.length > 0);
+  const hasPackageInfo = packages.length > 0 || Boolean(vendorProfile.packageName && vendorProfile.startingPrice);
+  const hasPortfolioPhotos = portfolio.length >= 3;
+  const profileStrength = Math.round(([hasBusinessProfile, hasPackageInfo, hasPortfolioPhotos].filter(Boolean).length / 3) * 100);
+  const profileStatusClass = vendorProfile.status === "APPROVED" ? "text-emerald-700" : vendorProfile.status === "REJECTED" ? "text-rose-700" : "text-amber-700";
 
-  async function updateLead(id: string, status: VendorLeadStatus) {
+  async function updateLead(id: string, status: VendorLeadStatus, reason?: string) {
     try {
-      const updatedLead = await updateVendorLeadStatus(id, status, accessToken);
+      const updatedLead = await updateVendorLeadStatus(id, status, accessToken, reason);
       setLeads((current) => current.map((lead) => lead.id === id ? { ...lead, ...updatedLead, status } : lead));
       setNotice(`Lead ${id} updated to ${readableStatus(status)}.`);
     } catch (exception) {
-      setNotice(exception instanceof Error ? exception.message : "Could not update lead status.");
+      const message = exception instanceof Error ? exception.message : "Could not update lead status.";
+      setNotice(message);
+      throw exception instanceof Error ? exception : new Error(message);
     }
+  }
+
+  async function submitQuote(lead: VendorLead, payload: UpsertVendorQuoteInput) {
+    const quote = await saveVendorQuote(lead, payload, accessToken);
+    setQuotes((current) => [quote, ...current.filter((item) => item.leadId !== lead.id)]);
+    setLeads((current) => current.map((item) => item.id === lead.id ? { ...item, status: "QUOTE_SENT" } : item));
+    setNotice(`Quotation sent for lead ${lead.id}.`);
   }
 
   async function addPortfolioImages(files: FileList | null) {
@@ -393,20 +513,96 @@ export function VendorDashboard() {
     <main className="min-h-[calc(100vh-4rem)] bg-[#f7f8fa]">
       <div className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-9">
         <div className="flex flex-wrap items-start justify-between gap-5">
-          <div><p className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><Store size={17} /> Vendor workspace</p><h1 className="mt-2 text-3xl font-semibold">{workspaceVendor.businessName}</h1><p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={15} /> {workspaceVendor.area}, {workspaceVendor.city}</p></div>
-          <div className="flex flex-wrap gap-2"><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-medium" href={`/vendors/${workspaceVendor.id}`}><Eye size={17} /> Public profile</Link><Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" href="/vendor/onboarding"><Plus size={17} /> Edit business</Link></div>
+          <div><p className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><Store size={17} /> Vendor workspace</p><h1 className="mt-2 text-3xl font-semibold">{vendorName}</h1>{vendorLocation && <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={15} /> {vendorLocation}</p>}</div>
+          <div className="flex flex-wrap gap-2"><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-medium" href={publicVendorHref}><Eye size={17} /> Public profile</Link>{vendorProfile.status === "PENDING_APPROVAL" ? null : vendorProfile.pendingUpdate ? <button className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-md bg-amber-100 px-4 text-sm font-semibold text-amber-800" disabled type="button">Update pending approval</button> : <Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" href="/vendor/onboarding"><Plus size={17} /> Edit business</Link>}</div>
         </div>
 
         {notice && <div className="mt-6 flex items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status"><BadgeCheck size={18} /><span className="flex-1">{notice}</span><button aria-label="Dismiss notification" className="grid size-8 place-items-center rounded-md hover:bg-emerald-100" onClick={() => setNotice("")}><X size={16} /></button></div>}
 
         <div className="mt-7 overflow-x-auto border-b border-border"><div aria-label="Vendor dashboard" className="flex min-w-max gap-7" role="tablist">{tabs.map((tab) => <button aria-selected={activeTab === tab.id} className={`flex h-12 items-center gap-2 border-b-2 px-1 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab">{tab.label}{tabBadge[tab.id] ? <span className="grid min-w-5 place-items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">{tabBadge[tab.id]}</span> : null}</button>)}</div></div>
 
-        {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[
-          { label: "New leads", value: newCount, icon: MessageSquareText, color: "text-blue-700", tab: "leads" as const },
-          { label: "Booked events", value: bookedCount, icon: CalendarDays, color: "text-emerald-700", tab: "leads" as const },
-          { label: "Profile views", value: "1,926", icon: Eye, color: "text-violet-700", tab: "portfolio" as const },
-          { label: "Booked value", value: `INR ${formatMoney(bookedValue)}`, icon: IndianRupee, color: "text-amber-700", tab: "leads" as const }
-        ].map((stat) => <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}><stat.icon className={stat.color} size={21} /><p className="mt-5 text-2xl font-semibold">{stat.value}</p><p className="mt-1 text-sm text-muted-foreground">{stat.label}</p></button>)}</div><div className="mt-9 grid gap-8 lg:grid-cols-[1.45fr_1fr]"><section><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Recent leads</h2><p className="mt-1 text-sm text-muted-foreground">Respond quickly to improve conversion.</p></div><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("leads")}>View all</button></div><div className="mt-4 grid gap-3">{leads.slice(0, 3).map((lead) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={lead.id} onClick={() => setActiveTab("leads")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><BriefcaseBusiness size={20} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{lead.eventType} | {lead.service}</strong><span className="mt-1 block text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Profile strength</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 font-semibold text-emerald-700"><BadgeCheck size={18} /> Approved</span><span className="text-sm font-semibold">88%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[88%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Business and services complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> {packages.length} package{packages.length === 1 ? "" : "s"} published</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add three recent event photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("portfolio")}>Improve portfolio</button></div></section></div></section>}
+        {activeTab === "overview" && (
+          <section className="py-7">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: "New leads", value: newCount, icon: MessageSquareText, color: "text-blue-700", tab: "leads" as const },
+                { label: "Booked events", value: bookedCount, icon: CalendarDays, color: "text-emerald-700", tab: "leads" as const },
+                { label: "Portfolio photos", value: portfolio.length, icon: Eye, color: "text-violet-700", tab: "portfolio" as const },
+                { label: "Booked value", value: `INR ${formatMoney(bookedValue)}`, icon: IndianRupee, color: "text-amber-700", tab: "leads" as const }
+              ].map((stat) => (
+                <button className="rounded-lg border border-border bg-white p-5 text-left hover:border-primary" key={stat.label} onClick={() => setActiveTab(stat.tab)}>
+                  <stat.icon className={stat.color} size={21} />
+                  <p className="mt-5 text-2xl font-semibold">{stat.value}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-9 grid gap-8 lg:grid-cols-[1.45fr_1fr]">
+              <section>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold">Recent leads</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">Respond quickly to improve conversion.</p>
+                  </div>
+                  <button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("leads")}>View all</button>
+                </div>
+                {leads.length > 0 ? (
+                  <div className="mt-4 grid gap-3">
+                    {leads.slice(0, 3).map((lead) => (
+                      <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={lead.id} onClick={() => setActiveTab("leads")}>
+                        <span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><BriefcaseBusiness size={20} /></span>
+                        <span className="min-w-0 flex-1">
+                          <strong className="block truncate">{lead.eventType} | {lead.service}</strong>
+                          <span className="mt-1 block text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</span>
+                        </span>
+                        <span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span>
+                        <ChevronRight size={18} />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg border border-dashed border-border bg-white p-8 text-center">
+                    <MessageSquareText className="mx-auto text-muted-foreground" size={28} />
+                    <h3 className="mt-4 font-semibold">No recent leads yet</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">Customer quote requests will appear here.</p>
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <h2 className="text-xl font-semibold">Profile strength</h2>
+                <div className="mt-4 rounded-lg border border-border bg-white p-5">
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-flex items-center gap-2 font-semibold ${profileStatusClass}`}><BadgeCheck size={18} /> {readableStatus(vendorProfile.status)}</span>
+                    <span className="text-sm font-semibold">{profileStrength}%</span>
+                  </div>
+                  {vendorProfile.status === "REJECTED" &&
+                    vendorProfile.rejectionReason && (
+                      <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
+                        <p className="text-sm font-semibold text-red-700">
+                          Rejection Reason
+                        </p>
+
+                        <p className="mt-1 text-sm text-red-600">
+                          {vendorProfile.rejectionReason}
+                        </p>
+                      </div>
+                    )}
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full bg-primary" style={{ width: `${profileStrength}%` }} />
+                  </div>
+                  <div className="mt-5 grid gap-3 text-sm">
+                    <p className={`flex items-center gap-2 ${hasBusinessProfile ? "" : "text-amber-700"}`}>{hasBusinessProfile ? <Check className="text-emerald-700" size={16} /> : <Sparkles size={16} />} Business and services complete</p>
+                    <p className={`flex items-center gap-2 ${hasPackageInfo ? "" : "text-amber-700"}`}>{hasPackageInfo ? <Check className="text-emerald-700" size={16} /> : <Layers3 size={16} />} {packages.length} package{packages.length === 1 ? "" : "s"} published</p>
+                    <p className={`flex items-center gap-2 ${hasPortfolioPhotos ? "" : "text-amber-700"}`}>{hasPortfolioPhotos ? <Check className="text-emerald-700" size={16} /> : <ImagePlus size={16} />} {hasPortfolioPhotos ? "Portfolio has recent event photos" : "Add three recent event photos"}</p>
+                  </div>
+                  <button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("portfolio")}>Improve portfolio</button>
+                </div>
+              </section>
+            </div>
+          </section>
+        )}
 
         {activeTab === "reports" && (
           <section className="py-7">
@@ -470,7 +666,18 @@ export function VendorDashboard() {
           </section>
         )}
 
-        {activeTab === "leads" && <section className="py-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Lead inbox</h2><p className="mt-1 text-sm text-muted-foreground">Qualify requests and keep the customer status current.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setLeadFilter(event.target.value as "ALL" | VendorLeadStatus)} value={leadFilter}><option value="ALL">All leads</option><option value="NEW">New</option><option value="CONTACTED">Contacted</option><option value="QUOTE_SENT">Quote sent</option><option value="BOOKED">Booked</option><option value="DECLINED">Declined</option></select></label></div>{leadsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{leadsError}</p>}{isLoadingLeads ? <div className="mt-5 grid gap-4">{[1, 2, 3].map((item) => <div className="h-36 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : filteredLeads.length > 0 ? <div className="mt-5 grid gap-4">{filteredLeads.map((lead) => <article className="rounded-lg border border-border bg-white p-5" key={lead.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{lead.eventType} | {lead.service}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[lead.status]}`}>{readableStatus(lead.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{lead.eventDate} | {lead.location}</p></div><div className="text-right"><p className="font-semibold">INR {formatMoney(lead.budget)}</p><p className="mt-1 text-xs text-muted-foreground">Expected budget</p></div></div><div className="mt-4 grid gap-3 rounded-md bg-muted/60 p-4 text-sm sm:grid-cols-2"><p><span className="text-muted-foreground">Customer:</span> {lead.customerName}</p><p><span className="text-muted-foreground">Reference:</span> {lead.id}</p>{lead.notes && <p className="leading-6 sm:col-span-2"><span className="text-muted-foreground">Notes:</span> {lead.notes}</p>}</div>{lead.status !== "BOOKED" && lead.status !== "DECLINED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">{lead.status === "NEW" && <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => updateLead(lead.id, "CONTACTED")}><MessageSquareText size={17} /> Mark contacted</button>}{lead.status !== "QUOTE_SENT" && <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "QUOTE_SENT")}><Send size={17} /> Mark quote sent</button>}<button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => updateLead(lead.id, "BOOKED")}><Check size={17} /> Mark booked</button><button className="h-10 px-3 text-sm font-medium text-rose-700" onClick={() => updateLead(lead.id, "DECLINED")}>Decline</button></div>}</article>)}</div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><MessageSquareText className="mx-auto text-muted-foreground" size={28} /><h3 className="mt-4 font-semibold">No leads yet</h3><p className="mt-2 text-sm text-muted-foreground">New quote requests will appear here.</p></div>}</section>}
+        {activeTab === "leads" && (
+          <VendorLeadInbox
+            error={leadsError}
+            filter={leadFilter}
+            isLoading={isLoadingLeads}
+            leads={leads}
+            onFilterChange={setLeadFilter}
+            onSaveQuote={submitQuote}
+            onStatusChange={updateLead}
+            quotes={quotes}
+          />
+        )}
 
         {activeTab === "services" && (
           <section className="py-7">
@@ -525,6 +732,16 @@ export function VendorDashboard() {
             )}
           </section>
         )}
+
+        {activeTab === "reviews" && (
+          <section className="py-7">
+            <div><h2 className="text-xl font-semibold">Customer reviews</h2><p className="mt-1 text-sm text-muted-foreground">Verified feedback from completed services.</p></div>
+            {reviewsError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{reviewsError}</p>}
+            {isLoadingReviews ? <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]"><div className="h-64 animate-pulse rounded-lg border border-border bg-white" /><div className="grid gap-3">{[1, 2].map((item) => <div className="h-32 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div></div> : reviews.length > 0 ? <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]"><div className="h-fit rounded-lg border border-border bg-white p-6 text-center"><p className="text-5xl font-semibold">{averageRating.toFixed(1)}</p><div className="mt-3 flex justify-center gap-1 text-amber-400">{[1, 2, 3, 4, 5].map((star) => <Star className="fill-current" key={star} size={18} />)}</div><p className="mt-2 text-sm text-muted-foreground">Based on {reviewCount} verified review{reviewCount === 1 ? "" : "s"}</p></div><div className="grid gap-3">{reviews.map((review) => <article className="rounded-lg border border-border bg-white p-5" key={review.id}><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{review.customerName}</h3>{review.verifiedService && <BadgeCheck className="text-emerald-700" size={16} />}</div><p className="mt-1 text-xs text-muted-foreground">{review.eventType} {review.eventDate ? `| ${review.eventDate}` : ""}</p></div><div className="flex gap-1 text-amber-400">{Array.from({ length: Math.round(review.rating) }, (_, index) => <Star className="fill-current" key={index} size={14} />)}</div></div><p className="mt-4 text-sm leading-6 text-muted-foreground">{review.comment}</p></article>)}</div></div> : <div className="mt-5 rounded-lg border border-dashed border-border bg-white p-8 text-center"><Star className="mx-auto text-muted-foreground" size={30} /><h3 className="mt-4 font-semibold">No verified customer reviews yet.</h3><p className="mt-2 text-sm text-muted-foreground">Reviews from completed services will appear here after admin publication.</p></div>}
+          </section>
+        )}
+
+        {activeTab === "notifications" && <VendorWhatsAppNotificationSettings />}
 
         {activeTab === "subscription" && <section className="py-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">Subscription</h2><p className="mt-1 text-sm text-muted-foreground">Choose how prominently your business appears and how many leads you can receive.</p></div><div className="rounded-md border border-border bg-white px-4 py-3 text-sm"><span className="text-muted-foreground">Current status</span><strong className="ml-2 capitalize">{subscriptionStatusLabel(subscription.status)}</strong>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-muted-foreground">Renews {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(subscription.currentPeriodEnd))}</p>}{subscription.pendingOrderId && <p className="mt-1 text-xs text-muted-foreground">Order {subscription.pendingOrderId}</p>}</div></div>{subscriptionError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{subscriptionError}</p>}{isLoadingSubscription ? <div className="mt-5 grid gap-5 lg:grid-cols-2">{[1, 2].map((item) => <div className="h-72 animate-pulse rounded-lg border border-border bg-white" key={item} />)}</div> : <div className="mt-5 grid gap-5 lg:grid-cols-2">{subscriptionPlans.map((item) => { const isActive = subscription.planId === item.id && subscription.status === "ACTIVE"; const isPending = subscription.planId === item.id && subscription.status === "PENDING_PAYMENT"; return <article className={`rounded-lg border bg-white p-6 ${isActive || isPending ? "border-primary" : "border-border"}`} key={item.id}><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-semibold">{item.name}</h3><p className="mt-1 text-sm text-muted-foreground">{item.description}</p></div>{isActive && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">Current plan</span>}{isPending && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">Payment pending</span>}{item.isPopular && !isActive && !isPending && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">Popular</span>}</div><p className="mt-6 text-3xl font-semibold">INR {formatMoney(item.price)} <span className="text-sm font-normal text-muted-foreground">/ {billingLabel(item.billingCycle)}</span></p><div className="mt-6 grid gap-3 text-sm">{item.features.map((feature) => <p className="flex items-center gap-2" key={feature}><Check className="text-emerald-700" size={16} />{feature}</p>)}</div><button className={`mt-7 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${isActive ? "border border-border text-muted-foreground" : "bg-primary text-white"}`} disabled={isActive || checkoutPlanId === item.id} onClick={() => chooseSubscription(item.id)}>{checkoutPlanId === item.id ? <><LoaderCircle className="animate-spin" size={17} /> Creating order</> : isActive ? "Active plan" : isPending ? <>Retry payment <ArrowUpRight size={17} /></> : <>Choose {item.name} <ArrowUpRight size={17} /></>}</button></article>; })}</div>}<p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground"><Sparkles className="text-amber-600" size={17} /> Razorpay order creation and payment verification are handled by the backend.</p></section>}
       </div>

@@ -1,21 +1,25 @@
 "use client";
 
 import { Eye, EyeOff, LoaderCircle, Phone } from "lucide-react";
-import type { Route } from "next";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { routeForRole, safeNextRouteForRole } from "@/features/auth/redirects";
 import type { AuthRole } from "@/features/auth/types";
+import { APP_NAME } from "@/lib/constants";
 
 export function LoginForm() {
-  const { login, loginDemo } = useAuth();
-  const router = useRouter();
+  const { login, loginDemo, getValidAccessToken } = useAuth();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nextPath, setNextPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNextPath(new URLSearchParams(window.location.search).get("next"));
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,12 +31,9 @@ export function LoginForm() {
 
     try {
       setIsSubmitting(true);
-      await login({ phone, password });
-      const nextPath = new URLSearchParams(window.location.search).get("next");
-      const destination: Route = nextPath?.startsWith("/") && !nextPath.startsWith("//")
-        ? nextPath as Route
-        : "/customer";
-      router.push(destination);
+      const user = await login({ phone, password });
+      const destination = safeNextRouteForRole(nextPath, user.role) ?? routeForRole(user.role);
+      window.location.assign(destination);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "We could not sign you in. Please check your details.");
     } finally {
@@ -43,8 +44,8 @@ export function LoginForm() {
   async function useDemoAccount(role: AuthRole) {
     setError("");
     setIsSubmitting(true);
-    await loginDemo(role);
-    router.push(role === "ADMIN" ? "/admin" : role === "VENDOR" ? "/vendor" : role === "HALL_OWNER" ? "/owner" : "/customer");
+    const user = await loginDemo(role);
+    window.location.assign(safeNextRouteForRole(nextPath, user.role) ?? routeForRole(user.role));
   }
 
   return (
@@ -101,7 +102,7 @@ export function LoginForm() {
         <button className="h-10 rounded-md border border-border text-sm font-medium hover:border-primary hover:text-primary" onClick={() => useDemoAccount("ADMIN")} type="button">Admin demo</button>
       </div>
       <p className="text-center text-sm text-muted-foreground">
-        New to Venue Aggregator? <Link className="font-semibold text-primary" href="/auth/register">Create account</Link>
+        New to {APP_NAME}? <Link className="font-semibold text-primary" href={nextPath ? `/auth/register?next=${encodeURIComponent(nextPath)}` : "/auth/register"}>Create account</Link>
       </p>
     </form>
   );

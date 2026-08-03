@@ -9,6 +9,8 @@ import {
   CircleAlert,
   ClipboardCheck,
   FileCheck2,
+  ImagePlus,
+  KeyRound,
   MessageSquareWarning,
   RotateCcw,
   Search,
@@ -17,22 +19,39 @@ import {
   Store,
   TrendingUp,
   UserCog,
+  UserPlus,
   X,
   XCircle
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
-import { useAuth } from "@/features/auth/AuthProvider";
-import { fallbackAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
-import { getAdminQueues, moderateAdminReview, reviewAdminHall, reviewAdminVendor, updateAdminUserStatus } from "@/features/admin/admin-client";
+import { AdminLeadNotificationMonitor } from "@/components/admin/AdminLeadNotificationMonitor";
+import { VenueDetailsDrawer } from "@/components/admin/VenueDetailsDrawer";
+import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
+import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
 import {
-  adminEnquiries,
+  createAdminUser,
+  approveAdminMedia,
+  rejectAdminMedia,
+  getPendingAdminMedia,
+  getAdminQueues,
+  getAdminVendor,
+  getAdminVendorReviews,
+  moderateAdminReview,
+  moderateAdminVendorReview,
+  resetAdminUserPassword,
+  reviewAdminHall,
+  reviewAdminVendor,
+  updateAdminUserRole,
+  updateAdminUserStatus,
+  type AdminVendorReview,
+  type AdminPendingMedia,
+  type ManagedAdminRole
+} from "@/features/admin/admin-client";
+import {
   auditEvents as initialAuditEvents,
-  adminUsers as initialAdminUsers,
-  initialReportedReviews,
-  initialVendorApplications,
-  initialVenueApplications,
+  type AdminEnquiry,
   type AdminUser,
   type AdminUserStatus,
   type ModerationStatus,
@@ -40,10 +59,11 @@ import {
   type VendorApplication,
   type VenueApplication
 } from "@/features/admin/mock-data";
+import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
 import type { EnquiryStatus } from "@/features/enquiries/types";
 
-type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "enquiries";
+type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "vendorReviews" | "enquiries" | "leadNotifications";
 type RejectTarget = { kind: "venue" | "vendor"; id: string; name: string };
 
 const tabs: { id: AdminTab; label: string }[] = [
@@ -52,8 +72,10 @@ const tabs: { id: AdminTab; label: string }[] = [
   { id: "vendors", label: "Vendor approvals" },
   { id: "users", label: "Users" },
   { id: "reports", label: "Reports" },
-  { id: "reviews", label: "Reviews" },
-  { id: "enquiries", label: "Enquiries" }
+  { id: "reviews", label: "Hall Reviews" },
+  { id: "vendorReviews", label: "Vendor Reviews" },
+  { id: "enquiries", label: "Enquiries" },
+  { id: "leadNotifications", label: "Lead notifications" }
 ];
 
 const moderationStyle: Record<ModerationStatus, string> = {
@@ -96,18 +118,33 @@ function formatCompactMoney(value: number) {
   return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
 }
 
+function VenueImage({ venue, sizes }: { venue: VenueApplication; sizes: string }) {
+  if (!venue.imageUrl) {
+    return (
+      <div className="grid h-full place-items-center text-muted-foreground">
+        <ImagePlus size={24} />
+      </div>
+    );
+  }
+
+  return <Image alt={`${venue.name} application`} className="object-cover" fill sizes={sizes} src={venue.imageUrl} unoptimized={venue.imageUrl.startsWith("blob:")} />;
+}
+
 export function AdminDashboard() {
-  const { accessToken } = useAuth();
+  const { accessToken, user: authUser } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
-  const [venues, setVenues] = useState<VenueApplication[]>(initialVenueApplications);
-  const [vendors, setVendors] = useState<VendorApplication[]>(initialVendorApplications);
-  const [reviews, setReviews] = useState<ReportedReview[]>(initialReportedReviews);
-  const [enquiries, setEnquiries] = useState(adminEnquiries);
-  const [users, setUsers] = useState<AdminUser[]>(initialAdminUsers);
-  const [analytics, setAnalytics] = useState<AdminAnalytics>(fallbackAdminAnalytics);
+  const [venues, setVenues] = useState<VenueApplication[]>([]);
+  const [vendors, setVendors] = useState<VendorApplication[]>([]);
+  const [reviews, setReviews] = useState<ReportedReview[]>([]);
+  const [vendorReviews, setVendorReviews] = useState<AdminVendorReview[]>([]);
+  const [pendingMedia, setPendingMedia] = useState<AdminPendingMedia[]>([]);
+  const [approvingMediaId, setApprovingMediaId] = useState<string | null>(null);
+  const [enquiries, setEnquiries] = useState<AdminEnquiry[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [analytics, setAnalytics] = useState<AdminAnalytics>(emptyAdminAnalytics);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
-  const [auditEvents, setAuditEvents] = useState(initialAuditEvents);
+  const [auditEvents, setAuditEvents] = useState<typeof initialAuditEvents>([]);
   const [isLoadingQueues, setIsLoadingQueues] = useState(true);
   const [adminError, setAdminError] = useState("");
   const [venueFilter, setVenueFilter] = useState<"ALL" | ModerationStatus>("PENDING_APPROVAL");
@@ -116,15 +153,38 @@ export function AdminDashboard() {
   const [userStatusFilter, setUserStatusFilter] = useState<"ALL" | AdminUserStatus>("ALL");
   const [userSearch, setUserSearch] = useState("");
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [roleUpdatingUserId, setRoleUpdatingUserId] = useState<string | null>(null);
+  const [passwordResetUserId, setPasswordResetUserId] = useState<string | null>(null);
+  const [passwordResetValue, setPasswordResetValue] = useState("");
+  const [adminForm, setAdminForm] = useState({
+    fullName: "",
+    phone: "",
+    email: "",
+    password: "",
+    role: "ADMIN" as ManagedAdminRole
+  });
+  const [adminFormError, setAdminFormError] = useState("");
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<RejectTarget | null>(null);
   const [notice, setNotice] = useState("");
+  const [selectedVendor, setSelectedVendor] =
+    useState<VendorApplication | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<VenueApplication | null>(null);
+  const [loadingVendorId, setLoadingVendorId] = useState<string | null>(null);
 
   const pendingVenueCount = venues.filter((venue) => venue.status === "PENDING_APPROVAL").length;
   const pendingVendorCount = vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").length;
+  const pendingVenueIds = new Set(venues.filter((venue) => venue.status === "PENDING_APPROVAL").map((venue) => venue.id));
+  const pendingVendorIds = new Set(vendors.filter((vendor) => vendor.status === "PENDING_APPROVAL").map((vendor) => vendor.id));
+  const standalonePendingHallMedia = pendingMedia.filter((media) => media.type === "HALL" && !pendingVenueIds.has(media.listingId));
+  const standalonePendingVendorMedia = pendingMedia.filter((media) => media.type === "VENDOR" && !pendingVendorIds.has(media.listingId));
+  const pendingVendorMediaCount = standalonePendingVendorMedia.length;
+  const pendingHallMediaCount = standalonePendingHallMedia.length;
   const reportedReviewCount = reviews.filter((review) => review.status === "REPORTED").length;
   const pendingEnquiryCount = enquiries.filter((enquiry) => enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const suspendedUserCount = users.filter((user) => user.status === "SUSPENDED").length;
   const pendingUserCount = users.filter((user) => user.status === "PENDING_VERIFICATION").length;
+  const isSuperAdmin = authUser?.role === "SUPER_ADMIN";
 
   const filteredVenues = useMemo(
     () => venueFilter === "ALL" ? venues : venues.filter((venue) => venue.status === venueFilter),
@@ -178,6 +238,53 @@ export function AdminDashboard() {
   useEffect(() => {
     let isCurrent = true;
 
+    async function loadPendingMedia() {
+      try {
+        const media = await getPendingAdminMedia(accessToken);
+        if (isCurrent) setPendingMedia(media);
+      } catch {
+        // Keep the existing approvals dashboard usable if this optional queue is unavailable.
+      }
+    }
+
+    loadPendingMedia();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+
+    if (!accessToken) return;
+
+    async function loadVendorReviews() {
+
+      try {
+
+        const response =
+          await getAdminVendorReviews(accessToken);
+
+        setVendorReviews(response);
+
+      } catch (error) {
+
+        console.error(
+          "Failed to load vendor reviews",
+          error
+        );
+
+      }
+
+    }
+
+    loadVendorReviews();
+
+  }, [accessToken]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
     async function loadAnalytics() {
       setIsLoadingAnalytics(true);
       setAnalyticsError("");
@@ -188,7 +295,7 @@ export function AdminDashboard() {
         setAnalytics(response);
       } catch {
         if (!isCurrent) return;
-        setAnalytics(fallbackAdminAnalytics);
+        setAnalytics(emptyAdminAnalytics);
         setAnalyticsError("Could not load latest reports.");
       } finally {
         if (isCurrent) setIsLoadingAnalytics(false);
@@ -222,6 +329,46 @@ export function AdminDashboard() {
     }
   }
 
+  async function approvePendingMedia(media: AdminPendingMedia) {
+    const mediaKey = `${media.type}-${media.id}`;
+
+    try {
+      setApprovingMediaId(mediaKey);
+      await approveAdminMedia(media.type, media.id, accessToken);
+      setPendingMedia((current) => current.filter((item) => `${item.type}-${item.id}` !== mediaKey));
+      setNotice(`${media.type === "VENDOR" ? "Vendor" : "Venue"} image approved and is now visible publicly.`);
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not approve this image.");
+    } finally {
+      setApprovingMediaId(null);
+    }
+  }
+
+  async function rejectPendingMedia(media: AdminPendingMedia) {
+    try {
+      await rejectAdminMedia(
+        media.type,
+        media.id,
+        accessToken
+      );
+
+      setPendingMedia(current =>
+        current.filter(item =>
+          `${item.type}-${item.id}` !==
+          `${media.type}-${media.id}`
+        )
+      );
+
+      setNotice(`${media.type === "VENDOR" ? "Vendor" : "Venue"} image rejected.`);
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not reject image."
+      );
+    }
+  }
+
   function rejectWithReason(_reason: string) {
     if (!rejectTarget) return;
     if (rejectTarget.kind === "venue") void updateVenue(rejectTarget.id, "REJECTED", _reason);
@@ -237,6 +384,36 @@ export function AdminDashboard() {
       setNotice(status === "HIDDEN" ? "Review hidden and the moderation action was logged." : "Report dismissed and review kept published.");
     } catch (exception) {
       setNotice(exception instanceof Error ? exception.message : "Could not update review moderation.");
+    }
+  }
+
+  async function moderateVendorReview(
+    id: string,
+    status: "PUBLISHED" | "HIDDEN",
+    reason: string
+  ) {
+    try {
+      await moderateAdminVendorReview(
+        id,
+        status,
+        reason,
+        accessToken
+      );
+
+      setVendorReviews((current) =>
+        current.filter((review) => review.id !== id)
+      );
+
+      setNotice(`Vendor review ${status.toLowerCase()}.`);
+
+    } catch (error) {
+
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Failed to moderate vendor review."
+      );
+
     }
   }
 
@@ -258,11 +435,95 @@ export function AdminDashboard() {
     }
   }
 
+  function updateAdminFormField(field: keyof typeof adminForm, value: string) {
+    setAdminForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitNewAdminUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAdminFormError("");
+
+    try {
+      setIsCreatingAdmin(true);
+      const createdUser = await createAdminUser(adminForm, accessToken);
+      setUsers((current) => [createdUser, ...current]);
+      setAdminForm({
+        fullName: "",
+        phone: "",
+        email: "",
+        password: "",
+        role: "ADMIN"
+      });
+      setNotice(`${userRoleLabels[createdUser.role]} account created.`);
+    } catch (exception) {
+      setAdminFormError(exception instanceof Error ? exception.message : "Could not create admin user.");
+    } finally {
+      setIsCreatingAdmin(false);
+    }
+  }
+
+  async function changeUserRole(id: string, role: ManagedAdminRole) {
+    const previousUsers = users;
+
+    try {
+      setRoleUpdatingUserId(id);
+      setUsers((current) => current.map((user) => user.id === id ? { ...user, role } : user));
+      const updatedUser = await updateAdminUserRole(id, role, accessToken);
+      setUsers((current) => current.map((user) => user.id === id ? { ...user, ...updatedUser } : user));
+      setNotice("Admin role updated.");
+    } catch (exception) {
+      setUsers(previousUsers);
+      setNotice(exception instanceof Error ? exception.message : "Could not update admin role.");
+    } finally {
+      setRoleUpdatingUserId(null);
+    }
+  }
+
+  async function submitPasswordReset(id: string) {
+    if (passwordResetUserId !== id) {
+      setPasswordResetUserId(id);
+      setPasswordResetValue("");
+      return;
+    }
+
+    if (passwordResetValue.trim().length < 8) {
+      setNotice("Password must be at least 8 characters.");
+      return;
+    }
+
+    try {
+      setUpdatingUserId(id);
+      await resetAdminUserPassword(id, passwordResetValue, accessToken);
+      setPasswordResetUserId(null);
+      setPasswordResetValue("");
+      setNotice("Admin password reset.");
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not reset admin password.");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
+
+  async function openVendorDetails(vendor: VendorApplication) {
+    try {
+      setLoadingVendorId(vendor.id);
+      const fullVendor = await getAdminVendor(vendor.id, accessToken);
+      setSelectedVendor({ ...vendor, ...fullVendor });
+    } catch (exception) {
+      setNotice(exception instanceof Error ? exception.message : "Could not load vendor details.");
+    } finally {
+      setLoadingVendorId(null);
+    }
+  }
+
   const tabBadge: Partial<Record<AdminTab, number>> = {
-    venues: pendingVenueCount,
-    vendors: pendingVendorCount,
+    venues: pendingVenueCount + pendingHallMediaCount,
+    vendors: pendingVendorCount + pendingVendorMediaCount,
     users: suspendedUserCount + pendingUserCount,
     reviews: reportedReviewCount,
+    vendorReviews: vendorReviews.filter(
+      review => review.status === "PENDING"
+    ).length,
     enquiries: pendingEnquiryCount
   };
 
@@ -307,7 +568,7 @@ export function AdminDashboard() {
               <section>
                 <div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Venue approval queue</h2><p className="mt-1 text-sm text-muted-foreground">Oldest complete applications first.</p></div><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("venues")}>Review all</button></div>
                 <div className="mt-4 grid gap-3">
-                  {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[88px] animate-pulse rounded-lg border border-border bg-white" key={item} />) : venues.filter((venue) => venue.status === "PENDING_APPROVAL").map((venue) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={venue.id} onClick={() => setActiveTab("venues")}><span className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted"><Image alt="" className="object-cover" fill sizes="56px" src={venue.imageUrl} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{venue.name}</strong><span className="mt-1 block truncate text-sm text-muted-foreground">{venue.location} | {venue.capacity} guests</span></span><span className="hidden text-xs text-muted-foreground sm:block">{venue.id}</span><ChevronRight className="shrink-0" size={18} /></button>)}
+                  {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[88px] animate-pulse rounded-lg border border-border bg-white" key={item} />) : venues.filter((venue) => venue.status === "PENDING_APPROVAL").map((venue) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={venue.id} onClick={() => setActiveTab("venues")}><span className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted"><VenueImage sizes="56px" venue={venue} /></span><span className="min-w-0 flex-1"><strong className="block truncate">{venue.name}</strong><span className="mt-1 block truncate text-sm text-muted-foreground">{venue.location} | {venue.capacity} guests</span></span><span className="hidden text-xs text-muted-foreground sm:block">{venue.id}</span><ChevronRight className="shrink-0" size={18} /></button>)}
                 </div>
               </section>
 
@@ -324,10 +585,43 @@ export function AdminDashboard() {
         {activeTab === "venues" && (
           <section className="py-7">
             <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Venue applications</h2><p className="mt-1 text-sm text-muted-foreground">Verify listing details and ownership documents.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setVenueFilter(event.target.value as "ALL" | ModerationStatus)} value={venueFilter}><option value="ALL">All applications</option><option value="PENDING_APPROVAL">Pending approval</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option></select></label></div>
+            <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Standalone venue images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Images submitted with a pending venue application are reviewed with that application.</p>
+                </div>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingHallMediaCount} pending</span>
+              </div>
+              {standalonePendingHallMedia.length === 0 ? (
+                <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No venue images are waiting for approval.</p>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {standalonePendingHallMedia.map((media) => {
+                    const mediaKey = `${media.type}-${media.id}`;
+                    const isApproving = approvingMediaId === mediaKey;
+                    return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>
+                      <img alt={`${media.listingName} venue image`} className="h-40 w-full bg-muted object-cover" src={media.url} />
+                      <div className="p-3">
+                        <p className="truncate font-medium">{media.listingName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{media.isPrimary ? "Cover image" : "Portfolio image"} · {media.listingId}</p>
+                        <button className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isApproving} onClick={() => void approvePendingMedia(media)} type="button"><Check size={16} />{isApproving ? "Approving..." : "Approve image"}</button>
+                        <button className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-red-300 text-red-700" onClick={() => void rejectPendingMedia(media)} type="button"
+                        >
+                          Reject image
+                        </button>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              )}
+            </section>
             <div className="mt-5 grid gap-4">
               {filteredVenues.map((venue) => {
-                const complete = Object.values(venue.documents).every(Boolean);
-                return <article className="rounded-lg border border-border bg-white p-4 sm:p-5" key={venue.id}><div className="grid gap-5 lg:grid-cols-[160px_minmax(0,1fr)_220px]"><div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted lg:aspect-auto lg:min-h-32"><Image alt={`${venue.name} application`} className="object-cover" fill sizes="(min-width: 1024px) 160px, 100vw" src={venue.imageUrl} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{venue.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[venue.status]}`}>{readableStatus(venue.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{venue.location} | {venue.venueType} | {venue.capacity} guests</p><p className="mt-3 text-sm"><strong className="font-medium">Owner:</strong> {venue.ownerName} | {venue.ownerPhone}</p><p className="mt-1 text-sm"><strong className="font-medium">Starting price:</strong> {formatPrice(venue.startingPrice)}</p><p className="mt-3 text-xs text-muted-foreground">Submitted {new Date(venue.submittedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} | {venue.id}</p></div><div><p className="text-xs font-semibold uppercase text-muted-foreground">Document checks</p><div className="mt-3 grid gap-2 text-sm">{[{ label: "Ownership", ready: venue.documents.ownership }, { label: "Identity", ready: venue.documents.identity }, { label: "Address", ready: venue.documents.address }].map((document) => <p className={`flex items-center gap-2 ${document.ready ? "text-emerald-700" : "text-amber-700"}`} key={document.label}>{document.ready ? <FileCheck2 size={16} /> : <CircleAlert size={16} />}{document.label}</p>)}</div>{venue.status === "PENDING_APPROVAL" && <div className="mt-5 grid grid-cols-2 gap-2"><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 text-sm font-semibold text-rose-700" onClick={() => setRejectTarget({ kind: "venue", id: venue.id, name: venue.ownerName })}><XCircle size={17} /> Reject</button><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!complete} onClick={() => updateVenue(venue.id, "APPROVED")} title={complete ? "Approve venue" : "Complete all document checks first"}><Check size={17} /> Approve</button></div>}</div></div></article>;
+                const documentReviewRequired = venue.documentReviewRequired ?? true;
+                const documentChecks = [{ label: "Ownership", ready: venue.documents.ownership }, { label: "Identity", ready: venue.documents.identity }, { label: "Address", ready: venue.documents.address }];
+                const complete = !documentReviewRequired || documentChecks.every((document) => document.ready);
+                return <article className="rounded-lg border border-border bg-white p-4 sm:p-5" key={venue.id}><div className="grid gap-5 lg:grid-cols-[160px_minmax(0,1fr)_240px]"><div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted lg:aspect-auto lg:min-h-32"><VenueImage sizes="(min-width: 1024px) 160px, 100vw" venue={venue} /></div><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{venue.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[venue.status]}`}>{readableStatus(venue.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">{venue.location} | {venue.venueType} | {venue.capacity} guests</p><p className="mt-3 text-sm"><strong className="font-medium">Owner:</strong> {venue.ownerName} | {venue.ownerPhone}</p><p className="mt-1 text-sm"><strong className="font-medium">Starting price:</strong> {formatPrice(venue.startingPrice)}</p><p className="mt-3 text-xs text-muted-foreground">Submitted {new Date(venue.submittedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} | {venue.id}</p></div><div><p className="text-xs font-semibold uppercase text-muted-foreground">Review checks</p>{documentReviewRequired ? <div className="mt-3 grid gap-2 text-sm">{documentChecks.map((document) => <p className={`flex items-center gap-2 ${document.ready ? "text-emerald-700" : "text-amber-700"}`} key={document.label}>{document.ready ? <FileCheck2 size={16} /> : <CircleAlert size={16} />}{document.label}</p>)}</div> : <div className="mt-3 grid gap-2 text-sm"><p className="flex items-center gap-2 text-emerald-700"><FileCheck2 size={16} /> MVP manual review</p><p className="text-xs leading-5 text-muted-foreground">Document upload is not collected yet.</p></div>}<div className="mt-5 grid gap-2"><button className="inline-flex h-10 items-center justify-center rounded-md border border-border text-sm font-semibold hover:border-primary" onClick={() => setSelectedVenue(venue)} type="button">View details</button>{venue.status === "PENDING_APPROVAL" && <div className="grid grid-cols-2 gap-2"><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 text-sm font-semibold text-rose-700" onClick={() => setRejectTarget({ kind: "venue", id: venue.id, name: venue.ownerName })} type="button"><XCircle size={17} /> Reject</button><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!complete} onClick={() => updateVenue(venue.id, "APPROVED")} title={complete ? "Approve venue" : "Complete all document checks first"} type="button"><Check size={17} /> Approve</button></div>}</div></div></div></article>;
               })}
               {filteredVenues.length === 0 && <p className="rounded-lg border border-dashed border-border bg-white px-5 py-12 text-center text-sm text-muted-foreground">No venue applications match this filter.</p>}
             </div>
@@ -337,12 +631,66 @@ export function AdminDashboard() {
         {activeTab === "vendors" && (
           <section className="py-7">
             <div><h2 className="text-xl font-semibold">Vendor applications</h2><p className="mt-1 text-sm text-muted-foreground">Review service category and business identity.</p></div>
+            <section className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Standalone portfolio images awaiting approval</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Images submitted with a pending vendor application are reviewed with that application.</p>
+                </div>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">{pendingVendorMediaCount} pending</span>
+              </div>
+              {standalonePendingVendorMedia.length === 0 ? (
+                <p className="mt-4 rounded-md border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">No vendor portfolio images are waiting for approval.</p>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {standalonePendingVendorMedia.map((media) => {
+                    const mediaKey = `${media.type}-${media.id}`;
+                    const isApproving = approvingMediaId === mediaKey;
+                    return <article className="overflow-hidden rounded-md border border-border" key={mediaKey}>
+                      <img alt={`${media.listingName} portfolio upload`} className="h-40 w-full bg-muted object-cover" src={media.url} />
+                      <div className="p-3">
+                        <p className="truncate font-medium">{media.listingName}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{media.isPrimary ? "Cover image" : "Portfolio image"} · {media.listingId}</p>
+                        <button className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={isApproving} onClick={() => void approvePendingMedia(media)} type="button"><Check size={16} />{isApproving ? "Approving..." : "Approve image"}</button>
+                        <button className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-red-300 text-red-700"
+                          onClick={() => void rejectPendingMedia(media)}
+                          type="button"
+                        >
+                          Reject image
+                        </button>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              )}
+            </section>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
-              <div className="hidden grid-cols-[1.4fr_1fr_1fr_120px_220px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
-              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px_220px] md:items-center" key={vendor.id}><div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div><p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p><p className="text-sm text-muted-foreground">{vendor.submittedAt}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>{vendor.status === "PENDING_APPROVAL" ? <div className="flex gap-2 md:justify-end"><button aria-label={`Reject ${vendor.businessName}`} className="grid size-9 place-items-center rounded-md border border-rose-200 text-rose-700" onClick={() => setRejectTarget({ kind: "vendor", id: vendor.id, name: vendor.contactName })} title="Reject"><X size={17} /></button><button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" onClick={() => updateVendor(vendor.id, "APPROVED")}><Check size={16} /> Approve</button></div> : <span />}</article>)}
+              <div className="hidden grid-cols-[1.3fr_0.8fr_1fr_120px_300px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>Business</span><span>Category</span><span>Submitted</span><span>Status</span><span className="text-right">Actions</span></div>
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[76px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : vendors.map((vendor) => {
+                const isLoadingVendor = loadingVendorId === vendor.id;
+                return (
+                  <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.3fr_0.8fr_1fr_120px_300px] md:items-center" key={vendor.id}>
+                    <div><h3 className="font-semibold">{vendor.businessName}</h3><p className="mt-1 text-sm text-muted-foreground">{vendor.contactName} | {vendor.city} | {vendor.id}</p></div>
+                    <p className="text-sm"><span className="text-muted-foreground md:hidden">Category: </span>{vendor.category}</p>
+                    <p className="text-sm text-muted-foreground">{vendor.submittedAt}</p>
+                    <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${moderationStyle[vendor.status]}`}>{readableStatus(vendor.status)}</span>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isLoadingVendor} onClick={() => openVendorDetails(vendor)} type="button">{isLoadingVendor ? "Loading..." : "View details"}</button>
+                      {vendor.status === "PENDING_APPROVAL" && (
+                        <>
+                          <button className="inline-flex h-9 items-center justify-center rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50" onClick={() => setRejectTarget({ kind: "vendor", id: vendor.id, name: vendor.contactName })} type="button"><X size={16} /></button>
+                          <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" onClick={() => updateVendor(vendor.id, "APPROVED")} type="button"><Check size={16} /> Approve</button>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+              {!isLoadingQueues && vendors.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No vendor applications match this filter.</p>}
             </div>
           </section>
         )}
+
 
         {activeTab === "users" && (
           <section className="py-7">
@@ -351,43 +699,74 @@ export function AdminDashboard() {
                 <h2 className="text-xl font-semibold">User management</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Search users, review roles, and control account access.</p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-[220px_150px_170px_auto]">
-                <label className="relative block">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <input className="h-10 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm outline-none focus:border-primary" onChange={(event) => setUserSearch(event.target.value)} placeholder="Search user" value={userSearch} />
                 </label>
-                <select className="h-10 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserRoleFilter(event.target.value as "ALL" | AuthRole)} value={userRoleFilter}>
+                <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserRoleFilter(event.target.value as "ALL" | AuthRole)} value={userRoleFilter}>
                   <option value="ALL">All roles</option>
                   <option value="CUSTOMER">Customers</option>
                   <option value="HALL_OWNER">Owners</option>
                   <option value="VENDOR">Vendors</option>
                   <option value="ADMIN">Admins</option>
+                  <option value="SUPER_ADMIN">Super admins</option>
                 </select>
-                <select className="h-10 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
+                <select className="h-10 w-full sm:w-40 rounded-md border border-border bg-white px-3 text-sm" onChange={(event) => setUserStatusFilter(event.target.value as "ALL" | AdminUserStatus)} value={userStatusFilter}>
                   <option value="ALL">All statuses</option>
                   <option value="ACTIVE">Active</option>
                   <option value="PENDING_VERIFICATION">Pending verification</option>
                   <option value="SUSPENDED">Suspended</option>
                 </select>
-                <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-semibold hover:border-primary" onClick={() => { setUserSearch(""); setUserRoleFilter("ALL"); setUserStatusFilter("ALL"); }} type="button"><RotateCcw size={16} /> Reset</button>
+                <button className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-semibold hover:border-primary" onClick={() => { setUserSearch(""); setUserRoleFilter("ALL"); setUserStatusFilter("ALL"); }} type="button"><RotateCcw size={16} /> Reset</button>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            {isSuperAdmin ? (
+              <form className="mt-5 rounded-lg border border-border bg-white p-5" onSubmit={submitNewAdminUser}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="inline-flex items-center gap-2 font-semibold"><UserPlus size={18} /> Create admin account</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Use this for internal platform operators only.</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">Super admin</span>
+                </div>
+                <div className="mt-5 grid gap-4 md:grid-cols-[1fr_150px_1fr_170px_150px]">
+                  <label className="text-sm font-medium">Full name<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateAdminFormField("fullName", event.target.value)} placeholder="Admin name" required value={adminForm.fullName} /></label>
+                  <label className="text-sm font-medium">Phone<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(event) => updateAdminFormField("phone", event.target.value)} placeholder="10 digits" required value={adminForm.phone} /></label>
+                  <label className="text-sm font-medium">Email<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateAdminFormField("email", event.target.value)} placeholder="admin@example.com" required type="email" value={adminForm.email} /></label>
+                  <label className="text-sm font-medium">Password<input className="mt-2 h-10 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" minLength={8} onChange={(event) => updateAdminFormField("password", event.target.value)} placeholder="Min 8 chars" required type="password" value={adminForm.password} /></label>
+                  <label className="text-sm font-medium">Role<select className="mt-2 h-10 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateAdminFormField("role", event.target.value as ManagedAdminRole)} value={adminForm.role}><option value="ADMIN">Admin</option><option value="SUPER_ADMIN">Super admin</option></select></label>
+                </div>
+                {adminFormError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{adminFormError}</p>}
+                <div className="mt-5 flex justify-end">
+                  <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isCreatingAdmin} type="submit">{isCreatingAdmin ? <Activity className="animate-spin" size={16} /> : <UserPlus size={16} />} Create admin</button>
+                </div>
+              </form>
+            ) : (
+              <div className="mt-5 rounded-lg border border-border bg-white p-4 text-sm text-muted-foreground">
+                Super admin controls are hidden for this account.
+              </div>
+            )}
+
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Total users</p><p className="mt-2 text-2xl font-semibold">{users.length}</p></div>
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Pending verification</p><p className="mt-2 text-2xl font-semibold">{pendingUserCount}</p></div>
               <div className="rounded-lg border border-border bg-white p-4"><p className="text-sm text-muted-foreground">Suspended</p><p className="mt-2 text-2xl font-semibold">{suspendedUserCount}</p></div>
             </div>
 
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
-              <div className="hidden grid-cols-[1.4fr_150px_130px_1fr_190px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
+              <div className="hidden grid-cols-[1.5fr_180px_140px_180px_220px] items-center gap-6 border-b border-border bg-muted/60 px-6 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">              <span>User</span><span>Role</span><span>Status</span><span>Activity</span><span className="text-right">Actions</span></div>
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[84px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredUsers.map((user) => {
                 const isUpdating = updatingUserId === user.id;
-                const canActivate = user.status === "SUSPENDED" || user.status === "PENDING_VERIFICATION";
-                const canSuspend = user.status === "ACTIVE" && user.role !== "ADMIN" && user.role !== "SUPER_ADMIN";
+                const isCurrentUser = authUser?.id === user.id;
+                const isAdminAccount = user.role === "ADMIN" || user.role === "SUPER_ADMIN";
+                const canActivate = (user.status === "SUSPENDED" || user.status === "PENDING_VERIFICATION") && (!isAdminAccount || isSuperAdmin);
+                const canSuspend = user.status === "ACTIVE" && !isCurrentUser && (!isAdminAccount || isSuperAdmin);
+                const canManageAdminAccount = isSuperAdmin && isAdminAccount;
 
                 return (
-                  <article className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_150px_130px_1fr_190px] md:items-center" key={user.id}>
+                  <article className="grid gap-6 border-b border-border px-6 py-5 last:border-0 md:grid-cols-[1.5fr_180px_140px_180px_220px] md:items-center" key={user.id}>
                     <div>
                       <div className="flex items-center gap-3">
                         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-800">{user.fullName.charAt(0)}</span>
@@ -398,16 +777,32 @@ export function AdminDashboard() {
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground md:hidden">{user.id}</p>
                     </div>
-                    <p className="text-sm font-medium">{userRoleLabels[user.role]}</p>
-                    <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${userStatusStyle[user.status]}`}>{readableStatus(user.status)}</span>
-                    <div className="text-sm text-muted-foreground">
+                    <p className="text-sm font-medium whitespace-nowrap">{userRoleLabels[user.role]}</p>
+                    <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${userStatusStyle[user.status]}`}>{readableStatus(user.status)}</span>
+                    <div className="space-y-1 text-sm text-muted-foreground">
                       <p>Joined {new Date(user.joinedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>
                       {user.lastActiveAt && <p className="mt-1">Last active {new Date(user.lastActiveAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>}
                     </div>
-                    <div className="flex flex-wrap gap-2 md:justify-end">
-                      {canActivate && <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "ACTIVE")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <Check size={16} />} Activate</button>}
-                      {canSuspend && <button className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "SUSPENDED")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <ShieldBan size={16} />} Suspend</button>}
-                      {!canActivate && !canSuspend && <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">Protected</span>}
+                    <div className="flex flex-col items-end gap-2">
+                      {canManageAdminAccount && (
+                        <div className="flex justify-end">
+                          <select className="h-9 rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-primary disabled:opacity-60" disabled={roleUpdatingUserId === user.id} onChange={(event) => changeUserRole(user.id, event.target.value as ManagedAdminRole)} value={user.role as ManagedAdminRole}>
+                            <option value="ADMIN">Admin</option>
+                            <option value="SUPER_ADMIN">Super admin</option>
+                          </select>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {canActivate && <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "ACTIVE")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <Check size={16} />} Activate</button>}
+                        {canSuspend && <button className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={isUpdating} onClick={() => changeUserStatus(user.id, "SUSPENDED")} type="button">{isUpdating ? <Activity className="animate-spin" size={16} /> : <ShieldBan size={16} />} Suspend</button>}
+                        {!canActivate && !canSuspend && <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground">{isCurrentUser ? "Current user" : "Protected"}</span>}
+                      </div>
+                      {canManageAdminAccount && (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {passwordResetUserId === user.id && <input className="h-9 w-44 rounded-md border border-border px-3 text-sm outline-none focus:border-primary" minLength={8} onChange={(event) => setPasswordResetValue(event.target.value)} placeholder="New password" type="password" value={passwordResetValue} />}
+                          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isUpdating} onClick={() => submitPasswordReset(user.id)} type="button">{isUpdating && passwordResetUserId === user.id ? <Activity className="animate-spin" size={16} /> : <KeyRound size={16} />}{passwordResetUserId === user.id ? "Save password" : "Reset password"}</button>
+                        </div>
+                      )}
                     </div>
                   </article>
                 );
@@ -438,25 +833,25 @@ export function AdminDashboard() {
                   <section className="rounded-lg border border-border bg-white">
                     <div className="border-b border-border px-5 py-4"><h3 className="font-semibold">Monthly trend</h3></div>
                     <div className="divide-y divide-border">
-                      {analytics.trends.map((point) => (
+                      {analytics.trends.length > 0 ? analytics.trends.map((point) => (
                         <div className="grid gap-2 px-5 py-4 text-sm sm:grid-cols-[80px_1fr_1fr_1fr]" key={point.label}>
                           <strong>{point.label}</strong>
                           <span>{point.enquiries} enquiries</span>
                           <span>{point.bookings} bookings</span>
                           <span className="font-medium">{formatCompactMoney(point.revenue)}</span>
                         </div>
-                      ))}
+                      )) : <p className="px-5 py-10 text-center text-sm text-muted-foreground">No monthly trend data available yet.</p>}
                     </div>
                   </section>
                   <section className="rounded-lg border border-border bg-white">
                     <div className="border-b border-border px-5 py-4"><h3 className="font-semibold">Top cities</h3></div>
                     <div className="divide-y divide-border">
-                      {analytics.topCities.map((city) => (
+                      {analytics.topCities.length > 0 ? analytics.topCities.map((city) => (
                         <div className="flex items-center justify-between gap-4 px-5 py-4" key={city.city}>
                           <div><p className="font-medium">{city.city}</p><p className="mt-1 text-sm text-muted-foreground">{city.enquiries} enquiries</p></div>
                           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-800">{city.bookings} bookings</span>
                         </div>
-                      ))}
+                      )) : <p className="px-5 py-10 text-center text-sm text-muted-foreground">No city report data available yet.</p>}
                     </div>
                   </section>
                 </div>
@@ -467,10 +862,148 @@ export function AdminDashboard() {
 
         {activeTab === "reviews" && (
           <section className="py-7">
-            <div><h2 className="text-xl font-semibold">Reported reviews</h2><p className="mt-1 text-sm text-muted-foreground">Moderate reports while preserving verified customer feedback.</p></div>
-            <div className="mt-5 grid gap-4">
-              {reviews.map((review) => <article className="rounded-lg border border-border bg-white p-5" key={review.id}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2"><h3 className="font-semibold">{review.hallName}</h3>{review.verifiedService && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800"><BadgeCheck size={13} /> Verified service</span>}</div><p className="mt-1 text-sm text-muted-foreground">{review.customerName} | {review.rating}/5 | {review.id}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${review.status === "REPORTED" ? "bg-rose-50 text-rose-700" : review.status === "HIDDEN" ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-800"}`}>{review.status.toLowerCase()}</span></div><blockquote className="mt-4 border-l-2 border-border pl-4 text-sm leading-6">&ldquo;{review.comment}&rdquo;</blockquote><p className="mt-4 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800"><CircleAlert size={16} /> Report: {review.reportReason}</p>{review.status === "REPORTED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => moderateReview(review.id, "PUBLISHED")}><Check size={17} /> Keep published</button><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => moderateReview(review.id, "HIDDEN")}><MessageSquareWarning size={17} /> Hide review</button></div>}</article>)}
+            <div>
+              <h2 className="text-xl font-semibold">Hall Reviews</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Moderate customer reviews submitted for halls.</p>
             </div>
+            <div className="mt-5 grid gap-4">
+              {reviews.length === 0 && (
+                <div className="rounded-lg border border-dashed border-border bg-white px-5 py-10 text-center text-muted-foreground">
+                  No hall reviews found.
+                </div>
+              )}
+              {reviews.map((review) => (
+                <article className="rounded-lg border border-border bg-white p-5" key={review.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">{review.hallName}</h3>
+                        {review.verifiedService && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-800"><BadgeCheck size={13} /> Verified service</span>}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{review.customerName}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${review.status === "REPORTED" ? "bg-rose-100 text-rose-700" : review.status === "HIDDEN" ? "bg-slate-100 text-slate-700" : "bg-emerald-100 text-emerald-700"}`}>
+                      {review.status}
+                    </span>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm">⭐ {review.rating}/5</p>
+                    <blockquote className="mt-3 border-l-2 border-border pl-4 text-sm leading-6">&ldquo;{review.comment}&rdquo;</blockquote>
+                  </div>
+                  {review.reportReason && <p className="mt-4 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800"><CircleAlert size={16} /> Report: {review.reportReason}</p>}
+                  {review.status === "REPORTED" && <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4"><button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold" onClick={() => moderateReview(review.id, "PUBLISHED")}><Check size={17} /> Keep published</button><button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => moderateReview(review.id, "HIDDEN")}><MessageSquareWarning size={17} /> Hide review</button></div>}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "vendorReviews" && (
+          <section className="py-7">
+
+            <div>
+              <h2 className="text-xl font-semibold">
+                Vendor Reviews
+              </h2>
+
+              <p className="mt-1 text-sm text-muted-foreground">
+                Moderate customer reviews before publishing.
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+
+              {vendorReviews.length === 0 && (
+                <div className="rounded-lg border border-dashed border-border bg-white px-5 py-10 text-center text-muted-foreground">
+                  No vendor reviews found.
+                </div>
+              )}
+
+              {vendorReviews.map((review) => (
+
+                <article
+                  key={review.id}
+                  className="rounded-lg border border-border bg-white p-5"
+                >
+
+                  <div className="flex items-start justify-between">
+
+                    <div>
+
+                      <h3 className="font-semibold">
+                        {review.vendorName}
+                      </h3>
+
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {review.customerName}
+                      </p>
+
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${review.status === "PENDING"
+                        ? "bg-amber-100 text-amber-700"
+                        : review.status === "PUBLISHED"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-rose-100 text-rose-700"
+                        }`}
+                    >
+                      {review.status}
+                    </span>
+
+                  </div>
+
+                  <div className="mt-4">
+
+                    <p className="text-sm">
+                      ⭐ {review.rating}/5
+                    </p>
+
+                    <blockquote className="mt-3 border-l-2 border-border pl-4 text-sm leading-6">
+                      "{review.comment}"
+                    </blockquote>
+
+                  </div>
+
+                  {review.status === "PENDING" && (
+
+                    <div className="mt-5 flex gap-2">
+
+                      <button
+                        className="rounded-md bg-emerald-600 px-4 py-2 text-white"
+                        onClick={() =>
+                          moderateVendorReview(
+                            review.id,
+                            "PUBLISHED",
+                            "",
+                          )
+                        }
+                      >
+                        Publish
+                      </button>
+
+                      <button
+                        className="rounded-md bg-slate-700 px-4 py-2 text-white"
+                        onClick={() =>
+                          moderateVendorReview(
+                            review.id,
+                            "HIDDEN",
+                            "Hidden by admin",
+                          )
+                        }
+                      >
+                        Hide
+                      </button>
+                    </div>
+
+                  )}
+
+                </article>
+
+              ))}
+
+            </div>
+
           </section>
         )}
 
@@ -478,14 +1011,60 @@ export function AdminDashboard() {
           <section className="py-7">
             <div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Enquiry tracking</h2><p className="mt-1 text-sm text-muted-foreground">Marketplace-wide status visibility for support and reconciliation.</p></div><label className="text-xs font-medium text-muted-foreground">Status<select className="mt-1 block h-10 rounded-md border border-border bg-white px-3 text-sm text-foreground" onChange={(event) => setEnquiryFilter(event.target.value as "ALL" | EnquiryStatus)} value={enquiryFilter}><option value="ALL">All enquiries</option><option value="PENDING_OWNER_RESPONSE">Pending owner response</option><option value="CONFIRMED">Confirmed</option><option value="DECLINED">Declined</option><option value="COMPLETED">Completed</option></select></label></div>
             <div className="mt-5 overflow-hidden rounded-lg border border-border bg-white">
-              <div className="hidden grid-cols-[130px_1.4fr_1fr_1fr_150px] gap-4 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase text-muted-foreground md:grid"><span>ID</span><span>Venue</span><span>Customer</span><span>Event date</span><span>Status</span></div>
-              {filteredEnquiries.map((enquiry) => <article className="grid gap-2 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[130px_1.4fr_1fr_1fr_150px] md:items-center" key={enquiry.id}><p className="text-sm font-medium">{enquiry.id}</p><div><p className="font-medium">{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground md:hidden">Submitted {enquiry.submittedAt}</p></div><p className="text-sm">{enquiry.customerName}</p><p className="text-sm text-muted-foreground">{enquiry.eventDate}</p><span className={`w-fit rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span></article>)}
+              <div className="hidden grid-cols-[minmax(6.5rem,0.9fr)_minmax(6rem,0.75fr)_minmax(11rem,1.55fr)_minmax(9rem,1.2fr)_minmax(7rem,0.85fr)_minmax(7.5rem,0.9fr)] gap-x-5 border-b border-border bg-muted/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:grid">
+                <span>ID</span><span>Type</span><span>Venue / vendor</span><span>Customer</span><span>Event date</span><span>Status</span>
+              </div>
+              {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[72px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredEnquiries.map((enquiry) => (
+                <article className="grid gap-x-5 gap-y-3 border-b border-border px-5 py-4 last:border-0 lg:grid-cols-[minmax(6.5rem,0.9fr)_minmax(6rem,0.75fr)_minmax(11rem,1.55fr)_minmax(9rem,1.2fr)_minmax(7rem,0.85fr)_minmax(7.5rem,0.9fr)] lg:items-center" key={`${enquiry.source ?? "HALL"}-${enquiry.id}`}>
+                  <p className="text-sm font-medium lg:truncate" title={enquiry.id}>{enquiry.id}</p>
+                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${enquiry.source === "VENDOR" ? "bg-violet-50 text-violet-700" : "bg-blue-50 text-blue-700"}`}>{enquiry.source === "VENDOR" ? "Vendor lead" : "Hall"}</span>
+                  <div className="min-w-0"><p className="truncate font-medium" title={enquiry.hallName}>{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground lg:hidden">Submitted {enquiry.submittedAt}</p></div>
+                  <p className="truncate text-sm" title={enquiry.customerName}>{enquiry.customerName}</p>
+                  <p className="text-sm text-muted-foreground">{enquiry.eventDate}</p>
+                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span>
+                </article>
+              ))}
+              {!isLoadingQueues && filteredEnquiries.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No enquiries match this filter.</p>}
             </div>
           </section>
         )}
+
+        {activeTab === "leadNotifications" && <AdminLeadNotificationMonitor />}
       </div>
 
       {rejectTarget && <RejectionDialog onClose={() => setRejectTarget(null)} onReject={rejectWithReason} subject={rejectTarget.name} />}
+      {selectedVenue && (
+        <VenueDetailsDrawer
+          venue={selectedVenue}
+          onClose={() => setSelectedVenue(null)}
+          onApprove={async () => {
+            await updateVenue(selectedVenue.id, "APPROVED");
+            setSelectedVenue(null);
+          }}
+          onReject={() => {
+            setRejectTarget({ kind: "venue", id: selectedVenue.id, name: selectedVenue.ownerName });
+            setSelectedVenue(null);
+          }}
+        />
+      )}
+      {selectedVendor && (
+        <VendorDetailsDrawer
+          vendor={selectedVendor}
+          onClose={() => setSelectedVendor(null)}
+          onApprove={async () => {
+            await updateVendor(selectedVendor.id, "APPROVED");
+            setSelectedVendor(null);
+          }}
+          onReject={() => {
+            setRejectTarget({
+              kind: "vendor",
+              id: selectedVendor.id,
+              name: selectedVendor.contactName,
+            });
+            setSelectedVendor(null);
+          }}
+        />
+      )}
     </main>
   );
 }

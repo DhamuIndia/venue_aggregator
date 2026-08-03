@@ -66,7 +66,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-border bg-white shadow-xl">
+        <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] max-h-[70vh] overflow-hidden rounded-lg border border-border bg-white shadow-xl">
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <div>
               <h2 className="font-semibold">Notifications</h2>
@@ -76,8 +76,13 @@ export function NotificationBell() {
               <CheckCheck size={14} /> Read all
             </button>
           </div>
-          <NotificationList isLoading={isLoading} notifications={notifications.slice(0, 5)} onRead={(id) => markNotificationRead(id, accessToken, user.role)} />
-          <div className="border-t border-border px-4 py-3">
+          <div className="max-h-[50vh] overflow-y-auto">
+            <NotificationList
+              isLoading={isLoading}
+              notifications={notifications}
+              onRead={(id) => markNotificationRead(id, accessToken, user.role)}
+            />
+          </div>          <div className="border-t border-border px-4 py-3">
             <Link className="text-sm font-semibold text-primary" href={dashboardActivityHref(user.role)} onClick={() => setOpen(false)}>Open activity center</Link>
           </div>
         </div>

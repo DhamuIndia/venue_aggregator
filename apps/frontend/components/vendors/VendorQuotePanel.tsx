@@ -8,7 +8,7 @@ import { createVendorLead } from "@/features/vendors/lead-client";
 import type { VendorSummary } from "@/features/vendors/types";
 
 export function VendorQuotePanel({ vendor }: { vendor: VendorSummary }) {
-  const { accessToken, user } = useAuth();
+  const { getValidAccessToken, user } = useAuth();
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("Wedding");
   const [location, setLocation] = useState("");
@@ -32,6 +32,11 @@ export function VendorQuotePanel({ vendor }: { vendor: VendorSummary }) {
     }
     try {
       setSubmitting(true);
+      const token = await getValidAccessToken();
+      if (!token) {
+        setError("Your session expired. Sign in again to request a quote.");
+        return;
+      }
       const lead = await createVendorLead({
         vendorId: vendor.id,
         vendorName: vendor.businessName,
@@ -43,7 +48,7 @@ export function VendorQuotePanel({ vendor }: { vendor: VendorSummary }) {
         service,
         budget: Number(budget),
         notes: notes.trim() || undefined
-      }, accessToken);
+      }, token);
       setLeadId(lead.id);
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Could not send quote request.");

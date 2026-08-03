@@ -6,13 +6,10 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { getEnquiry } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
+import { formatSlot, formatSlotRequests } from "@/features/halls/slot-model";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "long" }).format(new Date(`${value}T00:00:00`));
-}
-
-function formatSlot(value: string) {
-  return value.toLowerCase().replace("_", " ");
 }
 
 export function EnquiryConfirmation({ enquiryId }: { enquiryId: string }) {
@@ -65,7 +62,7 @@ export function EnquiryConfirmation({ enquiryId }: { enquiryId: string }) {
           <Link className="text-sm font-semibold text-primary" href={`/halls/${enquiry.hallId}`}>View venue</Link>
         </div>
         <dl className="grid gap-5 py-5 sm:grid-cols-2">
-          <div className="flex gap-3"><CalendarDays className="mt-0.5 shrink-0 text-primary" size={19} /><div><dt className="text-xs text-muted-foreground">Event date and slot</dt><dd className="mt-1 text-sm font-medium">{formatDate(enquiry.eventDate)}, {formatSlot(enquiry.slot)}</dd></div></div>
+          <div className="flex gap-3"><CalendarDays className="mt-0.5 shrink-0 text-primary" size={19} /><div><dt className="text-xs text-muted-foreground">Event date and slot</dt><dd className="mt-1 text-sm font-medium">{enquiry.slotRequests?.length ? formatSlotRequests(enquiry.slotRequests) : `${formatDate(enquiry.eventDate)}, ${formatSlot(enquiry.slot)}`}</dd></div></div>
           <div className="flex gap-3"><UsersRound className="mt-0.5 shrink-0 text-primary" size={19} /><div><dt className="text-xs text-muted-foreground">Event and guests</dt><dd className="mt-1 text-sm font-medium">{enquiry.eventType}, {enquiry.guestCount} guests</dd></div></div>
           <div className="flex gap-3"><MapPin className="mt-0.5 shrink-0 text-primary" size={19} /><div><dt className="text-xs text-muted-foreground">Request status</dt><dd className="mt-1 text-sm font-medium">Awaiting owner response</dd></div></div>
           <div className="flex gap-3"><Clock3 className="mt-0.5 shrink-0 text-primary" size={19} /><div><dt className="text-xs text-muted-foreground">Expected response</dt><dd className="mt-1 text-sm font-medium">Within 24 hours</dd></div></div>

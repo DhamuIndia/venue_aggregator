@@ -27,7 +27,7 @@
 
 ## Phase 3: Media
 
-- Cloudinary upload flow
+- S3-compatible presigned upload flow
 - Media metadata
 - Primary image support
 - Gallery ordering
@@ -66,6 +66,7 @@
 
 - Deployment pipeline
 - Backups
+- Object storage migration runbook
 - Monitoring
 - Logs
 - Rate limiting

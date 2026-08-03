@@ -137,7 +137,7 @@ public class AuthService {
     private UserRole primaryRole(User user) {
         return user.getRoles().stream()
                 .map(Role::getName)
-                .min(Comparator.comparingInt(UserRole::ordinal))
+                .max(Comparator.comparingInt(UserRole::ordinal))
                 .orElse(UserRole.CUSTOMER);
     }
 

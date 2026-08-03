@@ -161,7 +161,7 @@ function slotValue(record: Record<string, unknown>, keys: string[]) {
 }
 
 function isSlot(value: unknown): value is BookingItem["slot"] {
-  return value === "MORNING" || value === "EVENING" || value === "FULL_DAY";
+  return value === "MORNING" || value === "AFTERNOON" || value === "EVENING" || value === "FULL_DAY";
 }
 
 function stringValue(record: Record<string, unknown>, keys: string[]) {

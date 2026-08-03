@@ -116,6 +116,22 @@ class AuthServiceTest {
         verifyNoInteractions(jwtService);
     }
 
+    @Test
+    void loginUsesHighestPrivilegeRoleWhenUserHasMultipleRoles() {
+        User user = user(UserRole.ADMIN);
+        user.getRoles().add(role(UserRole.SUPER_ADMIN));
+
+        when(userRepository.findByPhone("9876543210")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("secret123", "hashed-password")).thenReturn(true);
+        when(jwtService.generateAccessToken(42L, "SUPER_ADMIN")).thenReturn("access-token");
+        when(jwtService.generateRefreshToken(42L, "SUPER_ADMIN")).thenReturn("refresh-token");
+        when(jwtService.getAccessExpirationSeconds()).thenReturn(900L);
+
+        AuthResponse response = authService.login(new LoginRequest("9876543210", "secret123"));
+
+        assertThat(response.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
+    }
+
     private User user(UserRole userRole) {
         User user = new User();
         user.setId(42L);

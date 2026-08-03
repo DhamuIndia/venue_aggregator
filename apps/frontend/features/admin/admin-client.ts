@@ -17,6 +17,132 @@ import {
 
 const useMockAdmin = process.env.NEXT_PUBLIC_ADMIN_MODE === "mock";
 
+export type AdminVendorReview = {
+  id: string;
+  vendorName: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  moderationReason: string;
+  verifiedService: boolean;
+  status: "PENDING" | "PUBLISHED" | "HIDDEN" | "REJECTED";
+  createdAt: string;
+  moderatedByAdminId?: number;
+  moderatedAt?: string;
+};
+
+export type AdminPendingMedia = {
+  id: string;
+  type: "HALL" | "VENDOR";
+  listingId: string;
+  listingName: string;
+  url: string;
+  isPrimary: boolean;
+};
+
+export type AdminRequirementNotificationSummary = {
+  requirementId: number;
+  customerName: string;
+  eventType: string;
+  eventDate: string;
+  location: string;
+  city?: string | null;
+  requirementStatus?: string | null;
+  services: string[];
+  createdAt: string;
+  matchedVendorCount: number;
+  subscribedVendorCount: number;
+  notificationSkippedCount: number;
+  queuedCount: number;
+  sentCount: number;
+  deliveredCount: number;
+  readCount: number;
+  failedCount: number;
+};
+
+export type AdminWhatsAppAttempt = {
+  attemptNumber: number;
+  status: string;
+  providerMessageId?: string | null;
+  requestedAt: string;
+  sentAt?: string | null;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  failedAt?: string | null;
+  cancelledAt?: string | null;
+  failureCode?: number | null;
+  failureTitle?: string | null;
+  failureReason?: string | null;
+  failureTemporary?: boolean | null;
+};
+
+export type AdminVendorNotificationDelivery = {
+  vendorLeadId: number;
+  leadReference: string;
+  vendorId: number;
+  vendorName: string;
+  service: string;
+  subscribedAtEvaluation: boolean;
+  currentlySubscribed: boolean;
+  currentlyEligible: boolean;
+  rolloutAllowed: boolean;
+  evaluationOutcome: string;
+  skipReason?: string | null;
+  evaluatedAt?: string | null;
+  notificationJobId?: number | null;
+  notificationStatus: string;
+  maskedDestination?: string | null;
+  attemptCount: number;
+  queuedAt?: string | null;
+  sentAt?: string | null;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  failedAt?: string | null;
+  nextRetryAt?: string | null;
+  failureCode?: number | null;
+  failureTitle?: string | null;
+  failureReason?: string | null;
+  failureTemporary?: boolean | null;
+  canManualRetry: boolean;
+  manualRetryBlockedReason?: string | null;
+  retryHistory: AdminWhatsAppAttempt[];
+};
+
+export type AdminRequirementNotificationList = {
+  content: AdminRequirementNotificationSummary[];
+  sendingEnabled: boolean;
+  maxAttempts: number;
+  rolloutAllowedVendorIds: number[];
+};
+
+export type AdminRequirementNotificationDetail = {
+  summary: AdminRequirementNotificationSummary;
+  vendors: AdminVendorNotificationDelivery[];
+  sendingEnabled: boolean;
+  maxAttempts: number;
+  rolloutAllowedVendorIds: number[];
+};
+
+export type AdminManualRetryResult = {
+  notificationJobId: number;
+  status: string;
+  nextRetryAt: string;
+  attemptCount: number;
+  maxAttempts: number;
+  sendingEnabled: boolean;
+  message: string;
+};
+
+export type ManagedAdminRole = Extract<AdminUser["role"], "ADMIN" | "SUPER_ADMIN">;
+
+export type CreateAdminUserPayload = {
+  fullName: string;
+  phone: string;
+  email: string;
+  password: string;
+  role: ManagedAdminRole;
+};
+
 type AdminQueueResult = {
   venues: VenueApplication[];
   vendors: VendorApplication[];
@@ -28,22 +154,54 @@ type AdminQueueResult = {
 };
 
 export async function getAdminQueues(accessToken?: string | null): Promise<AdminQueueResult> {
-  if (useMockAdmin || !accessToken) return mockResult();
+  if (useMockAdmin) return mockResult();
+  if (!accessToken) return emptyResult();
 
-  try {
-    const [venues, vendors, reviews, enquiries, users, events] = await Promise.all([
-      getAdminVenues(accessToken),
-      getAdminVendors(accessToken),
-      getAdminReviews(accessToken),
-      getAdminEnquiries(accessToken),
-      getAdminUsers(accessToken),
-      getAdminAuditEvents(accessToken)
-    ]);
+  const [venues, vendors, reviews, enquiries, users, events] = await Promise.all([
+    getAdminVenues(accessToken).catch(() => []),
+    getAdminVendors(accessToken).catch(() => []),
+    getAdminReviews(accessToken).catch(() => []),
+    getAdminEnquiries(accessToken).catch(() => []),
+    getAdminUsers(accessToken).catch(() => []),
+    getAdminAuditEvents(accessToken).catch(() => [])
+  ]);
 
-    return { venues, vendors, reviews, enquiries, users, auditEvents: events, source: "api" };
-  } catch {
-    return mockResult();
-  }
+  return { venues, vendors, reviews, enquiries, users, auditEvents: events, source: "api" };
+}
+
+export async function getAdminRequirementNotificationMonitoring(
+  accessToken?: string | null
+): Promise<AdminRequirementNotificationList> {
+  if (!accessToken) throw new Error("Authentication required");
+  return apiRequest<AdminRequirementNotificationList>(
+    "/admin/requirements/notification-monitoring",
+    { token: accessToken }
+  );
+}
+
+export async function getAdminRequirementNotificationDetail(
+  requirementId: number,
+  accessToken?: string | null
+): Promise<AdminRequirementNotificationDetail> {
+  if (!accessToken) throw new Error("Authentication required");
+  return apiRequest<AdminRequirementNotificationDetail>(
+    `/admin/requirements/${encodeURIComponent(String(requirementId))}/notification-monitoring`,
+    { token: accessToken }
+  );
+}
+
+export async function retryAdminLeadNotification(
+  notificationJobId: number,
+  accessToken?: string | null
+): Promise<AdminManualRetryResult> {
+  if (!accessToken) throw new Error("Authentication required");
+  return apiRequest<AdminManualRetryResult>(
+    `/admin/notification-jobs/${encodeURIComponent(String(notificationJobId))}/retry`,
+    {
+      method: "POST",
+      token: accessToken
+    }
+  );
 }
 
 export async function reviewAdminHall(id: string, decision: Exclude<ModerationStatus, "PENDING_APPROVAL">, reason: string, accessToken?: string | null) {
@@ -100,6 +258,34 @@ export async function moderateAdminReview(id: string, status: ReportedReview["st
   }
 }
 
+export async function moderateAdminVendorReview(
+  id: string,
+  status: "PUBLISHED" | "HIDDEN" | "REJECTED",
+  reason: string,
+  accessToken?: string | null
+) {
+
+  const response = await apiRequest<unknown>(
+    `/admin/vendor-reviews/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      token: accessToken ?? undefined,
+      body: JSON.stringify({
+        status,
+        reason
+      })
+    }
+  );
+
+  const review = toAdminVendorReview(response);
+
+  if (!review) {
+    throw new Error("Failed to moderate vendor review.");
+  }
+
+  return review;
+}
+
 export async function updateAdminUserStatus(id: string, status: Exclude<AdminUserStatus, "PENDING_VERIFICATION">, reason: string, accessToken?: string | null) {
   if (useMockAdmin || !accessToken) return updateMockUser(id, status);
 
@@ -118,40 +304,133 @@ export async function updateAdminUserStatus(id: string, status: Exclude<AdminUse
   }
 }
 
+export async function createAdminUser(payload: CreateAdminUserPayload, accessToken?: string | null) {
+  if (useMockAdmin) return createMockAdminUser(payload);
+  if (!accessToken) throw new Error("Authentication required");
+
+  const response = await apiRequest<unknown>("/admin/users", {
+    method: "POST",
+    token: accessToken,
+    body: JSON.stringify(payload)
+  });
+
+  const adminUser = toAdminUser(response);
+  if (!adminUser) throw new Error("Could not create admin user.");
+  return adminUser;
+}
+
+export async function updateAdminUserRole(id: string, role: ManagedAdminRole, accessToken?: string | null) {
+  if (useMockAdmin) return updateMockUserRole(id, role);
+  if (!accessToken) throw new Error("Authentication required");
+
+  const response = await apiRequest<unknown>(`/admin/users/${encodeURIComponent(id)}/role`, {
+    method: "PATCH",
+    token: accessToken,
+    body: JSON.stringify({ role })
+  });
+
+  const adminUser = toAdminUser(response);
+  if (!adminUser) throw new Error("Could not update admin role.");
+  return adminUser;
+}
+
+export async function resetAdminUserPassword(id: string, password: string, accessToken?: string | null) {
+  if (useMockAdmin) return adminUsers.find((adminUser) => adminUser.id === id);
+  if (!accessToken) throw new Error("Authentication required");
+
+  const response = await apiRequest<unknown>(`/admin/users/${encodeURIComponent(id)}/password`, {
+    method: "PATCH",
+    token: accessToken,
+    body: JSON.stringify({ password })
+  });
+
+  const adminUser = toAdminUser(response);
+  if (!adminUser) throw new Error("Could not reset admin password.");
+  return adminUser;
+}
+
 async function getAdminVenues(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/halls?status=PENDING_APPROVAL", { token: accessToken });
   const venues = extractList(response).map(toVenueApplication).filter(Boolean) as VenueApplication[];
-  return venues.length ? venues : initialVenueApplications;
+  return venues;
 }
 
 async function getAdminVendors(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/vendors?status=PENDING_APPROVAL", { token: accessToken });
   const vendors = extractList(response).map(toVendorApplication).filter(Boolean) as VendorApplication[];
-  return vendors.length ? vendors : initialVendorApplications;
+  return vendors;
 }
 
 async function getAdminReviews(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/reviews?status=REPORTED", { token: accessToken });
   const reviews = extractList(response).map(toReportedReview).filter(Boolean) as ReportedReview[];
-  return reviews.length ? reviews : initialReportedReviews;
+  return reviews;
+}
+
+export async function getAdminVendorReviews(accessToken: string | null) {
+
+  const response = await apiRequest<unknown>(
+    "/admin/vendor-reviews?status=PENDING",
+    {
+      token: accessToken ?? undefined
+    }
+  );
+
+  return extractList(response)
+    .map(toAdminVendorReview)
+    .filter(Boolean) as AdminVendorReview[];
+}
+
+export async function getPendingAdminMedia(accessToken?: string | null): Promise<AdminPendingMedia[]> {
+  if (useMockAdmin || !accessToken) return [];
+  const response = await apiRequest<unknown>("/admin/media/pending", { token: accessToken });
+  return extractList(response).map(toAdminPendingMedia).filter(Boolean) as AdminPendingMedia[];
+}
+
+export async function approveAdminMedia(type: AdminPendingMedia["type"], id: string, accessToken?: string | null) {
+  if (useMockAdmin || !accessToken) return;
+  await apiRequest<void>(`/admin/media/${type}/${encodeURIComponent(id)}/approve`, {
+    method: "PATCH",
+    token: accessToken
+  });
+}
+
+export async function rejectAdminMedia(
+  type: AdminPendingMedia["type"],
+  id: string,
+  accessToken?: string | null
+) {
+  if (useMockAdmin || !accessToken) return;
+
+  await apiRequest<void>(
+    `/admin/media/${type}/${encodeURIComponent(id)}/reject`,
+    {
+      method: "PATCH",
+      token: accessToken
+    }
+  );
 }
 
 async function getAdminEnquiries(accessToken: string) {
-  const response = await apiRequest<unknown>("/admin/enquiries", { token: accessToken });
-  const enquiries = extractList(response).map(toAdminEnquiry).filter(Boolean) as AdminEnquiry[];
-  return enquiries.length ? enquiries : adminEnquiries;
+  const [hallResponse, vendorResponse] = await Promise.all([
+    apiRequest<unknown>("/admin/enquiries", { token: accessToken }),
+    apiRequest<unknown>("/admin/vendor-leads", { token: accessToken })
+  ]);
+  const halls = extractList(hallResponse).map(toAdminEnquiry).filter(Boolean) as AdminEnquiry[];
+  const vendorLeads = extractList(vendorResponse).map(toAdminVendorLead).filter(Boolean) as AdminEnquiry[];
+  return [...halls, ...vendorLeads];
 }
 
 async function getAdminUsers(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/users", { token: accessToken });
   const users = extractList(response).map(toAdminUser).filter(Boolean) as AdminUser[];
-  return users.length ? users : adminUsers;
+  return users;
 }
 
 async function getAdminAuditEvents(accessToken: string) {
   const response = await apiRequest<unknown>("/admin/audit-events", { token: accessToken });
   const events = extractList(response).map(toAuditEvent).filter(Boolean) as typeof auditEvents;
-  return events.length ? events : auditEvents;
+  return events;
 }
 
 function mockResult(): AdminQueueResult {
@@ -163,6 +442,18 @@ function mockResult(): AdminQueueResult {
     users: adminUsers,
     auditEvents,
     source: "mock"
+  };
+}
+
+function emptyResult(): AdminQueueResult {
+  return {
+    venues: [],
+    vendors: [],
+    reviews: [],
+    enquiries: [],
+    users: [],
+    auditEvents: [],
+    source: "api"
   };
 }
 
@@ -190,6 +481,24 @@ function updateMockUser(id: string, status: Exclude<AdminUserStatus, "PENDING_VE
     : undefined;
 }
 
+function createMockAdminUser(payload: CreateAdminUserPayload) {
+  return {
+    id: `admin-${Date.now()}`,
+    fullName: payload.fullName,
+    phone: payload.phone,
+    email: payload.email,
+    role: payload.role,
+    status: "ACTIVE",
+    joinedAt: new Date().toISOString()
+  } satisfies AdminUser;
+}
+
+function updateMockUserRole(id: string, role: ManagedAdminRole) {
+  return adminUsers.find((user) => user.id === id)
+    ? { ...adminUsers.find((user) => user.id === id)!, role }
+    : undefined;
+}
+
 function extractList(response: unknown) {
   if (Array.isArray(response)) return response;
   if (!isRecord(response)) return [];
@@ -203,6 +512,9 @@ function toVenueApplication(value: unknown): VenueApplication | undefined {
   const id = stringValue(value, ["id", "hallId", "hall_id", "slug"]);
   const name = stringValue(value, ["name", "hallName", "hall_name", "title"]);
   if (!id || !name) return undefined;
+  const coverImageUrl = usableImageUrl(stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl", "url"])) ?? "";
+  const galleryImageUrls = imageUrlList(value, ["imageUrls", "image_urls", "galleryUrls", "gallery_urls", "gallery", "media"]);
+  const imageUrls = [coverImageUrl, ...galleryImageUrls].filter((url, index, urls) => Boolean(url) && urls.indexOf(url) === index);
 
   return {
     id,
@@ -214,9 +526,11 @@ function toVenueApplication(value: unknown): VenueApplication | undefined {
     capacity: numberValue(value, ["capacity", "capacityMax", "capacity_max"]) ?? 0,
     startingPrice: numberValue(value, ["startingPrice", "starting_price", "price"]) ?? 0,
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at", "updatedAt"]) ?? new Date().toISOString(),
-    imageUrl: stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url"]) ?? initialVenueApplications[0].imageUrl,
+    imageUrl: imageUrls[0] ?? "",
+    imageUrls,
     status: moderationStatus(value) ?? "PENDING_APPROVAL",
-    documents: documentStatus(value)
+    documents: documentStatus(value).documents,
+    documentReviewRequired: documentStatus(value).required
   };
 }
 
@@ -229,11 +543,76 @@ function toVendorApplication(value: unknown): VendorApplication | undefined {
   return {
     id,
     businessName,
-    contactName: stringValue(value, ["contactName", "contact_name", "ownerName", "owner_name"]) ?? "Vendor",
-    category: stringValue(value, ["category", "vendorCategory", "vendor_category"]) ?? "Service",
+
+    contactName:
+      stringValue(value, [
+        "contactName",
+        "contact_name",
+        "ownerName",
+        "owner_name",
+        "vendorName",
+      ]) ?? "Vendor",
+
+    category:
+      stringValue(value, [
+        "category",
+        "vendorCategory",
+        "vendor_category",
+      ]) ?? "Service",
+
     city: stringValue(value, ["city", "serviceCity"]) ?? "",
-    submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at", "updatedAt"]) ?? "",
-    status: moderationStatus(value) ?? "PENDING_APPROVAL"
+
+    submittedAt:
+      stringValue(value, [
+        "submittedAt",
+        "createdAt",
+        "created_at",
+        "updatedAt",
+      ]) ?? "",
+
+    status: moderationStatus(value) ?? "PENDING_APPROVAL",
+
+    description: stringValue(value, ["description"]),
+
+    coverImageUrl: usableImageUrl(stringValue(value, ["coverImageUrl", "cover_image_url", "imageUrl", "image_url"])),
+
+    addressLine: stringValue(value, ["addressLine", "address_line", "address"]),
+
+    area: stringValue(value, ["area", "locality"]),
+
+    pincode: stringValue(value, ["pincode"]),
+
+    phone: stringValue(value, ["contactNumber", "contact_number", "phone", "mobile"]),
+
+    whatsAppNumber: stringValue(value, ["whatsAppNumber", "whatsappNumber", "whats_app_number", "whatsapp_number"]),
+
+    instagramUrl: stringValue(value, ["instagramUrl", "instagram_url"]),
+
+    facebookUrl: stringValue(value, ["facebookUrl", "facebook_url"]),
+
+    whatsAppUrl: stringValue(value, ["whatsAppUrl", "whatsappUrl", "whatsapp_url"]),
+
+    email: stringValue(value, ["email"]),
+
+    yearsInBusiness: numberValue(value, ["yearsInBusiness"]),
+
+    serviceRadius: numberValue(value, ["serviceRadius"]),
+
+    packageName: stringValue(value, ["packageName"]),
+
+    startingPrice: numberValue(value, ["startingPrice"]),
+
+    packageDescription: stringValue(value, ["packageDescription"]),
+
+    rejectionReason: stringValue(value, ["rejectionReason"]),
+
+    services: Array.isArray(value.services)
+      ? value.services.map(String)
+      : [],
+
+    categories: Array.isArray(value.categories)
+      ? value.categories.map(String)
+      : [],
   };
 }
 
@@ -255,6 +634,56 @@ function toReportedReview(value: unknown): ReportedReview | undefined {
   };
 }
 
+function toAdminVendorReview(
+  value: unknown
+): AdminVendorReview | undefined {
+
+  if (!isRecord(value)) return undefined;
+
+  const id = stringValue(value, ["id"]);
+
+  if (!id) return undefined;
+
+  return {
+
+    id,
+
+    vendorName:
+      stringValue(value, ["vendorName"]) ?? "",
+
+    customerName:
+      stringValue(value, ["customerName"]) ?? "",
+
+    rating:
+      numberValue(value, ["rating"]) ?? 0,
+
+    comment:
+      stringValue(value, ["comment"]) ?? "",
+
+    moderationReason:
+      stringValue(value, ["moderationReason"]) ?? "",
+
+    verifiedService:
+      booleanValue(value, ["verifiedService"]) ?? true,
+
+    status:
+      stringValue(value, ["status"]) as
+      | "PENDING"
+      | "PUBLISHED"
+      | "HIDDEN"
+      | "REJECTED",
+
+    createdAt:
+      stringValue(value, ["createdAt"]) ?? "",
+
+    moderatedByAdminId:
+      numberValue(value, ["moderatedByAdminId"]),
+
+    moderatedAt:
+      stringValue(value, ["moderatedAt"]),
+  };
+}
+
 function toAdminEnquiry(value: unknown): AdminEnquiry | undefined {
   if (!isRecord(value)) return undefined;
   const id = stringValue(value, ["id", "enquiryId", "enquiry_id"]);
@@ -266,7 +695,25 @@ function toAdminEnquiry(value: unknown): AdminEnquiry | undefined {
     customerName: stringValue(value, ["customerName", "customer_name", "name"]) ?? "Customer",
     eventDate: stringValue(value, ["eventDate", "event_date"]) ?? "",
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at"]) ?? "",
-    status: enquiryStatus(value) ?? "PENDING_OWNER_RESPONSE"
+    status: enquiryStatus(value) ?? "PENDING_OWNER_RESPONSE",
+    source: "HALL"
+  };
+}
+
+function toAdminVendorLead(value: unknown): AdminEnquiry | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = stringValue(value, ["leadReference", "id"]);
+  if (!id) return undefined;
+  const leadStatus = stringValue(value, ["status"]);
+  const status: AdminEnquiry["status"] = leadStatus === "BOOKED" ? "CONFIRMED" : leadStatus === "COMPLETED" ? "COMPLETED" : leadStatus === "DECLINED" || leadStatus === "NOT_SELECTED" ? "DECLINED" : "PENDING_OWNER_RESPONSE";
+  return {
+    id,
+    hallName: stringValue(value, ["vendorName", "vendor_name"]) ?? "Vendor",
+    customerName: stringValue(value, ["customerName", "customer_name"]) ?? "Customer",
+    eventDate: stringValue(value, ["eventDate", "event_date"]) ?? "",
+    submittedAt: stringValue(value, ["createdAt", "created_at"]) ?? "",
+    status,
+    source: "VENDOR"
   };
 }
 
@@ -305,13 +752,65 @@ function toAuditEvent(value: unknown): (typeof auditEvents)[number] | undefined 
   };
 }
 
-function documentStatus(record: Record<string, unknown>): VenueApplication["documents"] {
-  const documents = isRecord(record.documents) ? record.documents : record;
+function toAdminPendingMedia(value: unknown): AdminPendingMedia | undefined {
+  if (!isRecord(value)) return undefined;
+  const type = stringValue(value, ["type"])?.toUpperCase();
+  const id = stringValue(value, ["id", "mediaId", "media_id"]);
+  const listingId = stringValue(value, ["listingId", "listing_id", "vendorId", "hallId"]);
+  const url = stringValue(value, ["url", "mediaUrl", "media_url"]);
+  if ((type !== "HALL" && type !== "VENDOR") || !id || !listingId || !url) return undefined;
   return {
-    ownership: booleanValue(documents, ["ownership", "ownershipDocument", "ownership_document"]) ?? false,
-    identity: booleanValue(documents, ["identity", "identityDocument", "identity_document"]) ?? false,
-    address: booleanValue(documents, ["address", "addressDocument", "address_document"]) ?? false
+    id,
+    type,
+    listingId,
+    listingName: stringValue(value, ["listingName", "listing_name", "vendorName", "hallName"]) ?? "Listing",
+    url,
+    isPrimary: booleanValue(value, ["isPrimary", "primary", "isCover"]) ?? false
   };
+}
+
+function documentStatus(record: Record<string, unknown>): { documents: VenueApplication["documents"]; required: boolean } {
+  const documents = isRecord(record.documents) ? record.documents : record;
+  const ownership = booleanValue(documents, ["ownership", "ownershipDocument", "ownership_document"]);
+  const identity = booleanValue(documents, ["identity", "identityDocument", "identity_document"]);
+  const address = booleanValue(documents, ["address", "addressDocument", "address_document"]);
+  const required = ownership !== undefined || identity !== undefined || address !== undefined;
+
+  if (!required) {
+    return {
+      documents: { ownership: true, identity: true, address: true },
+      required: false
+    };
+  }
+
+  return {
+    documents: {
+      ownership: ownership ?? false,
+      identity: identity ?? false,
+      address: address ?? false
+    },
+    required: true
+  };
+}
+
+function usableImageUrl(value: string | undefined) {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^(https?:|blob:|data:image\/)/i.test(trimmed) || trimmed.startsWith("/")) return trimmed;
+  return undefined;
+}
+
+function imageUrlList(record: Record<string, unknown>, keys: string[]) {
+  const candidate = keys.map((key) => record[key]).find(Array.isArray);
+  if (!Array.isArray(candidate)) return [];
+
+  return candidate
+    .map((item) => {
+      if (typeof item === "string") return usableImageUrl(item);
+      if (isRecord(item)) return usableImageUrl(stringValue(item, ["url", "imageUrl", "image_url"]));
+      return undefined;
+    })
+    .filter((url): url is string => Boolean(url));
 }
 
 function moderationStatus(record: Record<string, unknown>): ModerationStatus | undefined {
@@ -379,4 +878,25 @@ function booleanValue(record: Record<string, unknown>, keys: string[]) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export async function getAdminVendor(
+  id: string,
+  accessToken?: string | null
+): Promise<VendorApplication> {
+
+  const response = await apiRequest<unknown>(
+    `/admin/vendors/${encodeURIComponent(id)}`,
+    {
+      token: accessToken ?? undefined,
+    }
+  );
+
+  const vendor = toVendorApplication(response);
+
+  if (!vendor) {
+    throw new Error("Failed to load vendor details");
+  }
+
+  return vendor;
 }

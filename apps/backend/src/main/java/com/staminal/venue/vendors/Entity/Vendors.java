@@ -1,8 +1,17 @@
 package com.staminal.venue.vendors.Entity;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.staminal.venue.admin.Admin;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.users.Entity.User;
+
+import jakarta.persistence.FetchType;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,7 +21,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -22,6 +36,10 @@ public class Vendors {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @OneToOne
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @Column(name = "vendor_name")
     private String vendorName;
@@ -49,13 +67,45 @@ public class Vendors {
 
     private String email;
 
+    private Integer yearsInBusiness;
+
+    private Integer serviceRadius;
+
+    private String packageName;
+
+    private BigDecimal startingPrice;
+
+    /** Aggregate of published, verified customer reviews. */
+    @Column(name = "average_rating", nullable = false)
+    private double averageRating;
+
+    @Column(name = "review_count", nullable = false)
+    private int reviewCount;
+
+    private String packageDescription;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "vendor_services", joinColumns = @JoinColumn(name = "vendor_id"))
+    @Column(name = "service_name")
+    private List<String> services;
+
     @Column(name = "contact_number")
     private String contactNumber;
 
     @Column(name = "whatsapp_number")
     private String whatsAppNumber;
 
-    @Column(name="password_hash", nullable=false)
+    @Column(name = "instagram_url")
+    private String instagramUrl;
+
+    @Column(name = "facebook_url")
+    private String facebookUrl;
+
+    @Column(name = "whatsapp_url")
+    private String whatsAppUrl;
+
+    @Column(name = "password_hash", nullable = false)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -64,11 +114,97 @@ public class Vendors {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @Column(name = "pending_update_payload", columnDefinition = "text")
+    private String pendingUpdatePayload;
+
+    @OneToOne
+    @JoinColumn(name = "reviewed_by_admin_id")
+    private Admin reviewedByAdmin;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    public Integer getYearsInBusiness() {
+        return yearsInBusiness;
+    }
+
+    public void setYearsInBusiness(Integer yearsInBusiness) {
+        this.yearsInBusiness = yearsInBusiness;
+    }
+
+    public Integer getServiceRadius() {
+        return serviceRadius;
+    }
+
+    public void setServiceRadius(Integer serviceRadius) {
+        this.serviceRadius = serviceRadius;
+    }
+
+    public String getPackageName() {
+        return packageName;
+    }
+
+    public void setPackageName(String packageName) {
+        this.packageName = packageName;
+    }
+
+    public BigDecimal getStartingPrice() {
+        return startingPrice;
+    }
+
+    public void setStartingPrice(BigDecimal startingPrice) {
+        this.startingPrice = startingPrice;
+    }
+
+    public double getAverageRating() {
+        return averageRating;
+    }
+
+    public void setAverageRating(double averageRating) {
+        this.averageRating = averageRating;
+    }
+
+    public int getReviewCount() {
+        return reviewCount;
+    }
+
+    public void setReviewCount(int reviewCount) {
+        this.reviewCount = reviewCount;
+    }
+
+    public String getPackageDescription() {
+        return packageDescription;
+    }
+
+    public void setPackageDescription(String packageDescription) {
+        this.packageDescription = packageDescription;
+    }
+
+    public List<String> getServices() {
+        return services;
+    }
+
+    public void setServices(List<String> services) {
+        this.services = services;
+    }
 
     @ManyToMany
     @JoinTable(name = "vendor_category_mapping", joinColumns = @JoinColumn(name = "vendor_id"), inverseJoinColumns = @JoinColumn(name = "category_id"))
@@ -80,6 +216,26 @@ public class Vendors {
 
     public void setRejectionReason(String rejectionReason) {
         this.rejectionReason = rejectionReason;
+    }
+
+    public String getPendingUpdatePayload() { return pendingUpdatePayload; }
+
+    public void setPendingUpdatePayload(String pendingUpdatePayload) { this.pendingUpdatePayload = pendingUpdatePayload; }
+
+    public Admin getReviewedByAdmin() {
+        return reviewedByAdmin;
+    }
+
+    public void setReviewedByAdmin(Admin reviewedByAdmin) {
+        this.reviewedByAdmin = reviewedByAdmin;
+    }
+
+    public Instant getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(Instant reviewedAt) {
+        this.reviewedAt = reviewedAt;
     }
 
     public Long getId() {
@@ -186,6 +342,30 @@ public class Vendors {
         this.whatsAppNumber = whatsAppNumber;
     }
 
+    public String getInstagramUrl() {
+        return instagramUrl;
+    }
+
+    public void setInstagramUrl(String instagramUrl) {
+        this.instagramUrl = instagramUrl;
+    }
+
+    public String getFacebookUrl() {
+        return facebookUrl;
+    }
+
+    public void setFacebookUrl(String facebookUrl) {
+        this.facebookUrl = facebookUrl;
+    }
+
+    public String getWhatsAppUrl() {
+        return whatsAppUrl;
+    }
+
+    public void setWhatsAppUrl(String whatsAppUrl) {
+        this.whatsAppUrl = whatsAppUrl;
+    }
+
     public VendorStatus getStatus() {
         return status;
     }
@@ -234,6 +414,12 @@ public class Vendors {
         this.passwordHash = passwordHash;
     }
 
-    
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 
 }

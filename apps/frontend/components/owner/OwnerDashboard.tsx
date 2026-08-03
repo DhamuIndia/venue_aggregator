@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   CreditCard,
   Eye,
@@ -22,8 +23,10 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { NotificationActivity, NotificationBell } from "@/components/notifications/NotificationCenter";
+import { NotificationActivity } from "@/components/notifications/NotificationCenter";
+import { formatGuestCapacityOption, formatGuestCount, guestCapacityOptions, toTitleCase } from "@/lib/display-format";
 import { fallbackOwnerAnalytics, getOwnerAnalytics, type OwnerAnalytics } from "@/features/analytics/analytics-client";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -37,6 +40,7 @@ import {
 } from "@/features/bookings/booking-client";
 import { getOwnerHallEnquiries, updateOwnerEnquiryStatus } from "@/features/enquiries/enquiry-client";
 import type { EnquiryStatus, StoredEnquiry } from "@/features/enquiries/types";
+import { formatSlot } from "@/features/halls/slot-model";
 import {
   createOwnerBlockedDate,
   deleteOwnerBlockedDate,
@@ -49,12 +53,14 @@ import {
   getOwnerHallListing,
   submitOwnerHallListing,
   updateOwnerHallListing,
+  getOwnerHalls,
   type OwnerHallListing,
   type OwnerHallUpdatePayload,
   type OwnerListingStatus
 } from "@/features/owner/listing-client";
 import {
   deleteOwnerMedia,
+  getOwnerMedia,
   getLocalOwnerMedia,
   mediaFromListing,
   updateOwnerMedia,
@@ -116,11 +122,27 @@ const ownerListingFallback: OwnerHallListing = {
   status: "APPROVED"
 };
 
+const useOwnerDemoFallbacks = process.env.NEXT_PUBLIC_AUTH_MODE !== "api";
+const useOwnerListingDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_OWNER_LISTINGS_MODE === "mock";
+const useOwnerEnquiryDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_ENQUIRIES_MODE === "mock";
+const useOwnerBookingDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_BOOKINGS_MODE === "mock";
+const useOwnerAvailabilityDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_AVAILABILITY_MODE === "mock";
+const useOwnerReviewDemoFallback = useOwnerDemoFallbacks || process.env.NEXT_PUBLIC_OWNER_REVIEWS_MODE === "mock";
+
+const OWNER_ONBOARDING_DRAFT_KEY = "venue-owner-onboarding-draft";
+const LEGACY_OWNER_ONBOARDING_DRAFT_KEY = "venue-owner-onboarding";
+const OWNER_LISTINGS_KEY = "venue-aggregator-owner-listings";
+
 type ListingForm = {
   name: string;
   venueType: VenueType;
+  addressLine: string;
+  contactNumber: string;
   city: string;
   area: string;
+  pincode: string;
+  latitude: string;
+  longitude: string;
   capacity: string;
   startingPrice: string;
   amenities: string[];
@@ -147,12 +169,22 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`));
 }
 
-function formatSlot(value: string) {
-  return value.toLowerCase().replace("_", " ");
-}
-
 function formatCompactMoney(value: number) {
   return `INR ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, notation: "compact" }).format(value)}`;
+}
+
+function emptyOwnerAnalytics(): OwnerAnalytics {
+  return {
+    enquiries: 0,
+    confirmedBookings: 0,
+    completedBookings: 0,
+    estimatedRevenue: 0,
+    conversionRate: 0,
+    averageRating: 0,
+    occupancyRate: 0,
+    trends: [],
+    eventMix: []
+  };
 }
 
 function bookingFromEnquiry(enquiry: StoredEnquiry): AvailabilityBooking {
@@ -182,8 +214,13 @@ function formFromListing(listing: OwnerHallListing): ListingForm {
   return {
     name: listing.name,
     venueType: listing.venueType,
+    addressLine: listing.addressLine ?? "",
+    contactNumber: listing.contactNumber ?? "",
     city: listing.city,
     area: listing.area,
+    pincode: listing.pincode ?? "",
+    latitude: listing.latitude ? String(listing.latitude) : "",
+    longitude: listing.longitude ? String(listing.longitude) : "",
     capacity: String(listing.capacity || ""),
     startingPrice: String(listing.startingPrice || ""),
     amenities: listing.amenities,
@@ -191,12 +228,23 @@ function formFromListing(listing: OwnerHallListing): ListingForm {
   };
 }
 
-function payloadFromForm(form: ListingForm): OwnerHallUpdatePayload {
+function currentCoverImageUrl(listing: OwnerHallListing, media: OwnerMediaItem[]) {
+  const coverMedia = media.find((item) => item.isCover) ?? media[0];
+  return coverMedia?.url || listing.imageUrl || listing.galleryUrls[0] || "";
+}
+
+function payloadFromForm(form: ListingForm, coverImageUrl: string): OwnerHallUpdatePayload {
   return {
     name: form.name.trim(),
     venueType: form.venueType,
+    addressLine: form.addressLine.trim(),
+    contactNumber: form.contactNumber.trim(),
+    coverImageUrl,
     city: form.city.trim(),
     area: form.area.trim(),
+    pincode: form.pincode.trim(),
+    latitude: parseCoordinate(form.latitude),
+    longitude: parseCoordinate(form.longitude),
     capacity: Number(form.capacity),
     startingPrice: Number(form.startingPrice),
     amenities: form.amenities,
@@ -204,13 +252,153 @@ function payloadFromForm(form: ListingForm): OwnerHallUpdatePayload {
   };
 }
 
-function validateListingForm(form: ListingForm) {
-  if (!form.name.trim() || !form.area.trim() || !form.city.trim()) return "Enter venue name, city, and area.";
+function validateListingForm(form: ListingForm, coverImageUrl: string) {
+  if (!form.name.trim() || !form.addressLine.trim() || !form.contactNumber.trim() || !form.area.trim() || !form.city.trim() || !form.pincode.trim() || !hasCapturedListingLocation(form)) return "Enter venue name, address, contact number, city, area, pincode, and location coordinates.";
   if (!form.capacity || Number(form.capacity) < 1) return "Enter a valid guest capacity.";
   if (!form.startingPrice || Number(form.startingPrice) < 1) return "Enter a valid starting price.";
+  if (!coverImageUrl) return "Add a cover image from the Media tab.";
   if (form.amenities.length === 0) return "Select at least one amenity.";
   if (form.description.trim().length < 20) return "Add a short description with at least 20 characters.";
   return "";
+}
+
+function hasCapturedListingLocation(form: ListingForm) {
+  return parseCoordinate(form.latitude) !== undefined && parseCoordinate(form.longitude) !== undefined;
+}
+
+function googleMapsUrl(latitude: string, longitude: string) {
+  return `https://www.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}`;
+}
+
+function parseCoordinate(value: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function preferredOwnerHallId() {
+  if (typeof window === "undefined") return useOwnerListingDemoFallback ? ownerHall.id : "new";
+
+  const queryHallId = new URLSearchParams(window.location.search).get("hallId");
+  if (queryHallId) return queryHallId;
+
+  const draft = readLocalRecord(OWNER_ONBOARDING_DRAFT_KEY) ?? readLocalRecord(LEGACY_OWNER_ONBOARDING_DRAFT_KEY);
+  const draftId = stringValue(draft, ["id", "hallId", "hall_id", "slug"]);
+  if (draftId) return draftId;
+
+  const listings = readLocalRecord(OWNER_LISTINGS_KEY);
+  const firstListingId = listings ? Object.keys(listings).find(Boolean) : undefined;
+  return firstListingId ?? (useOwnerListingDemoFallback ? ownerHall.id : "new");
+}
+
+function blankListingForHall(hallId: string): OwnerHallListing {
+  return {
+    id: hallId,
+    name: "Your venue",
+    city: "",
+    area: "",
+    pincode: "",
+    capacity: 0,
+    startingPrice: 0,
+    rating: 0,
+    reviewCount: 0,
+    imageUrl: "",
+    galleryUrls: [],
+    venueType: "Marriage Hall",
+    amenities: [],
+    isVerified: false,
+    availableThisMonth: false,
+    description: "",
+    status: "DRAFT"
+  };
+}
+
+function fallbackListingForHall(hallId: string): OwnerHallListing {
+  const baseListing = useOwnerListingDemoFallback ? { ...ownerListingFallback, id: hallId } : blankListingForHall(hallId);
+  const draft = readLocalRecord(OWNER_ONBOARDING_DRAFT_KEY) ?? readLocalRecord(LEGACY_OWNER_ONBOARDING_DRAFT_KEY);
+  if (!draft || stringValue(draft, ["id", "hallId", "hall_id", "slug"]) !== hallId) {
+    return baseListing;
+  }
+
+  const amenities = Array.isArray(draft.amenities)
+    ? draft.amenities.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : baseListing.amenities;
+  const coverImageUrl = stringValue(draft, ["coverImageUrl", "cover_image_url", "imageUrl"]) ?? baseListing.imageUrl;
+
+  return {
+    ...baseListing,
+    id: hallId,
+    name: stringValue(draft, ["hallName", "name", "title"]) ?? baseListing.name,
+    city: stringValue(draft, ["city"]) ?? baseListing.city,
+    area: stringValue(draft, ["area", "locality", "location"]) ?? baseListing.area,
+    pincode: stringValue(draft, ["pincode", "pinCode", "postalCode"]) ?? baseListing.pincode,
+    latitude: numberValue(draft, ["latitude", "lat"]) ?? baseListing.latitude,
+    longitude: numberValue(draft, ["longitude", "lng", "lon"]) ?? baseListing.longitude,
+    capacity: numberValue(draft, ["capacity", "capacityMax", "capacity_max"]) ?? baseListing.capacity,
+    startingPrice: numberValue(draft, ["fullDayPrice", "full_day_price", "startingPrice", "amount"]) ?? baseListing.startingPrice,
+    imageUrl: coverImageUrl,
+    galleryUrls: coverImageUrl ? [coverImageUrl] : baseListing.galleryUrls,
+    venueType: venueTypeFromDraft(draft) ?? baseListing.venueType,
+    amenities,
+    description: stringValue(draft, ["description", "summary"]) ?? baseListing.description,
+    status: statusFromDraft(draft) ?? "DRAFT",
+    isVerified: false
+  };
+}
+
+function readLocalRecord(key: string) {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "null") as unknown;
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function venueTypeFromDraft(record: Record<string, unknown>): VenueType | undefined {
+  const value = stringValue(record, ["venueType", "venue_type", "hallType", "type"]);
+  if (!value) return undefined;
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized === "MARRIAGE_HALL") return "Marriage Hall";
+  if (normalized === "BANQUET_HALL") return "Banquet Hall";
+  if (normalized === "MINI_HALL") return "Mini Hall";
+  if (normalized === "CONVENTION_CENTRE" || normalized === "CONVENTION_CENTER") return "Convention Centre";
+  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall" || value === "Convention Centre") return value;
+  return undefined;
+}
+
+function statusFromDraft(record: Record<string, unknown>): OwnerListingStatus | undefined {
+  const value = stringValue(record, ["status", "listingStatus", "listing_status", "approvalStatus"]);
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === "DRAFT") return "DRAFT";
+  if (normalized === "PENDING" || normalized === "PENDING_APPROVAL" || normalized === "SUBMITTED") return "PENDING_APPROVAL";
+  if (normalized === "APPROVED") return "APPROVED";
+  if (normalized === "REJECTED") return "REJECTED";
+  return undefined;
+}
+
+function stringValue(record: Record<string, unknown> | undefined, keys: string[]) {
+  if (!record) return undefined;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number") return String(value);
+  }
+  return undefined;
+}
+
+function numberValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number") return value;
+    if (typeof value === "string" && value.trim() && !Number.isNaN(Number(value))) return Number(value);
+  }
+  return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function normalizeMediaCover(media: OwnerMediaItem[]) {
@@ -232,43 +420,57 @@ function reviewCounts(reviews: OwnerReview[]) {
 
 export function OwnerDashboard() {
   const { accessToken } = useAuth();
+  const router = useRouter();
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
   const [activeTab, setActiveTab] = useState<OwnerTab>("overview");
-  const [listing, setListing] = useState<OwnerHallListing>(ownerListingFallback);
-  const [listingForm, setListingForm] = useState<ListingForm>(() => formFromListing(ownerListingFallback));
+  const [activeHallId, setActiveHallId] = useState(() => preferredOwnerHallId());
+  const [listing, setListing] = useState<OwnerHallListing>(() => fallbackListingForHall(preferredOwnerHallId()));
+  const [listingForm, setListingForm] = useState<ListingForm>(() => formFromListing(fallbackListingForHall(preferredOwnerHallId())));
   const [isLoadingListing, setIsLoadingListing] = useState(true);
   const [listingError, setListingError] = useState("");
   const [isSavingListing, setIsSavingListing] = useState(false);
   const [isSubmittingListing, setIsSubmittingListing] = useState(false);
-  const [enquiries, setEnquiries] = useState<StoredEnquiry[]>(fallbackOwnerEnquiries);
+  const [isCapturingListingLocation, setIsCapturingListingLocation] = useState(false);
+  const [enquiries, setEnquiries] = useState<StoredEnquiry[]>(() => useOwnerEnquiryDemoFallback ? fallbackOwnerEnquiries : []);
   const [isLoadingEnquiries, setIsLoadingEnquiries] = useState(true);
   const [enquiriesError, setEnquiriesError] = useState("");
   const [updatingEnquiryId, setUpdatingEnquiryId] = useState<string | null>(null);
-  const [bookings, setBookings] = useState<BookingItem[]>(() => fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
+  const [bookings, setBookings] = useState<BookingItem[]>(() => useOwnerBookingDemoFallback ? fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry) : []);
   const [isLoadingBookings, setIsLoadingBookings] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
-  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>(initialBlockedDates);
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>(() => useOwnerAvailabilityDemoFallback ? initialBlockedDates : []);
   const [availabilityBookings, setAvailabilityBookings] = useState<AvailabilityBooking[]>([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
   const [availabilityError, setAvailabilityError] = useState("");
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [selectedBlockDate, setSelectedBlockDate] = useState("");
   const [notice, setNotice] = useState("");
-  const [media, setMedia] = useState<OwnerMediaItem[]>(() => mediaFromListing(ownerListingFallback));
+  const [media, setMedia] = useState<OwnerMediaItem[]>(() => mediaFromListing(fallbackListingForHall(preferredOwnerHallId())));
   const [mediaError, setMediaError] = useState("");
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [updatingMediaId, setUpdatingMediaId] = useState<string | null>(null);
-  const [reviews, setReviews] = useState<OwnerReview[]>(ownerReviews);
-  const [averageRating, setAverageRating] = useState(ownerHall.rating);
-  const [totalReviews, setTotalReviews] = useState(ownerHall.reviewCount);
+  const [reviews, setReviews] = useState<OwnerReview[]>(() => useOwnerReviewDemoFallback ? ownerReviews : []);
+  const [averageRating, setAverageRating] = useState(useOwnerReviewDemoFallback ? ownerHall.rating : 0);
+  const [totalReviews, setTotalReviews] = useState(useOwnerReviewDemoFallback ? ownerHall.reviewCount : 0);
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [reviewsError, setReviewsError] = useState("");
-  const [analytics, setAnalytics] = useState<OwnerAnalytics>(fallbackOwnerAnalytics);
+  const [analytics, setAnalytics] = useState<OwnerAnalytics>(() => useOwnerDemoFallbacks ? fallbackOwnerAnalytics : emptyOwnerAnalytics());
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
   const [analyticsError, setAnalyticsError] = useState("");
+  const [expandedEnquiryId, setExpandedEnquiryId] = useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  }); const monthKey = `${currentMonth.getFullYear()}-${String(
+    currentMonth.getMonth() + 1
+  ).padStart(2, "0")}`;
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("submitted") === "true") setNotice("Your venue was submitted for admin approval.");
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("submitted") === "true") setNotice("Your venue was submitted for admin approval.");
+    setActiveHallId(preferredOwnerHallId());
   }, []);
 
   useEffect(() => {
@@ -279,12 +481,12 @@ export function OwnerDashboard() {
       setAnalyticsError("");
 
       try {
-        const response = await getOwnerAnalytics(ownerHall.id, accessToken);
+        const response = await getOwnerAnalytics(activeHallId, accessToken);
         if (!isCurrent) return;
         setAnalytics(response);
       } catch {
         if (!isCurrent) return;
-        setAnalytics(fallbackOwnerAnalytics);
+        setAnalytics(useOwnerDemoFallbacks ? fallbackOwnerAnalytics : emptyOwnerAnalytics());
         setAnalyticsError("Could not load latest reports.");
       } finally {
         if (isCurrent) setIsLoadingAnalytics(false);
@@ -296,7 +498,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -306,16 +508,20 @@ export function OwnerDashboard() {
       setListingError("");
 
       try {
-        const response = await getOwnerHallListing(ownerHall.id, accessToken, ownerListingFallback);
+        const fallbackListing = fallbackListingForHall(activeHallId);
+        const response = await getOwnerHallListing(activeHallId, accessToken, fallbackListing);
+        const loadedMedia = await getOwnerMedia(response.id, accessToken, mediaFromListing(response));
         if (!isCurrent) return;
         setListing(response);
+        setActiveHallId(response.id);
         setListingForm(formFromListing(response));
-        setMedia(getLocalOwnerMedia(response.id, mediaFromListing(response)));
+        setMedia(loadedMedia);
       } catch {
         if (!isCurrent) return;
-        setListing(ownerListingFallback);
-        setListingForm(formFromListing(ownerListingFallback));
-        setMedia(getLocalOwnerMedia(ownerListingFallback.id, mediaFromListing(ownerListingFallback)));
+        const fallbackListing = fallbackListingForHall(activeHallId);
+        setListing(fallbackListing);
+        setListingForm(formFromListing(fallbackListing));
+        setMedia(getLocalOwnerMedia(fallbackListing.id, mediaFromListing(fallbackListing)));
         setListingError("Could not load latest listing details.");
       } finally {
         if (isCurrent) setIsLoadingListing(false);
@@ -327,7 +533,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -337,15 +543,15 @@ export function OwnerDashboard() {
       setBookingsError("");
 
       try {
-        const fallbackBookings = fallbackOwnerEnquiries
+        const fallbackBookings = (useOwnerBookingDemoFallback ? fallbackOwnerEnquiries : [])
           .filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED")
           .map(lifecycleBookingFromEnquiry);
-        const response = await getOwnerBookings(ownerHall.id, accessToken, fallbackBookings);
+        const response = await getOwnerBookings(activeHallId, accessToken, fallbackBookings);
         if (!isCurrent) return;
         setBookings(response.bookings);
       } catch {
         if (!isCurrent) return;
-        setBookings(fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
+        setBookings((useOwnerBookingDemoFallback ? fallbackOwnerEnquiries : []).filter((enquiry) => enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED").map(lifecycleBookingFromEnquiry));
         setBookingsError("Could not load latest bookings.");
       } finally {
         if (isCurrent) setIsLoadingBookings(false);
@@ -357,7 +563,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -367,17 +573,17 @@ export function OwnerDashboard() {
       setEnquiriesError("");
 
       try {
-        const response = await getOwnerHallEnquiries(ownerHall.id, ownerHall.name, accessToken);
+        const response = await getOwnerHallEnquiries(activeHallId, listing.name, accessToken);
         if (!isCurrent) return;
 
         const loadedIds = new Set(response.enquiries.map((enquiry) => enquiry.id));
-        setEnquiries(response.source === "api" ? response.enquiries : [
+        setEnquiries(response.source === "api" || !useOwnerEnquiryDemoFallback ? response.enquiries : [
           ...response.enquiries,
           ...fallbackOwnerEnquiries.filter((enquiry) => !loadedIds.has(enquiry.id))
         ]);
       } catch {
         if (!isCurrent) return;
-        setEnquiries(fallbackOwnerEnquiries);
+        setEnquiries(useOwnerEnquiryDemoFallback ? fallbackOwnerEnquiries : []);
         setEnquiriesError("Could not load latest owner enquiries.");
       } finally {
         if (isCurrent) setIsLoadingEnquiries(false);
@@ -389,7 +595,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId, listing.name]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -399,18 +605,18 @@ export function OwnerDashboard() {
       setAvailabilityError("");
 
       try {
-        const fallbackBookings = fallbackOwnerEnquiries
+        const fallbackBookings = (useOwnerAvailabilityDemoFallback ? fallbackOwnerEnquiries : [])
           .filter((enquiry) => enquiry.status === "CONFIRMED")
           .map(bookingFromEnquiry);
-        const response = await getOwnerAvailability(ownerHall.id, accessToken, initialBlockedDates, fallbackBookings);
+        const response = await getOwnerAvailability(activeHallId, accessToken, useOwnerAvailabilityDemoFallback ? initialBlockedDates : [], fallbackBookings);
         if (!isCurrent) return;
 
         setBlockedDates(response.blockedDates);
         setAvailabilityBookings(response.bookings);
       } catch {
         if (!isCurrent) return;
-        setBlockedDates(initialBlockedDates);
-        setAvailabilityBookings(fallbackOwnerEnquiries.filter((enquiry) => enquiry.status === "CONFIRMED").map(bookingFromEnquiry));
+        setBlockedDates(useOwnerAvailabilityDemoFallback ? initialBlockedDates : []);
+        setAvailabilityBookings((useOwnerAvailabilityDemoFallback ? fallbackOwnerEnquiries : []).filter((enquiry) => enquiry.status === "CONFIRMED").map(bookingFromEnquiry));
         setAvailabilityError("Could not load latest availability.");
       } finally {
         if (isCurrent) setIsLoadingAvailability(false);
@@ -422,7 +628,7 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -432,16 +638,16 @@ export function OwnerDashboard() {
       setReviewsError("");
 
       try {
-        const response = await getOwnerHallReviews(ownerHall.id, accessToken, ownerReviews);
+        const response = await getOwnerHallReviews(activeHallId, accessToken, useOwnerReviewDemoFallback ? ownerReviews : []);
         if (!isCurrent) return;
         setReviews(response.reviews);
-        setAverageRating(response.averageRating || ownerHall.rating);
+        setAverageRating(response.averageRating || (useOwnerReviewDemoFallback ? ownerHall.rating : 0));
         setTotalReviews(response.totalReviews || response.reviews.length);
       } catch {
         if (!isCurrent) return;
-        setReviews(ownerReviews);
-        setAverageRating(ownerHall.rating);
-        setTotalReviews(ownerHall.reviewCount);
+        setReviews(useOwnerReviewDemoFallback ? ownerReviews : []);
+        setAverageRating(useOwnerReviewDemoFallback ? ownerHall.rating : 0);
+        setTotalReviews(useOwnerReviewDemoFallback ? ownerHall.reviewCount : 0);
         setReviewsError("Could not load latest reviews.");
       } finally {
         if (isCurrent) setIsLoadingReviews(false);
@@ -453,11 +659,50 @@ export function OwnerDashboard() {
     return () => {
       isCurrent = false;
     };
-  }, [accessToken]);
+  }, [accessToken, activeHallId]);
+
+  useEffect(() => {
+    async function loadOwnerHall() {
+      if (!accessToken) return;
+      try {
+        const halls = await getOwnerHalls(accessToken);
+        if (halls.length === 0) {
+          router.replace("/owner/onboarding");
+          return;
+        }
+        setActiveHallId(String(halls[0].id));
+      } catch {
+        // Do not redirect a valid owner because of a temporary API failure.
+      } finally {
+        setIsCheckingOnboarding(false);
+      }
+    }
+
+    loadOwnerHall();
+  }, [accessToken, router]);
 
   const pendingCount = enquiries.filter((enquiry) => enquiry.status === "NEW" || enquiry.status === "PENDING_OWNER_RESPONSE").length;
   const activeBookingCount = bookings.filter((booking) => booking.status === "REQUESTED" || booking.status === "CONFIRMED").length;
   const confirmedCount = bookings.filter((booking) => booking.status === "CONFIRMED").length;
+  const listingViews = useOwnerDemoFallbacks ? "1,284" : "0";
+  const listingHealthChecks = [
+    Boolean(listing.name.trim() && listing.city.trim() && listing.area.trim() && listing.description.trim()),
+    Boolean(listing.capacity > 0 && listing.startingPrice > 0 && listing.amenities.length > 0),
+    Boolean(media.length >= 3 || listing.galleryUrls.length >= 3)
+  ];
+  const listingHealthScore = Math.round((listingHealthChecks.filter(Boolean).length / listingHealthChecks.length) * 100);
+  const listingHealthItems = [
+    { label: "Profile information complete", complete: listingHealthChecks[0] },
+    { label: "Pricing and amenities added", complete: listingHealthChecks[1] },
+    { label: "Add 3 or more gallery photos", complete: listingHealthChecks[2] }
+  ];
+  const listingCapacityOptions = useMemo(() => {
+    const currentCapacity = Number(listingForm.capacity);
+    if (currentCapacity > 0 && !guestCapacityOptions.includes(currentCapacity)) {
+      return [currentCapacity, ...guestCapacityOptions].sort((first, second) => first - second);
+    }
+    return guestCapacityOptions;
+  }, [listingForm.capacity]);
   const confirmedBookings = useMemo(() => {
     const bookingMap = new Map<string, AvailabilityBooking>();
     availabilityBookings.forEach((booking) => bookingMap.set(booking.enquiryId ?? booking.id, booking));
@@ -473,8 +718,13 @@ export function OwnerDashboard() {
       });
     return Array.from(bookingMap.values()).sort((first, second) => first.eventDate.localeCompare(second.eventDate));
   }, [availabilityBookings, bookings, enquiries]);
-  const confirmedDays = useMemo(() => new Set(confirmedBookings.filter((booking) => booking.eventDate.startsWith("2026-07")).map((booking) => Number(booking.eventDate.slice(-2)))), [confirmedBookings]);
-  const blockedDays = new Set(blockedDates.filter((date) => date.date.startsWith("2026-07")).map((date) => Number(date.date.slice(-2))));
+  const confirmedDays = useMemo(() => new Set(confirmedBookings.filter((booking) => booking.eventDate.startsWith(monthKey)).map((booking) => Number(booking.eventDate.slice(-2)))), [confirmedBookings, monthKey]);
+  const blockedDays = new Set(blockedDates.filter((date) => date.date.startsWith(monthKey)).map((date) => Number(date.date.slice(-2))));
+  const daysInMonth = new Date(
+    currentMonth.getFullYear(),
+    currentMonth.getMonth() + 1,
+    0
+  ).getDate();
 
   async function respondToEnquiry(id: string, status: EnquiryStatus) {
     const currentEnquiry = enquiries.find((enquiry) => enquiry.id === id);
@@ -489,9 +739,15 @@ export function OwnerDashboard() {
       }
       const confirmedEnquiry = updated ?? currentEnquiry;
       if (status === "CONFIRMED" && confirmedEnquiry) {
-        const booking = upsertLocalBooking(lifecycleBookingFromEnquiry({ ...confirmedEnquiry, status: "CONFIRMED" }));
-        setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
-        setAvailabilityBookings((current) => [availabilityBookingFromLifecycle(booking), ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+        // const booking = upsertLocalBooking(lifecycleBookingFromEnquiry({ ...confirmedEnquiry, status: "CONFIRMED" }));
+        // setBookings((current) => [booking, ...current.filter((item) => item.id !== booking.id && item.enquiryId !== booking.enquiryId)]);
+        const bookings = await getOwnerBookings(activeHallId, accessToken);
+
+        setBookings(bookings.bookings);
+
+        setAvailabilityBookings(
+          bookings.bookings.map(availabilityBookingFromLifecycle)
+        );
       }
       setNotice(status === "CONFIRMED" ? "Enquiry confirmed and booking created." : "Enquiry declined and the customer status was updated.");
     } catch (exception) {
@@ -528,7 +784,7 @@ export function OwnerDashboard() {
 
   async function addBlockedDate(date: BlockDatePayload) {
     try {
-      const blockedDate = await createOwnerBlockedDate(ownerHall.id, date, accessToken);
+      const blockedDate = await createOwnerBlockedDate(activeHallId, date, accessToken);
       setBlockedDates((current) => [blockedDate, ...current.filter((item) => item.id !== blockedDate.id)]);
       setNotice("The selected date and slot are now blocked.");
     } catch (exception) {
@@ -544,7 +800,7 @@ export function OwnerDashboard() {
     try {
       setDeletingBlockId(blockId);
       setBlockedDates((current) => current.filter((item) => item.id !== blockId));
-      await deleteOwnerBlockedDate(ownerHall.id, blockId, accessToken);
+      await deleteOwnerBlockedDate(activeHallId, blockId, accessToken);
       setNotice("Blocked date removed.");
     } catch (exception) {
       setBlockedDates(previousBlockedDates);
@@ -559,6 +815,34 @@ export function OwnerDashboard() {
     setListingError("");
   }
 
+  function captureListingLocation() {
+    if (!navigator.geolocation) {
+      setListingError("Location capture is not supported in this browser.");
+      return;
+    }
+
+    setListingError("");
+    setNotice("");
+    setIsCapturingListingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setListingForm((current) => ({
+          ...current,
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6)
+        }));
+        setNotice("Location captured. Please confirm the pin belongs to the venue.");
+        setIsCapturingListingLocation(false);
+      },
+      () => {
+        setListingError("Could not capture location. Allow browser location access or enter latitude and longitude manually.");
+        setIsCapturingListingLocation(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+  }
+
   function toggleListingAmenity(amenity: string) {
     setListingForm((current) => ({
       ...current,
@@ -570,7 +854,12 @@ export function OwnerDashboard() {
   }
 
   async function saveListingDraft() {
-    const validationMessage = validateListingForm(listingForm);
+    if (listing.status === "PENDING_APPROVAL" || listing.pendingUpdate) {
+      return;
+    }
+
+    const coverImageUrl = currentCoverImageUrl(listing, media);
+    const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
       setListingError(validationMessage);
       return;
@@ -579,7 +868,7 @@ export function OwnerDashboard() {
     try {
       setIsSavingListing(true);
       setListingError("");
-      const saved = await updateOwnerHallListing(ownerHall.id, payloadFromForm(listingForm), accessToken, listing);
+      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm, coverImageUrl), accessToken, listing);
       setListing(saved);
       setListingForm(formFromListing(saved));
       setNotice("Listing draft saved.");
@@ -591,7 +880,12 @@ export function OwnerDashboard() {
   }
 
   async function submitListingForApproval() {
-    const validationMessage = validateListingForm(listingForm);
+    if (listing.status === "PENDING_APPROVAL" || listing.pendingUpdate) {
+      return;
+    }
+
+    const coverImageUrl = currentCoverImageUrl(listing, media);
+    const validationMessage = validateListingForm(listingForm, coverImageUrl);
     if (validationMessage) {
       setListingError(validationMessage);
       return;
@@ -600,8 +894,8 @@ export function OwnerDashboard() {
     try {
       setIsSubmittingListing(true);
       setListingError("");
-      const saved = await updateOwnerHallListing(ownerHall.id, payloadFromForm(listingForm), accessToken, listing);
-      const submitted = await submitOwnerHallListing(ownerHall.id, accessToken, saved);
+      const saved = await updateOwnerHallListing(listing.id, payloadFromForm(listingForm, coverImageUrl), accessToken, listing);
+      const submitted = await submitOwnerHallListing(listing.id, accessToken, saved);
       setListing(submitted);
       setListingForm(formFromListing(submitted));
       setNotice("Listing submitted for admin approval.");
@@ -679,12 +973,19 @@ export function OwnerDashboard() {
     }
   }
 
+  const isListingPublic = listing.status === "APPROVED";
+  const areListingActionsLocked = listing.status === "PENDING_APPROVAL" || listing.pendingUpdate;
+
+  if (isCheckingOnboarding) {
+    return <div className="grid min-h-[60vh] place-items-center"><LoaderCircle className="animate-spin text-primary" size={28} /></div>;
+  }
+
   return (
     <>
       <main className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div><div className="flex items-center gap-2 text-sm font-semibold text-primary"><BadgeCheck size={17} /> Owner workspace</div><h1 className="mt-2 text-3xl font-semibold">{listing.name}</h1><p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listing.area}, {listing.city}</p></div>
-          <div className="flex flex-wrap items-center gap-2"><NotificationBell /><Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link><Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
+          <div className="flex flex-wrap items-center gap-2">{isListingPublic ? <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:border-primary" href={`/halls/${listing.id}`}><Eye size={17} /> Public listing</Link> : <button className="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium text-muted-foreground" disabled type="button"><Eye size={17} /> Awaiting approval</button>}<Link className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-3 text-sm font-medium text-white" href="/owner/onboarding"><Plus size={17} /> Add venue</Link></div>
         </div>
 
         {notice && <div className="mt-6 flex items-start justify-between gap-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><span className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 shrink-0" size={18} />{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice("")}><X size={17} /></button></div>}
@@ -693,7 +994,79 @@ export function OwnerDashboard() {
           {tabs.map((tab) => <button aria-selected={activeTab === tab.id} className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${activeTab === tab.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}{tab.id === "enquiries" && pendingCount > 0 && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{pendingCount}</span>}{tab.id === "bookings" && activeBookingCount > 0 && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">{activeBookingCount}</span>}</button>)}
         </div>
 
-        {activeTab === "overview" && <section className="py-7"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-lg border border-border bg-white p-5"><MessageSquareText className="text-blue-600" size={21} /><p className="mt-5 text-2xl font-semibold">{pendingCount}</p><p className="mt-1 text-sm text-muted-foreground">New enquiries</p></div><div className="rounded-lg border border-border bg-white p-5"><CalendarDays className="text-primary" size={21} /><p className="mt-5 text-2xl font-semibold">{confirmedCount}</p><p className="mt-1 text-sm text-muted-foreground">Confirmed events</p></div><div className="rounded-lg border border-border bg-white p-5"><Eye className="text-violet-600" size={21} /><p className="mt-5 text-2xl font-semibold">1,284</p><p className="mt-1 text-sm text-muted-foreground">Listing views</p></div><div className="rounded-lg border border-border bg-white p-5"><Star className="text-amber-500" size={21} /><p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p><p className="mt-1 text-sm text-muted-foreground">Average rating</p></div></div><div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]"><section><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Recent enquiries</h2><button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button></div><div className="mt-4 grid gap-3">{enquiries.slice(0, 3).map((enquiry) => <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}><span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span><span className="min-w-0 flex-1"><strong className="block">{enquiry.eventType}</strong><span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span></span><span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span><ChevronRight size={18} /></button>)}</div></section><section><h2 className="text-xl font-semibold">Listing health</h2><div className="mt-4 rounded-lg border border-border bg-white p-5"><div className="flex items-center justify-between"><span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}><BadgeCheck size={17} /> {formatListingStatus(listing.status)}</span><span className="text-sm font-semibold">92%</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[92%] bg-primary" /></div><div className="mt-5 grid gap-3 text-sm"><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Profile information complete</p><p className="flex items-center gap-2"><Check className="text-emerald-700" size={16} /> Pricing and amenities added</p><p className="flex items-center gap-2 text-amber-700"><ImagePlus size={16} /> Add 3 more gallery photos</p></div><button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button></div></section></div></section>}
+        {activeTab === "overview" && (
+          <section className="py-7">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-border bg-white p-5">
+                <MessageSquareText className="text-blue-600" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{pendingCount}</p>
+                <p className="mt-1 text-sm text-muted-foreground">New enquiries</p>
+              </div>
+              <div className="rounded-lg border border-border bg-white p-5">
+                <CalendarDays className="text-primary" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{confirmedCount}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Confirmed events</p>
+              </div>
+              <div className="rounded-lg border border-border bg-white p-5">
+                <Eye className="text-violet-600" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{listingViews}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Listing views</p>
+              </div>
+              <div className="rounded-lg border border-border bg-white p-5">
+                <Star className="text-amber-500" size={21} />
+                <p className="mt-5 text-2xl font-semibold">{averageRating.toFixed(1)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Average rating</p>
+              </div>
+            </div>
+
+            <div className="mt-9 grid gap-7 lg:grid-cols-[1.4fr_1fr]">
+              <section>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">Recent enquiries</h2>
+                  <button className="text-sm font-semibold text-primary" onClick={() => setActiveTab("enquiries")}>View all</button>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {enquiries.slice(0, 3).length > 0 ? enquiries.slice(0, 3).map((enquiry) => (
+                    <button className="flex w-full items-center gap-4 rounded-lg border border-border bg-white p-4 text-left hover:border-primary" key={enquiry.id} onClick={() => setActiveTab("enquiries")}>
+                      <span className="grid size-11 shrink-0 place-items-center rounded-md bg-blue-50 text-blue-700"><CalendarDays size={20} /></span>
+                      <span className="min-w-0 flex-1">
+                        <strong className="block">{enquiry.eventType}</strong>
+                        <span className="mt-1 block text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.guestCount} guests</span>
+                      </span>
+                      <span className={`hidden rounded-full px-2.5 py-1 text-xs font-medium sm:block ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span>
+                      <ChevronRight size={18} />
+                    </button>
+                  )) : (
+                    <div className="rounded-lg border border-dashed border-border bg-white p-6 text-sm text-muted-foreground">No enquiries yet.</div>
+                  )}
+                </div>
+              </section>
+
+              <section>
+                <h2 className="text-xl font-semibold">Listing health</h2>
+                <div className="mt-4 rounded-lg border border-border bg-white p-5">
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-semibold ${listingStatusStyle[listing.status]}`}>
+                      <BadgeCheck size={17} /> {formatListingStatus(listing.status)}
+                    </span>
+                    <span className="text-sm font-semibold">{listingHealthScore}%</span>
+                  </div>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full bg-primary" style={{ width: `${listingHealthScore}%` }} />
+                  </div>
+                  <div className="mt-5 grid gap-3 text-sm">
+                    {listingHealthItems.map((item) => (
+                      <p className={`flex items-center gap-2 ${item.complete ? "text-emerald-700" : "text-amber-700"}`} key={item.label}>
+                        {item.complete ? <Check size={16} /> : <ImagePlus size={16} />} {item.label}
+                      </p>
+                    ))}
+                  </div>
+                  <button className="mt-5 text-sm font-semibold text-primary" onClick={() => setActiveTab("listing")}>Improve listing</button>
+                </div>
+              </section>
+            </div>
+          </section>
+        )}
 
         {activeTab === "activity" && <NotificationActivity />}
 
@@ -796,9 +1169,7 @@ export function OwnerDashboard() {
                             <h3 className="font-semibold">{enquiry.eventType}</h3>
                             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[enquiry.status]}`}>{formatStatus(enquiry.status)}</span>
                           </div>
-                          <p className="mt-2 text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {enquiry.slot.toLowerCase().replace("_", " ")} | {enquiry.guestCount} guests</p>
-                          {enquiry.notes && <p className="mt-2 text-sm leading-6 text-muted-foreground">“{enquiry.notes}”</p>}
-                          <p className="mt-2 text-xs text-muted-foreground">{enquiry.id}</p>
+                          <p className="mt-2 text-sm text-muted-foreground">{formatDate(enquiry.eventDate)} | {formatSlot(enquiry.slot)} | {enquiry.guestCount} guests</p>
                         </div>
                         {isPending ? (
                           <div className="flex flex-wrap gap-2">
@@ -810,11 +1181,136 @@ export function OwnerDashboard() {
                             </button>
                           </div>
                         ) : (
-                          <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium">
-                            <MessageSquareText size={16} /> View details
+                          <button
+                            className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium"
+                            onClick={() =>
+                              setExpandedEnquiryId(
+                                expandedEnquiryId === enquiry.id
+                                  ? null
+                                  : enquiry.id
+                              )
+                            }
+                          >
+                            <>
+                              {expandedEnquiryId === enquiry.id ? (
+                                <>
+                                  <ChevronDown size={16} />
+                                  Hide Details
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronRight size={16} />
+                                  View Details
+                                </>
+                              )}
+                            </>
                           </button>
                         )}
                       </div>
+                      {expandedEnquiryId === enquiry.id && (
+                        <div className="mt-6 border-t pt-6">
+
+                          <div className="grid gap-6 md:grid-cols-2">
+
+                            {/* Customer Information */}
+                            <div className="rounded-lg border p-4">
+                              <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                                Customer Information
+                              </h4>
+
+                              <div className="space-y-2 text-sm">
+                                <p>
+                                  <span className="font-medium">Name:</span>{" "}
+                                  {enquiry.customerName ?? "Not Available"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Phone:</span>{" "}
+                                  {enquiry.customerPhone ?? "Not Available"}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Email:</span>{" "}
+                                  {enquiry.customerEmail ?? "Not Available"}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Event Information */}
+                            <div className="rounded-lg border p-4">
+                              <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                                Event Information
+                              </h4>
+
+                              <div className="space-y-2 text-sm">
+                                <p>
+                                  <span className="font-medium">Event:</span>{" "}
+                                  {enquiry.eventType}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Guests:</span>{" "}
+                                  {enquiry.guestCount}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Date:</span>{" "}
+                                  {formatDate(enquiry.eventDate)}
+                                </p>
+
+                                <p>
+                                  <span className="font-medium">Slot:</span>{" "}
+                                  {formatSlot(enquiry.slot)}
+                                </p>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Notes */}
+                          <div className="mt-6 rounded-lg border p-4">
+                            <h4 className="mb-3 text-sm font-semibold text-gray-700">
+                              Customer Notes
+                            </h4>
+
+                            <p className="text-sm text-muted-foreground">
+                              {enquiry.notes || "No notes provided."}
+                            </p>
+                          </div>
+
+                          {/* Status */}
+                          <div className="mt-6 flex flex-wrap gap-6 text-sm">
+
+                            <div>
+                              <span className="font-medium">Status:</span>{" "}
+                              <span
+                                className={`rounded-full px-2 py-1 text-xs ${statusStyle[enquiry.status]}`}
+                              >
+                                {formatStatus(enquiry.status)}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Enquiry ID:</span>{" "}
+                              {enquiry.id}
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Created:</span>{" "}
+                              {new Date(enquiry.submittedAt).toLocaleString()}
+                            </div>
+
+                            <div>
+                              <span className="font-medium">Updated:</span>{" "}
+                              {enquiry.updatedAt
+                                ? new Date(enquiry.updatedAt).toLocaleString()
+                                : "Not Available"}
+                            </div>
+
+                          </div>
+
+                        </div>
+                      )}
                     </article>
                   );
                 })}
@@ -900,10 +1396,12 @@ export function OwnerDashboard() {
                 <h2 className="text-xl font-semibold">Availability calendar</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Confirmed bookings and owner-blocked slots.</p>
               </div>
-              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white" onClick={() => setBlockDialogOpen(true)}>
+              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={listing.status !== "APPROVED"} onClick={() => setBlockDialogOpen(true)} title={listing.status !== "APPROVED" ? "Availability can be managed after admin approval" : undefined}>
                 <Plus size={17} /> Block date
               </button>
             </div>
+
+            {listing.status !== "APPROVED" && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Date blocking is available after your hall has been approved by an admin.</p>}
 
             {availabilityError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{availabilityError}</p>}
 
@@ -919,21 +1417,74 @@ export function OwnerDashboard() {
               <>
                 <div className="mt-5 rounded-lg border border-border bg-white p-4 sm:p-6">
                   <div className="flex items-center justify-between">
-                    <button aria-label="Previous month" className="grid size-9 place-items-center rounded-md border border-border">‹</button>
-                    <h3 className="font-semibold">July 2026</h3>
-                    <button aria-label="Next month" className="grid size-9 place-items-center rounded-md border border-border">›</button>
+                    <button
+                      aria-label="Previous month"
+                      className="grid size-9 place-items-center rounded-md border border-border"
+                      onClick={() =>
+                        setCurrentMonth(
+                          new Date(
+                            currentMonth.getFullYear(),
+                            currentMonth.getMonth() - 1,
+                            1
+                          )
+                        )
+                      }
+                    >
+                      ‹
+                    </button>                    <h3 className="font-semibold">
+                      {currentMonth.toLocaleDateString("en-IN", {
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </h3>
+                    <button
+                      aria-label="Next month"
+                      className="grid size-9 place-items-center rounded-md border border-border"
+                      onClick={() =>
+                        setCurrentMonth(
+                          new Date(
+                            currentMonth.getFullYear(),
+                            currentMonth.getMonth() + 1,
+                            1
+                          )
+                        )
+                      }
+                    >
+                      ›
+                    </button>
                   </div>
                   <div className="mt-5 grid grid-cols-7 text-center text-xs font-medium text-muted-foreground">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span className="py-2" key={day}>{day}</span>)}
                   </div>
                   <div className="grid grid-cols-7 gap-1">
                     {[0, 0, 0].map((_, index) => <span key={`blank-${index}`} />)}
-                    {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => {
+                    {Array.from({ length: daysInMonth }, (_, index) => index + 1).map((day) => {
                       const confirmed = confirmedDays.has(day);
                       const blocked = blockedDays.has(day);
 
                       return (
-                        <button aria-label={`July ${day}${confirmed ? ", confirmed" : blocked ? ", blocked" : ", available"}`} className={`aspect-square min-h-10 rounded-md border text-sm ${confirmed ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-800" : blocked ? "border-rose-200 bg-rose-50 font-semibold text-rose-700" : "border-transparent hover:border-primary"}`} key={day}>
+                        <button
+                          key={day}
+                          aria-label={`${monthKey}-${String(day).padStart(2, "0")}${confirmed ? ", confirmed" : blocked ? ", blocked" : ", available"
+                            }`}
+                          className={`aspect-square min-h-10 rounded-md border text-sm ${confirmed
+                            ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-800"
+                            : blocked
+                              ? "border-rose-200 bg-rose-50 font-semibold text-rose-700"
+                              : "border-transparent hover:border-primary"
+                            }`}
+                          onClick={() => {
+                            if (listing.status !== "APPROVED" || confirmedDays.has(day) || blockedDays.has(day)) {
+                              return;
+                            }
+
+                            setSelectedBlockDate(
+                              `${monthKey}-${String(day).padStart(2, "0")}`
+                            );
+
+                            setBlockDialogOpen(true);
+                          }}
+                        >
                           {day}
                         </button>
                       );
@@ -963,7 +1514,7 @@ export function OwnerDashboard() {
                               <p className="font-medium">{formatDate(date.date)}</p>
                               <p className="mt-1 text-sm text-muted-foreground">{formatSlot(date.slot)} | {date.reason}</p>
                             </div>
-                            <button aria-label={`Remove block for ${date.date}`} className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-60" disabled={isDeleting} onClick={() => removeBlockedDate(date.id)}>
+                            <button aria-label={`Remove block for ${date.date}`} className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-60" disabled={listing.status !== "APPROVED" || isDeleting} onClick={() => removeBlockedDate(date.id)}>
                               {isDeleting ? <LoaderCircle className="animate-spin" size={17} /> : <X size={17} />}
                             </button>
                           </div>
@@ -1012,6 +1563,7 @@ export function OwnerDashboard() {
             </div>
 
             {listingError && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{listingError}</p>}
+            {listing.pendingUpdate && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">An updated listing is already pending admin approval. You can edit again after it has been approved or rejected.</p>}
             {listing.status === "REJECTED" && listing.rejectionReason && <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{listing.rejectionReason}</p>}
 
             {isLoadingListing ? (
@@ -1023,11 +1575,36 @@ export function OwnerDashboard() {
               <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_420px]">
                 <section className="rounded-lg border border-border bg-white p-5 sm:p-6">
                   <div className="grid gap-5 sm:grid-cols-2">
-                    <label className="text-sm font-medium sm:col-span-2">Venue name<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("name", event.target.value)} value={listingForm.name} /></label>
-                    <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option></select></label>
-                    <label className="text-sm font-medium">Maximum guests<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateListingField("capacity", event.target.value)} type="number" value={listingForm.capacity} /></label>
+                    <label className="text-sm font-medium sm:col-span-2">
+                      Venue name
+                      <input
+                        className="mt-2 h-11 w-full rounded-md border border-border bg-muted px-3 font-normal text-muted-foreground cursor-not-allowed"
+                        value={listingForm.name}
+                        readOnly
+                      />
+                    </label>                    <label className="text-sm font-medium">Venue type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("venueType", event.target.value as VenueType)} value={listingForm.venueType}><option>Marriage Hall</option><option>Banquet Hall</option><option>Mini Hall</option><option>Convention Centre</option></select></label>
+                    <label className="text-sm font-medium">Maximum guests<span className="relative mt-2 block"><select className="h-11 w-full appearance-none rounded-md border border-border bg-white px-3 pr-10 font-normal outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15" onChange={(event) => updateListingField("capacity", event.target.value)} value={listingForm.capacity}><option value="">Choose guest capacity</option>{listingCapacityOptions.map((option) => <option key={option} value={option}>{formatGuestCapacityOption(option)}</option>)}</select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={17} /></span></label>
                     <label className="text-sm font-medium">City<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("city", event.target.value)} value={listingForm.city} /></label>
                     <label className="text-sm font-medium">Area<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("area", event.target.value)} value={listingForm.area} /></label>
+                    <label className="text-sm font-medium sm:col-span-2">Pincode<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="numeric" onChange={(event) => updateListingField("pincode", event.target.value)} placeholder="6-digit pincode" value={listingForm.pincode} /></label>
+                    <label className="text-sm font-medium sm:col-span-2">Address line<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" onChange={(event) => updateListingField("addressLine", event.target.value)} placeholder="Door number, street, landmark" value={listingForm.addressLine} /></label>
+                    <div className="rounded-lg border border-border bg-background p-4 sm:col-span-2">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold">Venue map location</h3>
+                          <p className="mt-1 text-xs text-muted-foreground">Capture this while standing at the hall entrance.</p>
+                        </div>
+                        <button className="inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isCapturingListingLocation} onClick={captureListingLocation} type="button">
+                          {isCapturingListingLocation ? <LoaderCircle className="animate-spin" size={16} /> : <MapPin size={16} />} Use current location
+                        </button>
+                      </div>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <label className="text-sm font-medium">Latitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(event) => updateListingField("latitude", event.target.value)} placeholder="13.082680" value={listingForm.latitude} /></label>
+                        <label className="text-sm font-medium">Longitude<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="decimal" onChange={(event) => updateListingField("longitude", event.target.value)} placeholder="80.270721" value={listingForm.longitude} /></label>
+                      </div>
+                      {hasCapturedListingLocation(listingForm) && <a className="mt-3 inline-flex text-sm font-semibold text-primary" href={googleMapsUrl(listingForm.latitude, listingForm.longitude)} rel="noreferrer" target="_blank">Check pin in Google Maps</a>}
+                    </div>
+                    <label className="text-sm font-medium sm:col-span-2">Contact number<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" inputMode="tel" onChange={(event) => updateListingField("contactNumber", event.target.value)} placeholder="Owner or venue phone" value={listingForm.contactNumber} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Starting price<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" min="1" onChange={(event) => updateListingField("startingPrice", event.target.value)} type="number" value={listingForm.startingPrice} /></label>
                     <label className="text-sm font-medium sm:col-span-2">Description<textarea className="mt-2 min-h-28 w-full resize-y rounded-md border border-border p-3 font-normal leading-6 outline-none focus:border-primary" maxLength={800} onChange={(event) => updateListingField("description", event.target.value)} value={listingForm.description} /></label>
                   </div>
@@ -1045,10 +1622,10 @@ export function OwnerDashboard() {
                   </fieldset>
 
                   <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:opacity-60" disabled={isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold hover:border-primary disabled:cursor-not-allowed disabled:opacity-60" disabled={areListingActionsLocked || isSavingListing || isSubmittingListing} onClick={saveListingDraft} type="button">
                       {isSavingListing ? <LoaderCircle className="animate-spin" size={17} /> : <Check size={17} />} Save draft
                     </button>
-                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60" disabled={areListingActionsLocked || isSavingListing || isSubmittingListing} onClick={submitListingForApproval} type="button">
                       {isSubmittingListing ? <LoaderCircle className="animate-spin" size={17} /> : <BadgeCheck size={17} />} Submit for approval
                     </button>
                   </div>
@@ -1056,20 +1633,28 @@ export function OwnerDashboard() {
 
                 <aside className="h-fit overflow-hidden rounded-lg border border-border bg-white">
                   <div className="relative aspect-[4/3] bg-muted">
-                    <Image alt={listing.name} className="object-cover" fill sizes="420px" src={listing.imageUrl || ownerHall.imageUrl} />
+                    {listing.imageUrl ? (
+                      <Image alt={listing.name} className="object-cover" fill sizes="420px" src={listing.imageUrl} unoptimized={listing.imageUrl.startsWith("blob:")} />
+                    ) : (
+                      <div className="grid h-full place-items-center text-muted-foreground">
+                        <ImagePlus size={32} />
+                      </div>
+                    )}
                   </div>
                   <div className="p-5">
                     <p className="text-sm font-semibold text-primary">{listingForm.venueType}</p>
-                    <h3 className="mt-2 text-2xl font-semibold">{listingForm.name || "Untitled venue"}</h3>
-                    <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listingForm.area || "Area"}, {listingForm.city || "City"}</p>
+                    <h3 className="mt-2 text-2xl font-semibold">{listingForm.name ? toTitleCase(listingForm.name) : "Untitled venue"}</h3>
+                    <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground"><MapPin size={16} /> {listingForm.area ? toTitleCase(listingForm.area) : "Area"}, {listingForm.city ? toTitleCase(listingForm.city) : "City"}</p>
+                    {listingForm.addressLine && <p className="mt-2 text-sm leading-6 text-muted-foreground">{toTitleCase(listingForm.addressLine)}</p>}
+                    {listingForm.contactNumber && <p className="mt-2 text-sm font-medium text-muted-foreground">Contact: {listingForm.contactNumber}</p>}
                     <p className="mt-5 leading-7 text-muted-foreground">{listingForm.description || "Add a description for customers."}</p>
                     <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-5">
-                      <div><p className="text-xs text-muted-foreground">Capacity</p><p className="mt-1 font-semibold">{listingForm.capacity || "0"}</p></div>
+                      <div><p className="text-xs text-muted-foreground">Capacity</p><p className="mt-1 font-semibold">{listingForm.capacity ? formatGuestCount(listingForm.capacity) : "0"}</p></div>
                       <div><p className="text-xs text-muted-foreground">Starting price</p><p className="mt-1 font-semibold">INR {new Intl.NumberFormat("en-IN").format(Number(listingForm.startingPrice || 0))}</p></div>
                       <div><p className="text-xs text-muted-foreground">Amenities</p><p className="mt-1 font-semibold">{listingForm.amenities.length}</p></div>
                       <div><p className="text-xs text-muted-foreground">Rating</p><p className="mt-1 font-semibold">{listing.rating}</p></div>
                     </div>
-                    <Link className="mt-6 inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-semibold hover:border-primary" href={`/halls/${listing.id}`}>Preview public page</Link>
+                    {isListingPublic ? <Link className="mt-6 inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-semibold hover:border-primary" href={`/halls/${listing.id}`}>Preview public page</Link> : <button className="mt-6 inline-flex h-10 cursor-not-allowed items-center rounded-md border border-border px-4 text-sm font-semibold text-muted-foreground" disabled type="button">Preview after approval</button>}
                   </div>
                 </aside>
               </div>
@@ -1188,10 +1773,32 @@ export function OwnerDashboard() {
             )}
           </section>
         )}
+
+
       </main>
 
-      <BlockDateDialog onAdd={addBlockedDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
+      <BlockDateDialog onAdd={addBlockedDate} initialDate={selectedBlockDate} onClose={() => setBlockDialogOpen(false)} open={blockDialogOpen} />
     </>
+  );
+}
+
+function Row({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex justify-between border-b pb-2">
+      <span className="font-medium text-gray-500">
+        {label}
+      </span>
+
+      <span className="font-semibold text-right">
+        {value}
+      </span>
+    </div>
   );
 }
 

@@ -41,24 +41,35 @@ export type VendorSummary = {
   completedEvents: number;
   services: string[];
   description: string;
+  instagramUrl?: string;
+  facebookUrl?: string;
+  whatsAppUrl?: string;
   packages: VendorPackage[];
   reviews: VendorReview[];
 };
 
-export type VendorLeadStatus = "NEW" | "CONTACTED" | "QUOTE_SENT" | "BOOKED" | "DECLINED";
+export type VendorLeadStatus = "NEW" | "INTERESTED" | "CONTACTED" | "QUOTE_SENT" | "BOOKED" | "NOT_SELECTED" | "DECLINED" | "COMPLETED";
 
 export type VendorLead = {
   id: string;
+  leadReference?: string;
   vendorId: string;
   vendorName: string;
   customerId: string;
   customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  requirementId?: string;
+  source: "DIRECT_ENQUIRY" | "MARKETPLACE_REQUIREMENT";
+  contactDetailsShared: boolean;
+  preferredContactChannel?: "IN_APP" | "PHONE" | "WHATSAPP" | "EMAIL";
   eventDate: string;
   eventType: string;
   location: string;
   service: string;
-  budget: number;
+  budget?: number;
   notes?: string;
+  declineReason?: string;
   status: VendorLeadStatus;
   submittedAt: string;
 };

@@ -47,14 +47,16 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .exceptionHandling(exceptionHandling -> exceptionHandling
-                                                .authenticationEntryPoint((request, response, authException) -> writeProblem(
-                                                                response,
-                                                                HttpStatus.UNAUTHORIZED,
-                                                                "Authentication required"))
-                                                .accessDeniedHandler((request, response, accessDeniedException) -> writeProblem(
-                                                                response,
-                                                                HttpStatus.FORBIDDEN,
-                                                                "Access denied")))
+                                                .authenticationEntryPoint(
+                                                                (request, response, authException) -> writeProblem(
+                                                                                response,
+                                                                                HttpStatus.UNAUTHORIZED,
+                                                                                "Authentication required"))
+                                                .accessDeniedHandler((request, response,
+                                                                accessDeniedException) -> writeProblem(
+                                                                                response,
+                                                                                HttpStatus.FORBIDDEN,
+                                                                                "Access denied")))
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers(
                                                                 HttpMethod.POST,
@@ -68,28 +70,49 @@ public class SecurityConfig {
                                                                 "/docs/**",
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html",
-                                                                "/v3/api-docs/**")
+                                                "/v3/api-docs/**")
                                                 .permitAll()
                                                 .requestMatchers(
-                                                                "/admin",
-                                                                "/admin/login",
-                                                                "/vendors",
-                                                                "/vendor-dj",
-                                                                "/vendor-hall",
-                                                                "/vendor-decoration",
-                                                                "/vendor-catering",
-                                                                "/vendor-makeup",
-                                                                "/vendors/login",
-                                                                "/users/halls",
-                                                                "/users/djs",
-                                                                "/users/photography",
-                                                                "/users/decoration",
-                                                                "/users/catering")
+                                                                HttpMethod.GET,
+                                                                "/v1/integrations/meta/whatsapp/webhook")
                                                 .permitAll()
-                                                .requestMatchers("/admin/**")
-                                                .hasRole("ADMIN")
-                                                .requestMatchers("/vendors/**")
+                                                .requestMatchers(
+                                                                HttpMethod.POST,
+                                                                "/v1/integrations/meta/whatsapp/webhook")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/v1/public/**")
+                                                .permitAll()
+                                                .requestMatchers(
+                                                                "/v1/admin/**",
+                                                                "/admin",
+                                                                "/admin/**",
+                                                                "/users",
+                                                                "/users/**")
+                                                .hasAnyRole("ADMIN", "SUPER_ADMIN")
+                                                .requestMatchers(
+                                                                "/v1/vendor/**",
+                                                                "/vendor/**",
+                                                                "/vendor-dj",
+                                                                "/vendor-dj/**",
+                                                                "/vendor-hall",
+                                                                "/vendor-hall/**",
+                                                                "/vendor-decoration",
+                                                                "/vendor-decoration/**",
+                                                                "/vendor-catering",
+                                                                "/vendor-catering/**",
+                                                                "/vendor-makeup",
+                                                                "/vendor-makeup/**",
+                                                                "/vendor-photography",
+                                                                "/vendor-photography/**",
+                                                                "/vendor-packages",
+                                                                "/vendor-packages/**",
+                                                                "/vendor-media",
+                                                                "/vendor-media/**",
+                                                                "/vendor-blocked-dates",
+                                                                "/vendor-blocked-dates/**")
                                                 .hasRole("VENDOR")
+                                                .requestMatchers("/v1/owner/**").hasRole("HALL_OWNER")
+                                                .requestMatchers("/v1/customer/**").hasRole("CUSTOMER")
                                                 .anyRequest().authenticated())
                                 .formLogin(form -> form.disable())
                                 .httpBasic(httpBasic -> httpBasic.disable())

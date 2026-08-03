@@ -1,0 +1,26 @@
+package com.staminal.venue.reviews.HallReview.Dto;
+
+import java.time.Instant;
+
+public record ReviewResponse(
+
+        Long id,
+
+        Long bookingId,
+
+        String enquiryId,
+
+        Long hallId,
+
+        String hallName,
+
+        Integer rating,
+
+        String comment,
+
+        Boolean verifiedService,
+
+        Instant createdAt,
+
+        Instant updatedAt) {
+}

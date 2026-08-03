@@ -1,4 +1,4 @@
-export const APP_NAME = "Venue Aggregator";
+export const APP_NAME = "VenueMart";
 
 export const USER_ROLES = [
   "CUSTOMER",

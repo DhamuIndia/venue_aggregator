@@ -1,0 +1,53 @@
+# Add this block to the shared Caddyfile that already serves the CRM.
+# The Caddy container must be connected to Docker network `bookvenuemart_internal`.
+
+www.bookvenuemart.in {
+  redir https://bookvenuemart.in{uri} permanent
+}
+
+bookvenuemart.in {
+  encode gzip zstd
+
+  request_body {
+    max_size 25MB
+  }
+
+  reverse_proxy bookvenuemart-frontend:3000
+
+  header {
+    Referrer-Policy same-origin
+    X-Content-Type-Options nosniff
+    X-Frame-Options SAMEORIGIN
+  }
+}
+
+api.bookvenuemart.in {
+  encode gzip zstd
+
+  request_body {
+    max_size 25MB
+  }
+
+  reverse_proxy bookvenuemart-backend:8080
+
+  header {
+    Referrer-Policy same-origin
+    X-Content-Type-Options nosniff
+    X-Frame-Options SAMEORIGIN
+  }
+}
+
+media.bookvenuemart.in {
+  encode gzip zstd
+
+  request_body {
+    max_size 25MB
+  }
+
+  header {
+    Referrer-Policy same-origin
+    X-Content-Type-Options nosniff
+  }
+
+  reverse_proxy bookvenuemart-minio:9000
+}

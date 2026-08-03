@@ -1,17 +1,30 @@
 package com.staminal.venue.vendors.Service;
 
+import java.math.BigDecimal;
+import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.staminal.venue.auth.service.JwtService;
 import com.staminal.venue.enums.VendorStatus;
+import com.staminal.venue.users.Entity.User;
+import com.staminal.venue.users.Repository.UserRepository;
 import com.staminal.venue.vendors.Dto.CreateVendorRequest;
+import com.staminal.venue.vendors.Dto.UpdateVendorRequest;
 import com.staminal.venue.vendors.Dto.VendorLoginRequest;
 import com.staminal.venue.vendors.Dto.VendorLoginResponse;
 import com.staminal.venue.vendors.Dto.VendorResponse;
@@ -29,16 +42,21 @@ public class VendorService {
         private final VendorRepository vendorRepository;
         private final VendorCategoryRepository vendorCategoryRepository;
         private final JwtService jwtService;
+        private final UserRepository userRepository;
+        private final ObjectMapper objectMapper;
 
-        public VendorResponse createVendor(CreateVendorRequest request) {
+        public VendorResponse createVendor(String userId, CreateVendorRequest request) {
+
+                User savedUser = userRepository.findById(Long.parseLong(userId))
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
                 Vendors vendor = new Vendors();
-                vendor.setVendorName(request.getVendorName());
+                vendor.setVendorName(savedUser.getFullName());
                 vendor.setBusinessName(request.getBusinessName());
                 vendor.setDescription(request.getDescription());
                 vendor.setCoverImageUrl(request.getCoverImageUrl());
                 vendor.setAddressLine(request.getAddressLine());
-                vendor.setEmail(request.getEmail());
+                vendor.setEmail(savedUser.getEmail());
                 vendor.setCity(request.getCity());
                 vendor.setArea(request.getArea());
                 vendor.setPincode(request.getPincode());
@@ -46,14 +64,36 @@ public class VendorService {
                 vendor.setLongitude(request.getLongitude());
                 vendor.setContactNumber(request.getContactNumber());
                 vendor.setWhatsAppNumber(request.getWhatsAppNumber());
+                if (request.getInstagramUrl() != null) {
+                        vendor.setInstagramUrl(normalizeInstagramUrl(request.getInstagramUrl()));
+                }
+                if (request.getFacebookUrl() != null) {
+                        vendor.setFacebookUrl(normalizeFacebookUrl(request.getFacebookUrl()));
+                }
+                if (request.getWhatsAppUrl() != null) {
+                        vendor.setWhatsAppUrl(normalizeWhatsAppUrl(request.getWhatsAppUrl()));
+                }
                 vendor.setStatus(VendorStatus.PENDING);
-                vendor.setPasswordHash(request.getPasswordHash());
+                vendor.setPasswordHash(savedUser.getPasswordHash());
                 vendor.setCreatedAt(Instant.now());
                 vendor.setUpdatedAt(Instant.now());
+                vendor.setUser(savedUser);
 
-                Set<VendorCategory> categories = new HashSet<>(
-                                vendorCategoryRepository.findAllById(
-                                                request.getCategoryIds()));
+                vendor.setYearsInBusiness(request.getYearsInBusiness());
+
+                vendor.setServiceRadius(request.getServiceRadius());
+
+                vendor.setServices(request.getServices());
+
+                vendor.setPackageName(request.getPackageName());
+
+                vendor.setStartingPrice(request.getStartingPrice());
+
+                vendor.setPackageDescription(request.getPackageDescription());
+
+                Set<VendorCategory> categories = request.getCategoryIds() == null
+                                ? new HashSet<>()
+                                : new HashSet<>(vendorCategoryRepository.findAllById(request.getCategoryIds()));
 
                 vendor.setCategories(categories);
 
@@ -80,17 +120,46 @@ public class VendorService {
                 response.setBusinessName(vendor.getBusinessName());
                 response.setDescription(vendor.getDescription());
                 response.setCoverImageUrl(vendor.getCoverImageUrl());
+                response.setAddressLine(vendor.getAddressLine());
                 response.setCity(vendor.getCity());
                 response.setArea(vendor.getArea());
+                response.setPincode(vendor.getPincode());
                 response.setContactNumber(vendor.getContactNumber());
                 response.setWhatsAppNumber(vendor.getWhatsAppNumber());
-                response.setStatus(vendor.getStatus().name());
+                response.setInstagramUrl(vendor.getInstagramUrl());
+                response.setFacebookUrl(vendor.getFacebookUrl());
+                response.setWhatsAppUrl(vendor.getWhatsAppUrl());
+                response.setYearsInBusiness(vendor.getYearsInBusiness());
 
-                response.setCategories(
-                                vendor.getCategories()
-                                                .stream()
-                                                .map(VendorCategory::getCategoryName)
-                                                .collect(Collectors.toSet()));
+                response.setServiceRadius(vendor.getServiceRadius());
+
+                response.setServices(vendor.getServices());
+
+                response.setPackageName(vendor.getPackageName());
+
+                response.setStartingPrice(vendor.getStartingPrice());
+
+                response.setPackageDescription(vendor.getPackageDescription());
+                response.setUpdatedAt(vendor.getUpdatedAt());
+
+                VendorStatus status = vendor.getStatus() == null ? VendorStatus.DRAFT : vendor.getStatus();
+                if (status == VendorStatus.PENDING) {
+                        response.setStatus("PENDING_APPROVAL");
+                } else {
+                        response.setStatus(status.name());
+                }
+                response.setRejectionReason(vendor.getRejectionReason());
+                response.setPendingUpdate(vendor.getPendingUpdatePayload() != null);
+
+                Set<VendorCategory> categories = vendor.getCategories() == null ? Set.of() : vendor.getCategories();
+                response.setCategories(categories.stream()
+                                .map(VendorCategory::getCategoryName)
+                                .collect(Collectors.toSet()));
+                response.setCategory(categories.stream()
+                                .findFirst()
+                                .map(VendorCategory::getCategoryName)
+                                .map(this::toFrontendCategory)
+                                .orElse("CATERING"));
 
                 return response;
         }
@@ -135,9 +204,9 @@ public class VendorService {
                                         "Vendor not approved");
                 }
 
-                String token = jwtService.generateToken(
-                                vendor.getEmail(),
-                                "VENDOR");
+                String token = vendor.getUser() == null
+                                ? jwtService.generateToken(vendor.getEmail(), "VENDOR")
+                                : jwtService.generateAccessToken(vendor.getUser().getId(), "VENDOR");
 
                 VendorLoginResponse response = new VendorLoginResponse();
 
@@ -147,5 +216,362 @@ public class VendorService {
                 response.setToken(token);
 
                 return response;
+        }
+
+        @Transactional(readOnly = true)
+        public VendorResponse getProfile(String userId) {
+                Long currentUserId = parseUserId(userId);
+                return vendorRepository.findByUserId(currentUserId)
+                                .map(this::mapToResponse)
+                                .orElseGet(() -> mapDraftProfile(findUser(currentUserId)));
+        }
+
+        @Transactional
+        public VendorResponse updateProfile(
+                        String userId,
+                        UpdateVendorRequest request) {
+
+                User user = findUser(parseUserId(userId));
+                Vendors vendor = vendorRepository.findByUserId(user.getId())
+                                .orElseGet(() -> newDraftVendor(user));
+
+                if (vendor.getStatus() == VendorStatus.APPROVED) {
+                        if (vendor.getPendingUpdatePayload() != null) {
+                                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                                "Your previous business update is still pending admin approval.");
+                        }
+                        vendor.setPendingUpdatePayload(serializePendingUpdate(request));
+                        vendor.setUpdatedAt(Instant.now());
+                        return mapToResponse(vendorRepository.save(vendor));
+                }
+
+                vendor.setBusinessName(defaultText(request.getBusinessName(), user.getFullName()));
+                vendor.setCoverImageUrl(firstText(request.getCoverImageUrl(), vendor.getCoverImageUrl(), ""));
+                vendor.setAddressLine(firstText(request.getAddressLine(), vendor.getAddressLine(), ""));
+                vendor.setCity(defaultText(request.getCity(), "Chennai"));
+                vendor.setArea(defaultText(request.getArea(), ""));
+                vendor.setPincode(firstText(request.getPincode(), vendor.getPincode(), ""));
+                vendor.setContactNumber(
+                                firstText(request.getContactNumber(), vendor.getContactNumber(), user.getPhone()));
+                vendor.setWhatsAppNumber(
+                                firstText(request.getWhatsAppNumber(), vendor.getWhatsAppNumber(), user.getPhone()));
+                if (request.getInstagramUrl() != null) {
+                        vendor.setInstagramUrl(normalizeInstagramUrl(request.getInstagramUrl()));
+                }
+                if (request.getFacebookUrl() != null) {
+                        vendor.setFacebookUrl(normalizeFacebookUrl(request.getFacebookUrl()));
+                }
+                if (request.getWhatsAppUrl() != null) {
+                        vendor.setWhatsAppUrl(normalizeWhatsAppUrl(request.getWhatsAppUrl()));
+                }
+                vendor.setDescription(trimToNull(request.getDescription()));
+                vendor.setYearsInBusiness(request.getYearsInBusiness());
+                vendor.setServiceRadius(request.getServiceRadius());
+                List<String> selectedServices = request.getServices() == null
+                                ? List.of()
+                                : request.getServices().stream()
+                                                .filter(Objects::nonNull)
+                                                .map(String::trim)
+                                                .filter(service -> !service.isEmpty())
+                                                .distinct()
+                                                .toList();
+                if (vendor.getServices() == null) {
+                        vendor.setServices(new ArrayList<>(selectedServices));
+                } else {
+                        // Replace the persisted collection contents so old service rows
+                        // cannot remain visible to the admin after a profile update.
+                        vendor.getServices().clear();
+                        vendor.getServices().addAll(selectedServices);
+                }
+                vendor.setPackageName(trimToNull(request.getPackageName()));
+                vendor.setStartingPrice(request.getStartingPrice());
+                vendor.setPackageDescription(trimToNull(request.getPackageDescription()));
+                vendor.setCategories(categoriesFor(request.getCategory()));
+                if (vendor.getStatus() == null
+                                || vendor.getStatus() == VendorStatus.PENDING
+                                || vendor.getStatus() == VendorStatus.REJECTED) {
+                        vendor.setStatus(VendorStatus.DRAFT);
+                }
+
+                vendor.setUpdatedAt(Instant.now());
+
+                Vendors saved = vendorRepository.save(vendor);
+
+                return mapToResponse(saved);
+        }
+
+        @Transactional
+        public VendorResponse submitProfile(String userId) {
+                Vendors vendor = vendorRepository
+                                .findByUserId(parseUserId(userId))
+                                .orElseThrow(() -> new ResponseStatusException(
+                                                HttpStatus.BAD_REQUEST,
+                                                "Save the vendor profile before submitting"));
+
+                validateSubmittable(vendor);
+
+                if (vendor.getStatus() == VendorStatus.APPROVED && vendor.getPendingUpdatePayload() != null) {
+                        return mapToResponse(vendor);
+                }
+
+                vendor.setStatus(VendorStatus.PENDING);
+
+                vendor.setUpdatedAt(Instant.now());
+
+                Vendors saved = vendorRepository.save(vendor);
+
+                return mapToResponse(saved);
+        }
+
+        @Transactional
+        public void approvePendingUpdate(Vendors vendor) {
+                if (vendor.getPendingUpdatePayload() == null)
+                        return;
+                try {
+                        UpdateVendorRequest request = objectMapper.readValue(vendor.getPendingUpdatePayload(),
+                                        UpdateVendorRequest.class);
+                        vendor.setStatus(VendorStatus.DRAFT);
+                        vendorRepository.save(vendor);
+                        updateProfile(String.valueOf(vendor.getUser().getId()), request);
+                        Vendors updated = vendorRepository.findById(vendor.getId()).orElseThrow();
+                        updated.setStatus(VendorStatus.APPROVED);
+                        updated.setPendingUpdatePayload(null);
+                        updated.setRejectionReason(null);
+                        vendorRepository.save(updated);
+                } catch (JsonProcessingException exception) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending vendor update is invalid",
+                                        exception);
+                }
+        }
+
+        @Transactional
+        public void rejectPendingUpdate(Vendors vendor) {
+                vendor.setPendingUpdatePayload(null);
+                vendorRepository.save(vendor);
+        }
+
+        public UpdateVendorRequest pendingUpdateFor(Vendors vendor) {
+                if (vendor.getPendingUpdatePayload() == null)
+                        return null;
+                try {
+                        return objectMapper.readValue(vendor.getPendingUpdatePayload(), UpdateVendorRequest.class);
+                } catch (JsonProcessingException exception) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pending vendor update is invalid",
+                                        exception);
+                }
+        }
+
+        private String serializePendingUpdate(UpdateVendorRequest request) {
+                try {
+                        return objectMapper.writeValueAsString(request);
+                } catch (JsonProcessingException exception) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not save vendor update",
+                                        exception);
+                }
+        }
+
+        private User findUser(Long userId) {
+                return userRepository.findById(userId)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                                                "User not found"));
+        }
+
+        private Long parseUserId(String userId) {
+                try {
+                        return Long.parseLong(userId);
+                } catch (NumberFormatException exception) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user");
+                }
+        }
+
+        private Vendors newDraftVendor(User user) {
+                Vendors vendor = new Vendors();
+                vendor.setUser(user);
+                vendor.setVendorName(defaultText(user.getFullName(), "Vendor"));
+                vendor.setBusinessName(defaultText(user.getFullName(), "Vendor business"));
+                vendor.setCoverImageUrl("");
+                vendor.setAddressLine("");
+                vendor.setCity("Chennai");
+                vendor.setArea("");
+                vendor.setEmail(user.getEmail());
+                vendor.setContactNumber(user.getPhone());
+                vendor.setWhatsAppNumber(user.getPhone());
+                vendor.setPasswordHash(user.getPasswordHash());
+                vendor.setStatus(VendorStatus.DRAFT);
+                vendor.setServices(new ArrayList<>());
+                vendor.setCategories(new HashSet<>());
+                vendor.setCreatedAt(Instant.now());
+                vendor.setUpdatedAt(Instant.now());
+                return vendor;
+        }
+
+        private VendorResponse mapDraftProfile(User user) {
+                VendorResponse response = new VendorResponse();
+                response.setVendorName(defaultText(user.getFullName(), "Vendor"));
+                response.setBusinessName(defaultText(user.getFullName(), "Vendor business"));
+                response.setCategory("CATERING");
+                response.setAddressLine("");
+                response.setCity("Chennai");
+                response.setArea("");
+                response.setPincode("");
+                response.setContactNumber(user.getPhone());
+                response.setWhatsAppNumber(user.getPhone());
+                response.setInstagramUrl("");
+                response.setFacebookUrl("");
+                response.setWhatsAppUrl("");
+                response.setStatus(VendorStatus.DRAFT.name());
+                response.setRejectionReason("");
+                response.setServices(List.of());
+                response.setCategories(Set.of());
+                response.setUpdatedAt(Instant.now());
+                return response;
+        }
+
+        private Set<VendorCategory> categoriesFor(String category) {
+                String databaseName = toDatabaseCategory(category);
+                if (databaseName == null) {
+                        return new HashSet<>();
+                }
+
+                return vendorCategoryRepository.findAll().stream()
+                                .filter(candidate -> candidate.getCategoryName() != null
+                                                && candidate.getCategoryName().equalsIgnoreCase(databaseName))
+                                .findFirst()
+                                .map(candidate -> new HashSet<>(Set.of(candidate)))
+                                .orElseGet(HashSet::new);
+        }
+
+        private String toDatabaseCategory(String category) {
+                if (category == null || category.isBlank()) {
+                        return null;
+                }
+                String normalized = category.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+                return switch (normalized) {
+                        case "CATERING" -> "Catering";
+                        case "DECORATION", "DECOR" -> "Decoration";
+                        case "PHOTOGRAPHY" -> "Photography";
+                        case "BRIDAL_MAKEUP", "MAKEUP" -> "Makeup";
+                        case "MUSIC_AND_DJ", "MUSIC_DJ", "DJ" -> "DJ";
+                        case "EVENT_PLANNING", "PLANNING" -> "Wedding Planner";
+                        default -> null;
+                };
+        }
+
+        private String toFrontendCategory(String categoryName) {
+                if (categoryName == null || categoryName.isBlank()) {
+                        return "CATERING";
+                }
+                String normalized = categoryName.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+                return switch (normalized) {
+                        case "CATERING", "FOOD" -> "CATERING";
+                        case "DECORATION", "BALLOON_DECORATION" -> "DECORATION";
+                        case "PHOTOGRAPHY" -> "PHOTOGRAPHY";
+                        case "MAKEUP", "MEHENDI" -> "BRIDAL_MAKEUP";
+                        case "DJ", "LIVE_MUSIC" -> "MUSIC_AND_DJ";
+                        case "WEDDING_PLANNER" -> "EVENT_PLANNING";
+                        default -> "CATERING";
+                };
+        }
+
+        private void validateSubmittable(Vendors vendor) {
+                if (isBlank(vendor.getBusinessName())
+                                || isBlank(vendor.getCity())
+                                || isBlank(vendor.getArea())
+                                || isBlank(vendor.getPackageName())
+                                || vendor.getStartingPrice() == null
+                                || vendor.getStartingPrice().compareTo(BigDecimal.ZERO) <= 0
+                                || vendor.getServices() == null
+                                || vendor.getServices().isEmpty()) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Complete business, location, services, package, and starting price before submitting");
+                }
+        }
+
+        private String defaultText(String value, String fallback) {
+                String trimmed = trimToNull(value);
+                return trimmed == null ? fallback : trimmed;
+        }
+
+        private String firstText(String... values) {
+                for (String value : values) {
+                        String trimmed = trimToNull(value);
+                        if (trimmed != null) {
+                                return trimmed;
+                        }
+                }
+                return "";
+        }
+
+        private String trimToNull(String value) {
+                if (value == null) {
+                        return null;
+                }
+                String trimmed = value.trim();
+                return trimmed.isEmpty() ? null : trimmed;
+        }
+
+        private String normalizeInstagramUrl(String value) {
+                String candidate = trimToNull(value);
+                if (candidate != null && candidate.matches("@?[A-Za-z0-9._]{1,30}")) {
+                        candidate = "https://instagram.com/" + candidate.replaceFirst("^@", "");
+                }
+                return normalizeSocialUrl(candidate, "Instagram", Set.of("instagram.com"));
+        }
+
+        private String normalizeFacebookUrl(String value) {
+                String candidate = trimToNull(value);
+                if (candidate != null && candidate.matches("@?[A-Za-z0-9.]{5,50}")) {
+                        candidate = "https://facebook.com/" + candidate.replaceFirst("^@", "");
+                }
+                return normalizeSocialUrl(candidate, "Facebook", Set.of("facebook.com", "fb.com"));
+        }
+
+        private String normalizeWhatsAppUrl(String value) {
+                String candidate = trimToNull(value);
+                if (candidate != null && candidate.matches("[+\\d()\\s-]{10,24}")) {
+                        String digits = candidate.replaceAll("\\D", "");
+                        if (digits.length() == 10) {
+                                digits = "91" + digits;
+                        }
+                        if (digits.length() >= 10 && digits.length() <= 15) {
+                                candidate = "https://wa.me/" + digits;
+                        }
+                }
+                return normalizeSocialUrl(candidate, "WhatsApp", Set.of("wa.me", "whatsapp.com"));
+        }
+
+        private String normalizeSocialUrl(String value, String label, Set<String> allowedHosts) {
+                if (value == null) {
+                        return null;
+                }
+
+                String candidate = value.matches("(?i)^https?://.*") ? value : "https://" + value;
+                candidate = candidate.replaceFirst("(?i)^http://", "https://");
+                try {
+                        URI uri = URI.create(candidate);
+                        String scheme = uri.getScheme();
+                        String host = uri.getHost();
+                        boolean allowedHost = host != null && allowedHosts.stream()
+                                        .anyMatch(allowed -> host.equalsIgnoreCase(allowed)
+                                                        || host.toLowerCase(Locale.ROOT).endsWith("." + allowed));
+                        boolean hasProfilePath = uri.getPath() != null
+                                        && !uri.getPath().isBlank()
+                                        && !"/".equals(uri.getPath());
+                        if (!"https".equalsIgnoreCase(scheme)
+                                        || !allowedHost
+                                        || !hasProfilePath) {
+                                throw new IllegalArgumentException();
+                        }
+                        return uri.toASCIIString();
+                } catch (IllegalArgumentException exception) {
+                        throw new ResponseStatusException(
+                                        HttpStatus.BAD_REQUEST,
+                                        "Enter a valid " + label + " profile link");
+                }
+        }
+
+        private boolean isBlank(String value) {
+                return value == null || value.isBlank();
         }
 }

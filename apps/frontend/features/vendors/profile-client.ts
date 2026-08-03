@@ -2,12 +2,13 @@ import { ApiError, apiRequest } from "@/lib/api-client";
 import type { VendorCategory } from "./types";
 import { workspaceVendor } from "./workspace-data";
 
-const STORAGE_KEY = "venue-vendor-profile";
+const STORAGE_KEY_PREFIX = "venue-vendor-profile";
 const useMockVendorProfile = process.env.NEXT_PUBLIC_VENDOR_PROFILE_MODE === "mock";
 
 export type VendorProfileStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 
 export type VendorProfileDraft = {
+  id?: string;
   businessName: string;
   category: VendorCategory;
   city: string;
@@ -15,15 +16,21 @@ export type VendorProfileDraft = {
   serviceRadius: number;
   yearsInBusiness: number;
   description: string;
+  instagramUrl: string;
+  facebookUrl: string;
+  whatsAppUrl: string;
   services: string[];
   packageName: string;
   startingPrice: number;
   packageDescription: string;
   status: VendorProfileStatus;
+  pendingUpdate?: boolean;
+  rejectionReason?: string;
   updatedAt?: string;
 };
 
 export const fallbackVendorProfile: VendorProfileDraft = {
+  id: workspaceVendor.id,
   businessName: workspaceVendor.businessName,
   category: workspaceVendor.category,
   city: workspaceVendor.city,
@@ -31,7 +38,10 @@ export const fallbackVendorProfile: VendorProfileDraft = {
   serviceRadius: 25,
   yearsInBusiness: 5,
   description: workspaceVendor.description,
-  services: workspaceVendor.services.slice(0, 4),
+  instagramUrl: "",
+  facebookUrl: "",
+  whatsAppUrl: "",
+  services: [],
   packageName: workspaceVendor.packages[0]?.name ?? "",
   startingPrice: workspaceVendor.packages[0]?.price ?? workspaceVendor.startingPrice,
   packageDescription: workspaceVendor.packages[0]?.description ?? "",
@@ -39,22 +49,22 @@ export const fallbackVendorProfile: VendorProfileDraft = {
 };
 
 export async function getVendorProfile(accessToken?: string | null) {
-  if (useMockVendorProfile || !accessToken) return getLocalVendorProfile();
+  if (useMockVendorProfile || !accessToken) return getLocalVendorProfile(accessToken);
 
   try {
     const response = await apiRequest<unknown>("/vendor/profile", {
       token: accessToken
     });
-    const profile = toVendorProfile(response) ?? getLocalVendorProfile();
-    saveLocalVendorProfile(profile);
+    const profile = toVendorProfile(response) ?? getLocalVendorProfile(accessToken);
+    saveLocalVendorProfile(profile, accessToken);
     return profile;
   } catch {
-    return getLocalVendorProfile();
+    return getLocalVendorProfile(accessToken);
   }
 }
 
 export async function saveVendorProfile(payload: VendorProfileDraft, accessToken?: string | null) {
-  if (useMockVendorProfile || !accessToken) return saveLocalVendorProfile({ ...payload, status: "DRAFT" });
+  if (useMockVendorProfile || !accessToken) return saveLocalVendorProfile({ ...payload, status: "DRAFT" }, accessToken);
 
   try {
     const response = await apiRequest<unknown>("/vendor/profile", {
@@ -63,21 +73,19 @@ export async function saveVendorProfile(payload: VendorProfileDraft, accessToken
       body: JSON.stringify(toRequestPayload(payload))
     });
     const profile = toVendorProfile(response) ?? { ...payload, status: "DRAFT" as const, updatedAt: new Date().toISOString() };
-    saveLocalVendorProfile(profile);
+    saveLocalVendorProfile(profile, accessToken);
     return profile;
   } catch (exception) {
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return saveLocalVendorProfile({ ...payload, status: "DRAFT" });
+    return saveLocalVendorProfile({ ...payload, status: "DRAFT" }, accessToken);
   }
 }
 
 export async function submitVendorProfile(payload: VendorProfileDraft, accessToken?: string | null) {
-  const savedProfile = await saveVendorProfile(payload, accessToken);
-
   if (useMockVendorProfile || !accessToken) {
-    return saveLocalVendorProfile({ ...savedProfile, status: "PENDING_APPROVAL" });
+    return saveLocalVendorProfile({ ...payload, status: "PENDING_APPROVAL" }, accessToken);
   }
 
   try {
@@ -85,30 +93,30 @@ export async function submitVendorProfile(payload: VendorProfileDraft, accessTok
       method: "POST",
       token: accessToken
     });
-    const profile = toVendorProfile(response) ?? { ...savedProfile, status: "PENDING_APPROVAL" as const, updatedAt: new Date().toISOString() };
-    saveLocalVendorProfile(profile);
+    const profile = toVendorProfile(response) ?? { ...payload, status: "PENDING_APPROVAL" as const, updatedAt: new Date().toISOString() };
+    saveLocalVendorProfile(profile, accessToken);
     return profile;
   } catch (exception) {
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return saveLocalVendorProfile({ ...savedProfile, status: "PENDING_APPROVAL" });
+    return saveLocalVendorProfile({ ...payload, status: "PENDING_APPROVAL" }, accessToken);
   }
 }
 
-function getLocalVendorProfile() {
+function getLocalVendorProfile(accessToken?: string | null) {
   if (typeof window === "undefined") return fallbackVendorProfile;
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null") as unknown;
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey(accessToken)) ?? "null") as unknown;
     return toVendorProfile(parsed) ?? fallbackVendorProfile;
   } catch {
     return fallbackVendorProfile;
   }
 }
 
-function saveLocalVendorProfile(profile: VendorProfileDraft) {
+function saveLocalVendorProfile(profile: VendorProfileDraft, accessToken?: string | null) {
   const nextProfile = { ...profile, updatedAt: new Date().toISOString() };
-  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextProfile));
+  if (typeof window !== "undefined") window.localStorage.setItem(storageKey(accessToken), JSON.stringify(nextProfile));
   return nextProfile;
 }
 
@@ -121,6 +129,9 @@ function toRequestPayload(profile: VendorProfileDraft) {
     serviceRadius: profile.serviceRadius,
     yearsInBusiness: profile.yearsInBusiness,
     description: profile.description,
+    instagramUrl: profile.instagramUrl,
+    facebookUrl: profile.facebookUrl,
+    whatsAppUrl: profile.whatsAppUrl,
     services: profile.services,
     packageName: profile.packageName,
     startingPrice: profile.startingPrice,
@@ -137,6 +148,7 @@ function toVendorProfile(value: unknown): VendorProfileDraft | undefined {
   if (!businessName || !category) return undefined;
 
   return {
+    id: stringValue(record, ["id", "vendorId", "vendor_id"]),
     businessName,
     category,
     city: stringValue(record, ["city"]) ?? fallbackVendorProfile.city,
@@ -144,13 +156,39 @@ function toVendorProfile(value: unknown): VendorProfileDraft | undefined {
     serviceRadius: numberValue(record, ["serviceRadius", "service_radius"]) ?? fallbackVendorProfile.serviceRadius,
     yearsInBusiness: numberValue(record, ["yearsInBusiness", "years_in_business", "experienceYears"]) ?? fallbackVendorProfile.yearsInBusiness,
     description: stringValue(record, ["description", "summary", "about"]) ?? "",
-    services: arrayOfStrings(record.services) ?? fallbackVendorProfile.services,
+    instagramUrl: stringValue(record, ["instagramUrl", "instagram_url"]) ?? "",
+    facebookUrl: stringValue(record, ["facebookUrl", "facebook_url"]) ?? "",
+    whatsAppUrl: stringValue(record, ["whatsAppUrl", "whatsappUrl", "whatsapp_url"]) ?? "",
+    services: arrayOfStrings(record.services) ?? [],
     packageName: stringValue(record, ["packageName", "package_name"]) ?? firstPackageValue(record, "name") ?? "",
     startingPrice: numberValue(record, ["startingPrice", "starting_price"]) ?? firstPackageNumber(record, "price") ?? fallbackVendorProfile.startingPrice,
     packageDescription: stringValue(record, ["packageDescription", "package_description"]) ?? firstPackageValue(record, "description") ?? "",
     status: statusValue(record) ?? "DRAFT",
+    pendingUpdate: record.pendingUpdate === true,
+    rejectionReason: stringValue(record, ["rejectionReason", "rejection_reason"]) ?? "",
     updatedAt: stringValue(record, ["updatedAt", "updated_at"])
   };
+}
+
+function storageKey(accessToken?: string | null) {
+  return `${STORAGE_KEY_PREFIX}:${tokenSubject(accessToken) ?? "demo"}`;
+}
+
+function tokenSubject(accessToken?: string | null) {
+  if (!accessToken) return undefined;
+
+  try {
+    const [, payload] = accessToken.split(".");
+    if (!payload || !globalThis.atob) return undefined;
+
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const decoded = JSON.parse(globalThis.atob(padded)) as Record<string, unknown>;
+    const subject = decoded.sub;
+    return typeof subject === "string" || typeof subject === "number" ? `user-${subject}` : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function firstPackageValue(record: Record<string, unknown>, key: string) {
@@ -206,7 +244,7 @@ function numberValue(record: Record<string, unknown>, keys: string[]) {
 function arrayOfStrings(value: unknown) {
   if (!Array.isArray(value)) return undefined;
   const strings = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-  return strings.length ? strings : undefined;
+  return strings;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

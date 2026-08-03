@@ -1,6 +1,7 @@
 import { apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 import { getHallById as getMockHallById, halls as mockHalls } from "./mock-data";
-import type { HallSummary, VenueType } from "./types";
+import type { HallSummary, PublicHallReview, VenueType } from "./types";
 
 export type HallSort = "recommended" | "rating" | "price-low" | "capacity";
 
@@ -111,14 +112,14 @@ function toHallSummary(value: unknown): HallSummary | undefined {
   const fallback = getMockHallById(id) ?? mockHalls[0];
   const city = stringValue(value, ["city"]) ?? fallback.city;
   const area = stringValue(value, ["area", "locality", "location"]) ?? fallback.area;
-  const imageUrl = stringValue(value, ["imageUrl", "coverImageUrl", "cover_image_url", "primaryImageUrl"])
+  const imageUrl = stringValue(value, ["coverImageUrl", "cover_image_url", "imageUrl", "primaryImageUrl"])
     ?? fallback.imageUrl;
 
   return {
     id,
-    name,
-    city,
-    area,
+    name: toTitleCase(name),
+    city: toTitleCase(city),
+    area: toTitleCase(area),
     capacity: numberValue(value, ["capacity", "capacityMax", "maxCapacity", "capacity_max"]) ?? fallback.capacity,
     startingPrice: numberValue(value, ["startingPrice", "amount", "price"], ["pricing", "startingPrice"])
       ?? fallback.startingPrice,
@@ -130,13 +131,14 @@ function toHallSummary(value: unknown): HallSummary | undefined {
     amenities: amenities(value, fallback.amenities),
     isVerified: booleanValue(value, ["isVerified", "verified"]) ?? statusIsApproved(value) ?? fallback.isVerified,
     availableThisMonth: booleanValue(value, ["availableThisMonth", "hasAvailability"]) ?? fallback.availableThisMonth,
-    description: stringValue(value, ["description", "summary"]) ?? fallback.description
+    description: stringValue(value, ["description", "summary"]) ?? fallback.description,
+    reviews: publicReviews(value)
   };
 }
 
 function galleryUrls(record: ApiHallRecord, coverImageUrl: string, fallback: string[]) {
   const direct = arrayOfStrings(record.galleryUrls) ?? arrayOfStrings(record.gallery);
-  if (direct?.length) return direct;
+  if (direct?.length) return uniqueUrls([coverImageUrl, ...direct]);
 
   const media = Array.isArray(record.media) ? record.media : [];
   const urls = media
@@ -144,8 +146,12 @@ function galleryUrls(record: ApiHallRecord, coverImageUrl: string, fallback: str
     .map((item) => stringValue(item, ["url", "mediaUrl", "imageUrl"]))
     .filter(Boolean) as string[];
 
-  if (urls.length) return urls;
-  return fallback.length ? fallback : [coverImageUrl];
+  if (urls.length) return uniqueUrls([coverImageUrl, ...urls]);
+  return uniqueUrls([coverImageUrl, ...fallback]);
+}
+
+function uniqueUrls(urls: string[]) {
+  return urls.filter((url, index) => Boolean(url) && urls.indexOf(url) === index);
 }
 
 function venueType(record: ApiHallRecord): VenueType | undefined {
@@ -156,7 +162,8 @@ function venueType(record: ApiHallRecord): VenueType | undefined {
   if (normalized === "MARRIAGE_HALL") return "Marriage Hall";
   if (normalized === "BANQUET_HALL") return "Banquet Hall";
   if (normalized === "MINI_HALL") return "Mini Hall";
-  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall") return value;
+  if (normalized === "CONVENTION_CENTRE" || normalized === "CONVENTION_CENTER") return "Convention Centre";
+  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall" || value === "Convention Centre") return value;
   return undefined;
 }
 
@@ -173,6 +180,28 @@ function amenities(record: ApiHallRecord, fallback: string[]) {
   ].filter(Boolean);
 
   return inferred.length ? inferred : fallback;
+}
+
+function publicReviews(record: ApiHallRecord): PublicHallReview[] {
+  const list = Array.isArray(record.reviews) ? record.reviews : [];
+  return list
+    .map((item) => toPublicHallReview(item))
+    .filter(Boolean) as PublicHallReview[];
+}
+
+function toPublicHallReview(value: unknown): PublicHallReview | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const rating = numberValue(value, ["rating"]);
+  const comment = stringValue(value, ["comment", "review", "message"]);
+  if (!rating || !comment) return undefined;
+
+  return {
+    customerName: stringValue(value, ["customerName", "customer_name", "name"]) ?? "Anonymous",
+    rating,
+    comment,
+    verifiedService: booleanValue(value, ["verifiedService", "verified_service"]) ?? false
+  };
 }
 
 function statusIsApproved(record: ApiHallRecord) {

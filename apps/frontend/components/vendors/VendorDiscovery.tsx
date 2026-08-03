@@ -17,6 +17,7 @@ export function VendorDiscovery() {
   const [location, setLocation] = useState("");
   const [category, setCategory] = useState<CategoryFilter>("ALL");
   const [sort, setSort] = useState<VendorSort>("recommended");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [filteredVendors, setFilteredVendors] = useState(vendors);
   const [total, setTotal] = useState(vendors.length);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,13 +55,14 @@ export function VendorDiscovery() {
     return () => {
       isCurrent = false;
     };
-  }, [category, location, query, sort]);
+  }, [category, location, query, refreshKey, sort]);
 
   function reset() {
     setQuery("");
     setLocation("");
     setCategory("ALL");
     setSort("recommended");
+    setRefreshKey((value) => value + 1);
   }
 
   return (
@@ -71,7 +73,10 @@ export function VendorDiscovery() {
           <div className="mt-7 grid overflow-hidden rounded-lg border border-border bg-white shadow-sm lg:grid-cols-[1.35fr_1fr_auto]">
             <label className="flex min-h-16 items-center gap-3 border-b border-border px-4 lg:border-b-0 lg:border-r"><Search className="shrink-0 text-primary" size={20} /><span className="min-w-0 flex-1"><span className="block text-xs font-medium text-muted-foreground">Service</span><input className="mt-1 w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground" onChange={(event) => setQuery(event.target.value)} placeholder="Catering, photography, decoration..." value={query} /></span></label>
             <label className="flex min-h-16 items-center gap-3 border-b border-border px-4 lg:border-b-0 lg:border-r"><MapPin className="shrink-0 text-primary" size={20} /><span className="min-w-0 flex-1"><span className="block text-xs font-medium text-muted-foreground">Location</span><input className="mt-1 w-full bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground" onChange={(event) => setLocation(event.target.value)} placeholder="City or area" value={location} /></span></label>
-            <button className="m-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-white"><Search size={18} /> Search vendors</button>
+            <div className="m-2 grid grid-cols-[1fr_auto] gap-2">
+              <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-white" onClick={() => setRefreshKey((value) => value + 1)} type="button"><Search size={18} /> Search</button>
+              <button aria-label="Clear vendor search" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-semibold text-muted-foreground hover:border-primary hover:text-primary" onClick={reset} type="button"><RotateCcw size={16} /><span className="hidden sm:inline">Clear</span></button>
+            </div>
           </div>
         </div>
       </section>

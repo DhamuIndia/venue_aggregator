@@ -7,21 +7,24 @@ import { useEffect, type ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import type { AuthRole } from "./types";
 
-export function AuthGate({ children, allowedRoles }: { children: ReactNode; allowedRoles?: AuthRole[] }) {
+export function AuthGate({ children, allowedRoles, loginNextPath }: { children: ReactNode; allowedRoles?: AuthRole[]; loginNextPath?: Route }) {
   const { isLoading, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.replace("/auth/login");
+      const loginRoute = loginNextPath
+        ? `/auth/login?next=${encodeURIComponent(loginNextPath)}` as Route
+        : "/auth/login";
+      router.replace(loginRoute);
       return;
     }
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-      const accountRoute: Route = user.role === "ADMIN" ? "/admin" : user.role === "VENDOR" ? "/vendor" : user.role === "HALL_OWNER" ? "/owner" : "/customer";
+      const accountRoute: Route = user.role === "ADMIN" || user.role === "SUPER_ADMIN" ? "/admin" : user.role === "VENDOR" ? "/vendor" : user.role === "HALL_OWNER" ? "/owner" : "/customer";
       router.replace(accountRoute);
     }
-  }, [allowedRoles, isLoading, router, user]);
+  }, [allowedRoles, isLoading, loginNextPath, router, user]);
 
   if (isLoading || !user || (allowedRoles && !allowedRoles.includes(user.role))) {
     return (

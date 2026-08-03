@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 import { getHallById, halls as mockHalls } from "@/features/halls/mock-data";
 import type { HallSummary, VenueType } from "@/features/halls/types";
 
@@ -14,7 +15,13 @@ export type CustomerSavedHallsResult = {
 };
 
 export async function getCustomerSavedHalls(accessToken?: string | null): Promise<CustomerSavedHallsResult> {
-  if (useMockCustomerSavedHalls || !accessToken) return { halls: getLocalSavedHalls(), source: "local" };
+  if (useMockCustomerSavedHalls) return { halls: getLocalSavedHalls(), source: "local" };
+  if (!accessToken) {
+    return {
+      halls: [],
+      source: "api"
+    };
+  }
 
   try {
     const response = await apiRequest<unknown>("/customer/saved-halls", {
@@ -39,7 +46,10 @@ export async function isCustomerHallSaved(hallId: string, accessToken?: string |
 }
 
 export async function saveCustomerHall(hall: HallSummary, accessToken?: string | null) {
-  if (useMockCustomerSavedHalls || !accessToken) return saveLocalHall(hall);
+  if (useMockCustomerSavedHalls) return saveLocalHall(hall);
+  if (!accessToken) {
+    throw new Error("Authentication Required")
+  }
 
   try {
     const response = await apiRequest<unknown>(`/customer/saved-halls/${encodeURIComponent(hall.id)}`, {
@@ -59,7 +69,10 @@ export async function saveCustomerHall(hall: HallSummary, accessToken?: string |
 }
 
 export async function removeCustomerSavedHall(hallId: string, accessToken?: string | null) {
-  if (useMockCustomerSavedHalls || !accessToken) return removeLocalHall(hallId);
+  if (useMockCustomerSavedHalls) return removeLocalHall(hallId);
+  if (!accessToken) {
+    throw new Error("Authentication required");
+  }
 
   try {
     await apiRequest<void>(`/customer/saved-halls/${encodeURIComponent(hallId)}`, {
@@ -146,14 +159,16 @@ function toHallSummary(value: unknown): HallSummary | undefined {
 
   const fallback = getHallById(id) ?? mockHalls[0];
   const name = stringValue(record, ["name", "hallName", "hall_name", "title"]) ?? fallback.name;
+  const city = stringValue(record, ["city"]) ?? fallback.city;
+  const area = stringValue(record, ["area", "locality", "location"]) ?? fallback.area;
   const imageUrl = stringValue(record, ["imageUrl", "image_url", "coverImageUrl", "cover_image_url", "primaryImageUrl", "mediaUrl"])
     ?? fallback.imageUrl;
 
   return {
     id,
-    name,
-    city: stringValue(record, ["city"]) ?? fallback.city,
-    area: stringValue(record, ["area", "locality", "location"]) ?? fallback.area,
+    name: toTitleCase(name),
+    city: toTitleCase(city),
+    area: toTitleCase(area),
     capacity: numberValue(record, ["capacity", "capacityMax", "maxCapacity", "capacity_max"]) ?? fallback.capacity,
     startingPrice: numberValue(record, ["startingPrice", "starting_price", "amount", "price"]) ?? fallback.startingPrice,
     rating: numberValue(record, ["rating", "ratings", "averageRating", "average_rating"]) ?? fallback.rating,

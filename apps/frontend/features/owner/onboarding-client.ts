@@ -1,6 +1,8 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 
-const STORAGE_KEY = "venue-owner-onboarding-draft";
+const STORAGE_KEY_PREFIX = "venue-owner-onboarding-draft";
+const SHARED_STORAGE_KEY = "venue-owner-onboarding-draft";
 const LEGACY_STORAGE_KEY = "venue-owner-onboarding";
 const useMockOwnerOnboarding = process.env.NEXT_PUBLIC_OWNER_ONBOARDING_MODE === "mock";
 
@@ -11,9 +13,15 @@ export type OwnerOnboardingDraft = {
   hallName: string;
   venueType: string;
   description: string;
+  addressLine: string;
   city: string;
   area: string;
   pincode: string;
+  latitude?: number;
+  longitude?: number;
+  contactNumber: string;
+  whatsappNumber: string;
+  coverImageUrl: string;
   capacity: number;
   morningPrice: number;
   eveningPrice: number;
@@ -27,9 +35,15 @@ export const emptyOwnerOnboardingDraft: OwnerOnboardingDraft = {
   hallName: "",
   venueType: "Marriage Hall",
   description: "",
+  addressLine: "",
   city: "Chennai",
   area: "",
   pincode: "",
+  latitude: undefined,
+  longitude: undefined,
+  contactNumber: "",
+  whatsappNumber: "",
+  coverImageUrl: "",
   capacity: 0,
   morningPrice: 0,
   eveningPrice: 0,
@@ -39,7 +53,8 @@ export const emptyOwnerOnboardingDraft: OwnerOnboardingDraft = {
 };
 
 export async function getOwnerOnboardingDraft(accessToken?: string | null) {
-  const localDraft = getLocalDraft();
+  const localDraft = getLocalDraft(accessToken);
+  if (!isEditableDraft(localDraft)) return clearLocalDraft(accessToken);
   if (useMockOwnerOnboarding || !accessToken || !localDraft.id) return localDraft;
 
   try {
@@ -47,15 +62,19 @@ export async function getOwnerOnboardingDraft(accessToken?: string | null) {
       token: accessToken
     });
     const draft = toOwnerDraft(response) ?? localDraft;
-    saveLocalDraft(draft);
+    if (!isEditableDraft(draft)) return clearLocalDraft(accessToken);
+    saveLocalDraft(draft, accessToken);
     return draft;
-  } catch {
+  } catch (exception) {
+    if (exception instanceof ApiError && [403, 404].includes(exception.status)) {
+      return clearLocalDraft(accessToken);
+    }
     return localDraft;
   }
 }
 
 export async function saveOwnerOnboardingDraft(payload: OwnerOnboardingDraft, accessToken?: string | null) {
-  if (useMockOwnerOnboarding || !accessToken) return saveLocalDraft({ ...payload, status: "DRAFT" });
+  if (useMockOwnerOnboarding || !accessToken) return saveLocalDraft({ ...payload, status: "DRAFT" }, accessToken);
 
   try {
     const response = await apiRequest<unknown>(payload.id ? `/owner/halls/${encodeURIComponent(payload.id)}` : "/owner/halls", {
@@ -64,20 +83,24 @@ export async function saveOwnerOnboardingDraft(payload: OwnerOnboardingDraft, ac
       body: JSON.stringify(toRequestPayload(payload))
     });
     const draft = toOwnerDraft(response) ?? { ...payload, id: payload.id ?? `HALL-${Date.now().toString().slice(-6)}`, status: "DRAFT" as const };
-    saveLocalDraft(draft);
+    saveLocalDraft(draft, accessToken);
     return draft;
   } catch (exception) {
+    if (payload.id && exception instanceof ApiError && [403, 404].includes(exception.status)) {
+      clearLocalDraft(accessToken);
+      return saveOwnerOnboardingDraft({ ...payload, id: undefined }, accessToken);
+    }
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return saveLocalDraft({ ...payload, status: "DRAFT" });
+    return saveLocalDraft({ ...payload, status: "DRAFT" }, accessToken);
   }
 }
 
 export async function submitOwnerOnboardingDraft(payload: OwnerOnboardingDraft, accessToken?: string | null) {
   const savedDraft = await saveOwnerOnboardingDraft(payload, accessToken);
   if (useMockOwnerOnboarding || !accessToken || !savedDraft.id) {
-    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" });
+    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" }, accessToken);
   }
 
   try {
@@ -86,20 +109,22 @@ export async function submitOwnerOnboardingDraft(payload: OwnerOnboardingDraft, 
       token: accessToken
     });
     const draft = toOwnerDraft(response) ?? { ...savedDraft, status: "PENDING_APPROVAL" as const };
-    saveLocalDraft(draft);
+    clearLocalDraft(accessToken);
     return draft;
   } catch (exception) {
     if (exception instanceof ApiError && [400, 401, 403, 409].includes(exception.status)) {
       throw exception;
     }
-    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" });
+    return saveLocalDraft({ ...savedDraft, status: "PENDING_APPROVAL" }, accessToken);
   }
 }
 
-function getLocalDraft() {
+function getLocalDraft(accessToken?: string | null) {
   if (typeof window === "undefined") return emptyOwnerOnboardingDraft;
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY) ?? "null";
+    if (accessToken) clearSharedDraftKeys();
+    const key = storageKey(accessToken);
+    const stored = window.localStorage.getItem(key) ?? (!accessToken ? window.localStorage.getItem(SHARED_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY) : null) ?? "null";
     const parsed = JSON.parse(stored) as unknown;
     return toOwnerDraft(parsed) ?? emptyOwnerOnboardingDraft;
   } catch {
@@ -107,21 +132,73 @@ function getLocalDraft() {
   }
 }
 
-function saveLocalDraft(draft: OwnerOnboardingDraft) {
+function saveLocalDraft(draft: OwnerOnboardingDraft, accessToken?: string | null) {
   const nextDraft = { ...draft, id: draft.id ?? `HALL-${Date.now().toString().slice(-6)}`, updatedAt: new Date().toISOString() };
-  if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextDraft));
+  if (typeof window !== "undefined") {
+    if (accessToken) clearSharedDraftKeys();
+    window.localStorage.setItem(storageKey(accessToken), JSON.stringify(nextDraft));
+  }
   return nextDraft;
 }
 
+function clearLocalDraft(accessToken?: string | null) {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(storageKey(accessToken));
+    clearSharedDraftKeys();
+  }
+  return emptyOwnerOnboardingDraft;
+}
+
+function clearSharedDraftKeys() {
+  window.localStorage.removeItem(SHARED_STORAGE_KEY);
+  window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+}
+
+function storageKey(accessToken?: string | null) {
+  return `${STORAGE_KEY_PREFIX}:${tokenSubject(accessToken) ?? "demo"}`;
+}
+
+function tokenSubject(accessToken?: string | null) {
+  if (!accessToken) return undefined;
+
+  try {
+    const [, payload] = accessToken.split(".");
+    if (!payload || !globalThis.atob) return undefined;
+
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const decoded = JSON.parse(globalThis.atob(padded)) as Record<string, unknown>;
+    const subject = decoded.sub;
+    return typeof subject === "string" || typeof subject === "number" ? `user-${subject}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isEditableDraft(draft: OwnerOnboardingDraft) {
+  return draft.status === "DRAFT" || draft.status === "REJECTED";
+}
+
 function toRequestPayload(draft: OwnerOnboardingDraft) {
+  const hallName = toTitleCase(draft.hallName);
+  const addressLine = toTitleCase(draft.addressLine);
+  const city = toTitleCase(draft.city);
+  const area = toTitleCase(draft.area);
+
   return {
-    name: draft.hallName,
-    hallName: draft.hallName,
+    name: hallName,
+    hallName,
     venueType: toBackendVenueType(draft.venueType),
     description: draft.description,
-    city: draft.city,
-    area: draft.area,
+    addressLine,
+    city,
+    area,
     pincode: draft.pincode,
+    latitude: draft.latitude,
+    longitude: draft.longitude,
+    contactNumber: draft.contactNumber,
+    whatsappNumber: draft.whatsappNumber,
+    coverImageUrl: draft.coverImageUrl,
     capacity: draft.capacity,
     capacityMax: draft.capacity,
     startingPrice: draft.fullDayPrice,
@@ -133,9 +210,16 @@ function toRequestPayload(draft: OwnerOnboardingDraft) {
     amenities: draft.amenities,
     acAvailable: draft.amenities.includes("Air conditioned"),
     carParking: draft.amenities.includes("Parking"),
+    bikeParking: false,
+
     diningAvailable: draft.amenities.includes("Dining hall"),
     generatorAvailable: draft.amenities.includes("Generator"),
-    liftAvailable: draft.amenities.includes("Lift")
+    liftAvailable: draft.amenities.includes("Lift"),
+
+    bridalRoomAvailable: draft.amenities.includes("Bridal room"),
+    cateringKitchenAvailable: draft.amenities.includes("Catering kitchen"),
+
+    rooms: draft.amenities.includes("Guest rooms") ? 1 : null
   };
 }
 
@@ -148,12 +232,18 @@ function toOwnerDraft(value: unknown): OwnerOnboardingDraft | undefined {
 
   return {
     id: stringValue(record, ["id", "hallId", "hall_id", "slug"]),
-    hallName,
+    hallName: toTitleCase(hallName),
     venueType: venueTypeValue(record) ?? "Marriage Hall",
     description: stringValue(record, ["description", "summary"]) ?? "",
-    city: stringValue(record, ["city"]) ?? "Chennai",
-    area: stringValue(record, ["area", "locality", "location"]) ?? "",
+    addressLine: toTitleCase(stringValue(record, ["addressLine", "address_line", "address"]) ?? ""),
+    city: toTitleCase(stringValue(record, ["city"]) ?? "Chennai"),
+    area: toTitleCase(stringValue(record, ["area", "locality", "location"]) ?? ""),
     pincode: stringValue(record, ["pincode", "pinCode", "postalCode"]) ?? "",
+    latitude: numberValue(record, ["latitude", "lat"]),
+    longitude: numberValue(record, ["longitude", "lng", "lon"]),
+    contactNumber: stringValue(record, ["contactNumber", "contact_number", "phone"]) ?? "",
+    whatsappNumber: stringValue(record, ["whatsappNumber", "whatsapp_number", "whatsAppNumber"]) ?? "",
+    coverImageUrl: stringValue(record, ["coverImageUrl", "cover_image_url", "imageUrl", "primaryImageUrl"]) ?? "",
     capacity: numberValue(record, ["capacity", "capacityMax", "capacity_max"]) ?? 0,
     morningPrice: numberValue(record, ["morningPrice", "morning_price"], ["pricing", "morningPrice"]) ?? 0,
     eveningPrice: numberValue(record, ["eveningPrice", "evening_price"], ["pricing", "eveningPrice"]) ?? 0,

@@ -5,7 +5,14 @@ export type CustomerEnquiry = {
   venue: string;
   eventDate: string;
   submittedAt: string;
-  status: EnquiryStatus | "AWAITING_RESPONSE";
+  status: EnquiryStatus | "AWAITING_RESPONSE" | "NOT_SELECTED";
+  eventType?: string;
+  guestCount?: number;
+  slot?: string;
+  location?: string;
+  budget?: number;
+  notes?: string;
+  declineReason?: string;
 };
 
 export const customerEnquiries: CustomerEnquiry[] = [

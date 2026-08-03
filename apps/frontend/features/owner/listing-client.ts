@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api-client";
+import { toTitleCase } from "@/lib/display-format";
 import type { HallSummary, VenueType } from "@/features/halls/types";
 
 const STORAGE_KEY = "venue-aggregator-owner-listings";
@@ -7,16 +8,28 @@ const useMockOwnerListings = process.env.NEXT_PUBLIC_OWNER_LISTINGS_MODE === "mo
 export type OwnerListingStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
 
 export type OwnerHallListing = HallSummary & {
+  addressLine?: string;
+  pincode?: string;
+  latitude?: number;
+  longitude?: number;
+  contactNumber?: string;
   status: OwnerListingStatus;
   rejectionReason?: string;
   updatedAt?: string;
   version?: number | string;
+  pendingUpdate?: boolean;
 };
 
 export type OwnerHallUpdatePayload = {
   name: string;
+  addressLine: string;
+  contactNumber: string;
+  coverImageUrl: string;
   city: string;
   area: string;
+  pincode: string;
+  latitude?: number;
+  longitude?: number;
   capacity: number;
   startingPrice: number;
   venueType: VenueType;
@@ -37,6 +50,16 @@ export async function getOwnerHallListing(hallId: string, accessToken: string | 
   } catch {
     return getLocalOwnerListing(hallId, fallback);
   }
+}
+
+export async function getOwnerHalls(
+  accessToken: string | null | undefined
+) {
+  if (!accessToken) return [];
+
+  return apiRequest<OwnerHallListing[]>("/owner/halls", {
+    token: accessToken,
+  });
 }
 
 export async function updateOwnerHallListing(
@@ -114,19 +137,33 @@ function readOwnerListingStore(): Record<string, OwnerHallListing> {
 }
 
 function mergeListing(fallback: OwnerHallListing, payload: OwnerHallUpdatePayload, status: OwnerListingStatus): OwnerHallListing {
+  const normalizedPayload = normalizeListingPayload(payload);
+  const galleryUrls = payload.coverImageUrl
+    ? [payload.coverImageUrl, ...fallback.galleryUrls.filter((url) => url !== payload.coverImageUrl)]
+    : fallback.galleryUrls;
+
   return {
     ...fallback,
-    ...payload,
+    ...normalizedPayload,
+    imageUrl: payload.coverImageUrl || fallback.imageUrl,
+    galleryUrls,
     status,
     updatedAt: new Date().toISOString()
   };
 }
 
 function toOwnerHallRequest(payload: OwnerHallUpdatePayload) {
+  const normalizedPayload = normalizeListingPayload(payload);
   return {
-    name: payload.name,
-    city: payload.city,
-    area: payload.area,
+    name: normalizedPayload.name,
+    addressLine: normalizedPayload.addressLine,
+    contactNumber: payload.contactNumber,
+    coverImageUrl: payload.coverImageUrl,
+    city: normalizedPayload.city,
+    area: normalizedPayload.area,
+    pincode: payload.pincode,
+    latitude: payload.latitude,
+    longitude: payload.longitude,
     venueType: toBackendVenueType(payload.venueType),
     capacity: payload.capacity,
     capacityMax: payload.capacity,
@@ -139,6 +176,16 @@ function toOwnerHallRequest(payload: OwnerHallUpdatePayload) {
     diningAvailable: payload.amenities.includes("Dining hall") || payload.amenities.includes("Dining area"),
     generatorAvailable: payload.amenities.includes("Generator") || payload.amenities.includes("Power backup"),
     liftAvailable: payload.amenities.includes("Lift")
+  };
+}
+
+function normalizeListingPayload(payload: OwnerHallUpdatePayload): OwnerHallUpdatePayload {
+  return {
+    ...payload,
+    name: toTitleCase(payload.name),
+    addressLine: toTitleCase(payload.addressLine),
+    city: toTitleCase(payload.city),
+    area: toTitleCase(payload.area)
   };
 }
 
@@ -156,9 +203,14 @@ function toOwnerHallListing(value: unknown, fallback?: OwnerHallListing): OwnerH
 
   return {
     id,
-    name: stringValue(record, ["name", "hallName", "title"]) ?? fallback?.name ?? "Untitled venue",
-    city: stringValue(record, ["city"]) ?? fallback?.city ?? "",
-    area: stringValue(record, ["area", "locality", "location"]) ?? fallback?.area ?? "",
+    name: toTitleCase(stringValue(record, ["name", "hallName", "title"]) ?? fallback?.name ?? "Untitled venue"),
+    addressLine: toTitleCase(stringValue(record, ["addressLine", "address_line", "address"]) ?? fallback?.addressLine ?? ""),
+    pincode: stringValue(record, ["pincode", "pinCode", "postalCode"]) ?? fallback?.pincode ?? "",
+    latitude: numberValue(record, ["latitude", "lat"]) ?? fallback?.latitude,
+    longitude: numberValue(record, ["longitude", "lng", "lon"]) ?? fallback?.longitude,
+    contactNumber: stringValue(record, ["contactNumber", "contact_number", "phone", "mobile"]) ?? fallback?.contactNumber ?? "",
+    city: toTitleCase(stringValue(record, ["city"]) ?? fallback?.city ?? ""),
+    area: toTitleCase(stringValue(record, ["area", "locality", "location"]) ?? fallback?.area ?? ""),
     capacity: numberValue(record, ["capacity", "capacityMax", "capacity_max"]) ?? fallback?.capacity ?? 0,
     startingPrice: numberValue(record, ["startingPrice", "amount", "price"]) ?? fallback?.startingPrice ?? 0,
     rating: numberValue(record, ["rating", "averageRating"]) ?? fallback?.rating ?? 0,
@@ -173,7 +225,8 @@ function toOwnerHallListing(value: unknown, fallback?: OwnerHallListing): OwnerH
     status: statusValue(record) ?? fallback?.status ?? "DRAFT",
     rejectionReason: stringValue(record, ["rejectionReason", "rejection_reason"]),
     updatedAt: stringValue(record, ["updatedAt", "updated_at"]) ?? fallback?.updatedAt,
-    version: numberValue(record, ["version"]) ?? stringValue(record, ["version"]) ?? fallback?.version
+    version: numberValue(record, ["version"]) ?? stringValue(record, ["version"]) ?? fallback?.version,
+    pendingUpdate: record.pendingUpdate === true
   };
 }
 
@@ -222,7 +275,8 @@ function venueType(record: Record<string, unknown>): VenueType | undefined {
   if (normalized === "MARRIAGE_HALL") return "Marriage Hall";
   if (normalized === "BANQUET_HALL") return "Banquet Hall";
   if (normalized === "MINI_HALL") return "Mini Hall";
-  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall") return value;
+  if (normalized === "CONVENTION_CENTRE" || normalized === "CONVENTION_CENTER") return "Convention Centre";
+  if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall" || value === "Convention Centre") return value;
   return undefined;
 }
 
