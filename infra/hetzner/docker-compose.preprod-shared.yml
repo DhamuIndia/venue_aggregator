@@ -1,0 +1,116 @@
+name: bookvenuemart-preprod
+
+services:
+  frontend:
+    container_name: bookvenuemart-preprod-frontend
+    build:
+      context: ../../apps/frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_AUTH_MODE: api
+        NEXT_PUBLIC_HALLS_MODE: api
+        NEXT_PUBLIC_ENQUIRIES_MODE: api
+        NEXT_PUBLIC_AVAILABILITY_MODE: api
+        NEXT_PUBLIC_OWNER_LISTINGS_MODE: api
+        NEXT_PUBLIC_OWNER_ONBOARDING_MODE: api
+        NEXT_PUBLIC_OWNER_MEDIA_MODE: api
+        NEXT_PUBLIC_OWNER_REVIEWS_MODE: api
+        NEXT_PUBLIC_CUSTOMER_REVIEWS_MODE: api
+        NEXT_PUBLIC_CUSTOMER_SAVED_HALLS_MODE: api
+        NEXT_PUBLIC_BOOKINGS_MODE: api
+        NEXT_PUBLIC_BOOKING_PAYMENTS_MODE: api
+        NEXT_PUBLIC_NOTIFICATIONS_MODE: api
+        NEXT_PUBLIC_ANALYTICS_MODE: api
+        NEXT_PUBLIC_VENDOR_LEADS_MODE: api
+        NEXT_PUBLIC_ADMIN_MODE: api
+        NEXT_PUBLIC_VENDORS_MODE: api
+        NEXT_PUBLIC_VENDOR_PROFILE_MODE: api
+        NEXT_PUBLIC_VENDOR_SUBSCRIPTION_MODE: api
+        NEXT_PUBLIC_VENDOR_PACKAGES_MODE: api
+        NEXT_PUBLIC_VENDOR_MEDIA_MODE: api
+    restart: "no"
+    environment:
+      NODE_OPTIONS: --max-old-space-size=128
+    mem_limit: 192m
+    mem_reservation: 96m
+    cpus: "0.50"
+    pids_limit: 150
+    expose:
+      - "3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - preprod
+
+  backend:
+    container_name: bookvenuemart-preprod-backend
+    build:
+      context: ../../apps/backend
+      dockerfile: Dockerfile
+    entrypoint:
+      - java
+      - -Xms64m
+      - -Xmx256m
+      - -XX:MaxMetaspaceSize=128m
+      - -XX:+UseSerialGC
+      - -jar
+      - /app/app.jar
+    restart: "no"
+    environment:
+      DATABASE_URL: jdbc:postgresql://bookvenuemart-postgres:5432/${PREPROD_POSTGRES_DB}
+      DATABASE_USERNAME: ${PREPROD_POSTGRES_USER}
+      DATABASE_PASSWORD: ${PREPROD_POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 5
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: 1
+      SERVER_TOMCAT_THREADS_MAX: 40
+      SERVER_TOMCAT_THREADS_MIN_SPARE: 5
+      SERVER_PORT: 8080
+      JWT_SECRET: ${PREPROD_JWT_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRATION_MS: ${JWT_ACCESS_TOKEN_EXPIRATION_MS}
+      JWT_REFRESH_TOKEN_EXPIRATION_MS: ${JWT_REFRESH_TOKEN_EXPIRATION_MS}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      STORAGE_PROVIDER: s3
+      S3_ENDPOINT: http://bookvenuemart-minio:9000
+      S3_PRESIGN_ENDPOINT: https://${MEDIA_DOMAIN}
+      S3_REGION: us-east-1
+      S3_BUCKET: ${PREPROD_MINIO_BUCKET}
+      S3_ACCESS_KEY: ${PREPROD_MINIO_ACCESS_KEY}
+      S3_SECRET_KEY: ${PREPROD_MINIO_SECRET_KEY}
+      S3_PATH_STYLE_ACCESS: "true"
+      S3_PUBLIC_BASE_URL: https://${MEDIA_DOMAIN}/${PREPROD_MINIO_BUCKET}
+      MEDIA_MAX_UPLOAD_SIZE_BYTES: ${MEDIA_MAX_UPLOAD_SIZE_BYTES}
+      MARKETPLACE_REQUIREMENTS_ENABLED: ${MARKETPLACE_REQUIREMENTS_ENABLED:-false}
+      WHATSAPP_SENDING_ENABLED: "false"
+      WHATSAPP_WEBHOOK_ENABLED: "false"
+      WHATSAPP_GRAPH_API_VERSION: ""
+      WHATSAPP_PHONE_NUMBER_ID: ""
+      WHATSAPP_ACCESS_TOKEN: ""
+      WHATSAPP_LEAD_TEMPLATE_NAME: ""
+      WHATSAPP_ROLLOUT_ALLOWED_VENDOR_IDS: ""
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ""
+      WHATSAPP_APP_SECRET: ""
+    mem_limit: 512m
+    mem_reservation: 256m
+    cpus: "0.75"
+    pids_limit: 200
+    expose:
+      - "8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - preprod
+      - production-services
+
+networks:
+  preprod:
+    name: bookvenuemart_preprod_internal
+  production-services:
+    external: true
+    name: bookvenuemart_internal
