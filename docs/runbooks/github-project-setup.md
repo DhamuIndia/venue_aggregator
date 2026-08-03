@@ -62,10 +62,13 @@ Every developer must:
 
 - Pick work only from `Ready`.
 - Move the issue to `In Progress` before coding.
-- Create a branch named from the issue, for example `backend/public-halls`.
-- Open a PR and link it with `Closes #issueNumber`.
+- Refresh `develop` and create the work branch from it, for example `feature/public-halls`.
+- Open a PR targeting `develop` and link it with `Closes #issueNumber`.
 - Move the issue to `PR Raised`.
 - Ask for frontend verification after merge or local backend run.
+
+Production releases use a separate pull request from `develop` to `main`.
+See [Git Branching Workflow](git-branching-workflow.md).
 
 ## Completion Rule
 
@@ -75,4 +78,3 @@ An issue is `Done` only when:
 - The frontend screen is verified in API mode.
 - The issue acceptance checklist is complete.
 - The PR is merged.
-
