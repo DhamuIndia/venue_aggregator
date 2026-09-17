@@ -29,6 +29,7 @@ import com.staminal.venue.enquiries.dto.EnquirySlotRequestDto;
 import com.staminal.venue.enquiries.dto.UpdateEnquiryStatusRequest;
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.HallStatus;
+import com.staminal.venue.enums.PaymentStatus;
 import com.staminal.venue.enums.SlotType;
 import com.staminal.venue.enums.UserRole;
 import com.staminal.venue.halls.Entity.Halls;
@@ -206,6 +207,7 @@ class EnquiryServiceTest {
         assertThat(bookingCaptor.getValue().getEnquiry()).isEqualTo(enquiry);
         assertThat(bookingCaptor.getValue().getHall()).isEqualTo(enquiry.getHall());
         assertThat(bookingCaptor.getValue().getStatus()).isEqualTo(Booking.STATUS_CONFIRMED);
+        assertThat(bookingCaptor.getValue().getPaymentStatus()).isEqualTo(PaymentStatus.NOT_STARTED);
         verify(notificationService).notifyUser(
                 enquiry.getCustomer(),
                 NotificationType.BOOKING,
