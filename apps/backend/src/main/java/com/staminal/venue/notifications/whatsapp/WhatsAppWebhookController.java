@@ -25,6 +25,7 @@ public class WhatsAppWebhookController {
     private final WhatsAppCloudApiProperties properties;
     private final WhatsAppWebhookSignatureVerifier signatureVerifier;
     private final WhatsAppWebhookProcessor webhookProcessor;
+    private final WhatsAppWebhookForwarder webhookForwarder;
 
     @GetMapping(produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> verify(
@@ -54,6 +55,7 @@ public class WhatsAppWebhookController {
         }
         try {
             webhookProcessor.process(payload);
+            webhookForwarder.enqueue(payload);
             return ResponseEntity.ok("EVENT_RECEIVED");
         } catch (IOException exception) {
             return ResponseEntity.badRequest().body("INVALID_PAYLOAD");

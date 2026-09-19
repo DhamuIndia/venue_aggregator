@@ -129,15 +129,16 @@ public class BookingService {
         if (nextStatus == BookingStatus.CONFIRMED) {
             ensureSlotStillAvailable(booking);
             booking.setConfirmedAt(booking.getConfirmedAt() != null ? booking.getConfirmedAt() : now);
-            booking.setPaymentStatus(PaymentStatus.ADVANCE_PENDING);
+            if (booking.getPaymentStatus() == null
+                    || booking.getPaymentStatus() == PaymentStatus.ADVANCE_PENDING) {
+                booking.setPaymentStatus(PaymentStatus.NOT_STARTED);
+            }
             syncEnquiryStatus(booking, EnquiryStatus.CONFIRMED);
         }
 
         if (nextStatus == BookingStatus.CANCELLED) {
             booking.setCancelledAt(now);
-            if (booking.getPaymentStatus() == PaymentStatus.ADVANCE_PAID) {
-                booking.setPaymentStatus(PaymentStatus.REFUNDED);
-            } else {
+            if (booking.getPaymentStatus() == PaymentStatus.ADVANCE_PENDING) {
                 booking.setPaymentStatus(PaymentStatus.NOT_STARTED);
             }
         }

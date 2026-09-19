@@ -6,6 +6,13 @@
 
 Closes #
 
+## Branch Flow
+
+- [ ] Feature/fix: the branch was created from and targets `develop`
+- [ ] Release: the source is `develop` and the target is `main`
+- [ ] Hotfix: the branch was created from and targets `main`
+- [ ] No force-push is required; production deployment remains separately approved
+
 ## Backend Checklist
 
 - [ ] Routes match `docs/api/frontend-backend-contract-v1.md`
@@ -33,4 +40,3 @@ mvn test
 cd apps/frontend
 npm run typecheck
 ```
-

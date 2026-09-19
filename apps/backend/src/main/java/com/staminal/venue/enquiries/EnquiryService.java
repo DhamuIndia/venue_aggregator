@@ -157,7 +157,10 @@ public class EnquiryService {
             if (booking.getConfirmedAt() == null) {
                 booking.setConfirmedAt(Instant.now());
             }
-            booking.setPaymentStatus(PaymentStatus.ADVANCE_PENDING);
+            if (booking.getPaymentStatus() == null
+                    || booking.getPaymentStatus() == PaymentStatus.ADVANCE_PENDING) {
+                booking.setPaymentStatus(PaymentStatus.NOT_STARTED);
+            }
             bookingRepository.save(booking);
             return;
         }
@@ -185,7 +188,7 @@ public class EnquiryService {
         booking.setSlotType(enquiry.getSlotType());
         booking.setStatus(Booking.STATUS_CONFIRMED);
         booking.setAmount(startingPrice(enquiry.getHall()));
-        booking.setPaymentStatus(PaymentStatus.ADVANCE_PENDING);
+        booking.setPaymentStatus(PaymentStatus.NOT_STARTED);
         booking.setConfirmedAt(Instant.now());
         booking.setCustomerName(enquiry.getCustomerName());
         booking.setCustomerPhone(enquiry.getCustomerPhone());
