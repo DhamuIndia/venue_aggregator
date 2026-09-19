@@ -3,6 +3,8 @@ package com.staminal.venue.notifications.whatsapp;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -39,6 +41,9 @@ class WhatsAppWebhookControllerSecurityTest {
     @MockitoBean
     private WhatsAppWebhookProcessor webhookProcessor;
 
+    @MockitoBean
+    private WhatsAppWebhookForwarder webhookForwarder;
+
     @Test
     void metaCanVerifyPublicCallbackWithoutVenueMartLogin() throws Exception {
         when(properties.isWebhookEnabled()).thenReturn(true);
@@ -65,6 +70,8 @@ class WhatsAppWebhookControllerSecurityTest {
                         .content("{\"object\":\"whatsapp_business_account\"}"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("EVENT_RECEIVED"));
+        verify(webhookProcessor).process(any(byte[].class));
+        verify(webhookForwarder).enqueue(any(byte[].class));
     }
 
     @Test
@@ -76,5 +83,6 @@ class WhatsAppWebhookControllerSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnauthorized());
+        verifyNoInteractions(webhookProcessor, webhookForwarder);
     }
 }
