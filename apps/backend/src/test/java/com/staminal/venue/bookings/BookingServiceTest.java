@@ -132,6 +132,59 @@ class BookingServiceTest {
     }
 
     @Test
+    void ownerCanConfirmBookingWithoutRequestingAnAdvance() {
+        Booking booking = booking();
+        booking.setStatus(BookingStatus.REQUESTED);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(owner()));
+        when(bookingRepository.findById(88L)).thenReturn(Optional.of(booking));
+        when(hallBlockedDateRepository.findByHallId_Id(201L)).thenReturn(List.of());
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BookingResponse response = bookingService.updateOwnerBookingStatus(
+                "BOOK-000088",
+                new UpdateBookingStatusRequest(BookingStatus.CONFIRMED, null),
+                auth(301L, UserRole.HALL_OWNER));
+
+        assertThat(response.status()).isEqualTo(BookingStatus.CONFIRMED);
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.NOT_STARTED);
+    }
+
+    @Test
+    void cancellingAPaidBookingDoesNotClaimARefund() {
+        Booking booking = booking();
+        booking.setPaymentStatus(PaymentStatus.ADVANCE_PAID);
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(owner()));
+        when(bookingRepository.findById(88L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BookingResponse response = bookingService.updateOwnerBookingStatus(
+                "BOOK-000088",
+                new UpdateBookingStatusRequest(BookingStatus.CANCELLED, null),
+                auth(301L, UserRole.HALL_OWNER));
+
+        assertThat(response.status()).isEqualTo(BookingStatus.CANCELLED);
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.ADVANCE_PAID);
+    }
+
+    @Test
+    void cancellingAPendingAdvanceClearsTheUnverifiedRequest() {
+        Booking booking = booking();
+
+        when(userRepository.findById(301L)).thenReturn(Optional.of(owner()));
+        when(bookingRepository.findById(88L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BookingResponse response = bookingService.updateOwnerBookingStatus(
+                "BOOK-000088",
+                new UpdateBookingStatusRequest(BookingStatus.CANCELLED, null),
+                auth(301L, UserRole.HALL_OWNER));
+
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.NOT_STARTED);
+    }
+
+    @Test
     void completedBookingCannotBeCancelled() {
         Booking booking = booking();
         booking.setStatus(BookingStatus.COMPLETED);

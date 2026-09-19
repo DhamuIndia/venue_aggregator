@@ -45,7 +45,7 @@ export function bookingFromEnquiry(enquiry: StoredEnquiry): BookingItem {
     guestCount: enquiry.guestCount,
     slot: enquiry.slot,
     status: enquiry.status === "COMPLETED" ? "COMPLETED" : enquiry.status === "DECLINED" ? "CANCELLED" : "CONFIRMED",
-    paymentStatus: "ADVANCE_PENDING",
+    paymentStatus: "NOT_STARTED",
     notes: enquiry.notes,
     confirmedAt: enquiry.status === "CONFIRMED" || enquiry.status === "COMPLETED" ? enquiry.submittedAt : undefined,
     updatedAt: enquiry.submittedAt
@@ -105,17 +105,6 @@ export async function updateOwnerBookingStatus(bookingId: string, status: Bookin
 export function upsertLocalBooking(booking: BookingItem) {
   cacheLocalBooking(booking);
   return booking;
-}
-
-export function updateLocalBookingPaymentStatus(bookingId: string, paymentStatus: BookingPaymentStatus) {
-  const bookings = readBookingStore();
-  const updated = bookings.map((booking) => booking.id === bookingId ? {
-    ...booking,
-    paymentStatus,
-    updatedAt: new Date().toISOString()
-  } : booking);
-  saveBookings(updated);
-  return updated.find((booking) => booking.id === bookingId);
 }
 
 function getLocalBookings(fallbackBookings: BookingItem[] = []) {
