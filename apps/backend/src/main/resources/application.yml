@@ -24,6 +24,7 @@ jwt:
 app:
   features:
     marketplace-requirements-enabled: ${MARKETPLACE_REQUIREMENTS_ENABLED:false}
+    venue-discovery-enabled: ${VENUE_DISCOVERY_ENABLED:false}
   notifications:
     whatsapp:
       sending-enabled: ${WHATSAPP_SENDING_ENABLED:false}
