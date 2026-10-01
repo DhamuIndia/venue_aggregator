@@ -27,6 +27,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { RejectionDialog } from "@/components/admin/RejectionDialog";
 import { AdminLeadNotificationMonitor } from "@/components/admin/AdminLeadNotificationMonitor";
+import { AdminVenueDiscovery } from "@/components/admin/AdminVenueDiscovery";
 import { VenueDetailsDrawer } from "@/components/admin/VenueDetailsDrawer";
 import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
@@ -63,12 +64,13 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
 import type { EnquiryStatus } from "@/features/enquiries/types";
 
-type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "vendorReviews" | "enquiries" | "leadNotifications";
+type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "vendorReviews" | "enquiries" | "leadNotifications" | "venueDiscovery";
 type RejectTarget = { kind: "venue" | "vendor"; id: string; name: string };
 
 const tabs: { id: AdminTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "venues", label: "Venue approvals" },
+  { id: "venueDiscovery", label: "Venue discovery" },
   { id: "vendors", label: "Vendor approvals" },
   { id: "users", label: "Users" },
   { id: "reports", label: "Reports" },
@@ -1030,6 +1032,7 @@ export function AdminDashboard() {
         )}
 
         {activeTab === "leadNotifications" && <AdminLeadNotificationMonitor />}
+        {activeTab === "venueDiscovery" && <AdminVenueDiscovery />}
       </div>
 
       {rejectTarget && <RejectionDialog onClose={() => setRejectTarget(null)} onReject={rejectWithReason} subject={rejectTarget.name} />}

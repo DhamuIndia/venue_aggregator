@@ -10,4 +10,6 @@ public interface VenueDiscoveryRunCandidateRepository
     List<VenueDiscoveryRunCandidate> findByDiscoveryRun_IdOrderByObservedAtDesc(Long discoveryRunId);
 
     List<VenueDiscoveryRunCandidate> findByCandidate_IdOrderByObservedAtDesc(Long candidateId);
+
+    long countByDiscoveryRun_Id(Long discoveryRunId);
 }

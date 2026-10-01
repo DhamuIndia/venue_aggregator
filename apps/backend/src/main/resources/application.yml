@@ -25,6 +25,12 @@ app:
   features:
     marketplace-requirements-enabled: ${MARKETPLACE_REQUIREMENTS_ENABLED:false}
     venue-discovery-enabled: ${VENUE_DISCOVERY_ENABLED:false}
+  venue-discovery:
+    live-api-enabled: ${VENUE_DISCOVERY_LIVE_API_ENABLED:false}
+    google-api-key: ${VENUE_DISCOVERY_GOOGLE_API_KEY:}
+    max-results: ${VENUE_DISCOVERY_MAX_RESULTS:10}
+    daily-request-limit: ${VENUE_DISCOVERY_DAILY_REQUEST_LIMIT:100}
+    timeout-seconds: ${VENUE_DISCOVERY_TIMEOUT_SECONDS:10}
   notifications:
     whatsapp:
       sending-enabled: ${WHATSAPP_SENDING_ENABLED:false}
