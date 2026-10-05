@@ -22,6 +22,7 @@ import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Entity.HallListingOrigin;
 import com.staminal.venue.halls.Dto.UpdateHallRequest;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
@@ -52,6 +53,7 @@ public class AdminHallModerationService {
                 ? Stream.concat(hallRepository.findByStatus(HallStatus.PENDING_APPROVAL).stream(), hallRepository.findByPendingUpdatePayloadIsNotNull().stream()).distinct().toList()
                 : hallStatus == null ? hallRepository.findAll() : hallRepository.findByStatus(hallStatus))
                 .stream()
+                .filter(hall -> hall.getListingOrigin() != HallListingOrigin.APPLICATION)
                 .sorted(Comparator.comparing(Halls::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
 
