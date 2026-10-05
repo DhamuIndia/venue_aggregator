@@ -70,6 +70,41 @@ export type OvertureDraft = {
   sources: OvertureSource[];
   missingFields: string[];
   status: "DRAFT";
+  reviewStatus?: OvertureReviewStatus;
+  reviewVersion?: number;
+};
+
+export type OvertureReviewStatus = "UNREVIEWED" | "IN_REVIEW" | "VERIFIED" | "DUPLICATE";
+export type OvertureDuplicateDecision = "NOT_REVIEWED" | "DISTINCT" | "CONFIRMED_DUPLICATE";
+export type OvertureAmenities = {
+  ac: boolean | null; carParking: boolean | null; bikeParking: boolean | null;
+  dining: boolean | null; generator: boolean | null; lift: boolean | null;
+  bridalRoom: boolean | null; cateringKitchen: boolean | null;
+};
+export type OvertureDraftFacts = {
+  name: string; address: string | null; city: string | null; area: string | null;
+  postcode: string | null; latitude: number | null; longitude: number | null;
+  phone: string | null; website: string | null; operatingStatus: string | null;
+  capacity: number | null; description: string | null; amenities: OvertureAmenities;
+};
+export type OvertureFactField = Exclude<keyof OvertureDraftFacts, "amenities"> | `amenities.${keyof OvertureAmenities}`;
+export type OvertureDraftDetail = {
+  hallId: number; sourceId: string; status: "DRAFT"; reviewVersion: number;
+  reviewStatus: OvertureReviewStatus; facts: OvertureDraftFacts; sourceFacts: OvertureDraftFacts;
+  sources: OvertureSource[]; release: string; importedAt: string;
+  fieldOrigins: Record<OvertureFactField, "SOURCE" | "ADMIN" | "MISSING">;
+  verifications: Partial<Record<OvertureFactField, { adminId: number; adminName: string; verifiedAt: string; evidence: string }>>;
+  missingFields: string[]; unverifiedFields: string[];
+  duplicates: { hallId: number; name: string; city: string | null; area: string | null; status: string; listingOrigin: string; distanceMeters: number | null }[];
+  duplicateDecision: OvertureDuplicateDecision; duplicateNotes: string | null;
+  reviewedDuplicateHallIds: number[]; reviewNotes: string | null;
+  lastReviewedBy: { adminId: number; adminName: string } | null; lastReviewedAt: string | null;
+};
+export type OvertureDraftUpdate = {
+  expectedVersion: number; facts: OvertureDraftFacts; verifiedFields: OvertureFactField[];
+  reviewStatus: OvertureReviewStatus; reviewNotes: string | null;
+  duplicateDecision: OvertureDuplicateDecision; duplicateNotes: string | null;
+  reviewedDuplicateHallIds: number[];
 };
 
 const basePath = "/admin/overture-onboarding";
@@ -103,6 +138,18 @@ export async function importOvertureVenues(catalogVersion: string, ids: string[]
 export async function getOvertureDrafts(page: number, token?: string | null, signal?: AbortSignal) {
   return apiRequest<OverturePage<OvertureDraft>>(`${basePath}/drafts?page=${page}&size=20`, {
     token: authenticatedToken(token), cache: "no-store", signal
+  });
+}
+
+export async function getOvertureDraft(hallId: number, token?: string | null, signal?: AbortSignal) {
+  return apiRequest<OvertureDraftDetail>(`${basePath}/drafts/${hallId}`, {
+    token: authenticatedToken(token), cache: "no-store", signal
+  });
+}
+
+export async function updateOvertureDraft(hallId: number, update: OvertureDraftUpdate, token?: string | null, signal?: AbortSignal) {
+  return apiRequest<OvertureDraftDetail>(`${basePath}/drafts/${hallId}`, {
+    method: "PUT", token: authenticatedToken(token), cache: "no-store", body: JSON.stringify(update), signal
   });
 }
 

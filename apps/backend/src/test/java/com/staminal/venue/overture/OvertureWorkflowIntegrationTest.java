@@ -124,7 +124,7 @@ class OvertureWorkflowIntegrationTest {
         var before = preserved.stream().collect(java.util.stream.Collectors.toMap(table -> table, this::count));
         var oldHall = jdbc.queryForMap("select * from halls where id=?", existingHallId);
         assertEquals("OWNER", oldHall.get("listing_origin"));
-        assertEquals(41, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
+        assertEquals(42, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
         var settings = service.settings(auth);
         assertTrue(settings.ready());
         assertEquals("2026-09-23.0", settings.release());

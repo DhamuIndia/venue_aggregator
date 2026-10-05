@@ -30,7 +30,9 @@ test("all onboarding endpoints reject absent admin tokens without issuing a requ
       () => client.getOvertureCatalog(0, "", token),
       () => client.previewOvertureVenues(["venue-id"], token),
       () => client.importOvertureVenues("catalog-version", ["venue-id"], token),
-      () => client.getOvertureDrafts(0, token)
+      () => client.getOvertureDrafts(0, token),
+      () => client.getOvertureDraft(1, token),
+      () => client.updateOvertureDraft(1, {}, token)
     ]) await assert.rejects(request, /sign in with an admin account/);
   }
   assert.equal(calls.length, 0);
@@ -108,6 +110,29 @@ test("HTTP source websites stay visible as validated text without becoming click
   }
 });
 
+test("draft detail and review updates carry uncached admin auth and the exact versioned full body", async () => {
+  const response = { hallId: 42, reviewVersion: 8, status: "DRAFT" };
+  const { client, calls } = loadClient(async () => response);
+  const signal = new AbortController().signal;
+  const update = { expectedVersion: 7, facts: { name: "Test hall", phone: null, capacity: null, amenities: { ac: false, lift: null } },
+    verifiedFields: ["amenities.ac"], reviewStatus: "IN_REVIEW", reviewNotes: "Site visit", duplicateDecision: "NOT_REVIEWED", duplicateNotes: null, reviewedDuplicateHallIds: [] };
+  assert.equal(await client.getOvertureDraft(42, "admin-token", signal), response);
+  assert.equal(await client.updateOvertureDraft(42, update, "admin-token", signal), response);
+  assert.deepEqual(calls.map((call) => call.url), ["/admin/overture-onboarding/drafts/42", "/admin/overture-onboarding/drafts/42"]);
+  assert.equal(calls[0].options.method, undefined);
+  assert.equal(calls[1].options.method, "PUT");
+  assert.deepEqual(JSON.parse(calls[1].options.body), update);
+  assert.ok(calls.every((call) => call.options.token === "admin-token" && call.options.cache === "no-store" && call.options.signal === signal));
+});
+
+test("draft review conflict propagates without retry or auto-incrementing its expected version", async () => {
+  const failure = Object.assign(new Error("Draft changed"), { status: 409 });
+  const { client, calls } = loadClient(async () => { throw failure; });
+  await assert.rejects(() => client.updateOvertureDraft(9, { expectedVersion: 3 }, "token"), (exception) => exception === failure);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(JSON.parse(calls[0].options.body), { expectedVersion: 3 });
+});
+
 test("the venue facts display shows supplied HTTP text and keeps HTTPS websites clickable", () => {
   const { client } = loadClient();
   const source = fs.readFileSync(path.join(__dirname, "../components/admin/AdminOvertureOnboarding.tsx"), "utf8");
@@ -117,6 +142,7 @@ test("the venue facts display shows supplied HTTP text and keeps HTTPS websites 
   const componentModule = { exports: {} };
   new Function("require", "module", "exports", `${compiled}\nmodule.exports.VenueFacts = VenueFacts;`)((name) => {
     if (name === "@/features/admin/overture-client") return client;
+    if (name === "@/components/admin/AdminOvertureDraftReview") return { AdminOvertureDraftReview: () => null };
     if (name === "@/features/auth/AuthProvider") return { useAuth: () => ({ accessToken: null }) };
     if (name === "@/lib/api-client") return { ApiError: class ApiError extends Error {} };
     return frontendRequire(name);
