@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AdminOvertureOnboardingController {
     private final AdminOvertureOnboardingService service;
+    private final OvertureDraftReviewService reviews;
 
     @GetMapping("/settings")
     public ResponseEntity<Settings> settings(Authentication authentication) { return noStore(service.settings(authentication)); }
@@ -33,6 +34,17 @@ public class AdminOvertureOnboardingController {
     @GetMapping("/drafts")
     public ResponseEntity<Page<Draft>> drafts(@RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size, Authentication authentication) { return noStore(service.drafts(page, size, authentication)); }
+
+    @GetMapping("/drafts/{hallId}")
+    public ResponseEntity<OvertureDraftReviewResponse.Detail> detail(@PathVariable long hallId, Authentication authentication) {
+        return noStore(reviews.detail(hallId, authentication));
+    }
+
+    @PutMapping("/drafts/{hallId}")
+    public ResponseEntity<OvertureDraftReviewResponse.Detail> update(@PathVariable long hallId,
+            @RequestBody OvertureDraftReviewRequest.Update request, Authentication authentication) {
+        return noStore(reviews.update(hallId, request, authentication));
+    }
 
     private <T> ResponseEntity<T> noStore(T body) { return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body); }
 }

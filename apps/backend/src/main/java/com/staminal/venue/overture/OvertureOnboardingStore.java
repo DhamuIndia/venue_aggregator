@@ -61,6 +61,12 @@ public class OvertureOnboardingStore {
                     values (?::uuid, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
                     """, venue.id(), hall.getId(), snapshot.version(), snapshot.release(), venue.category(),
                     venue.website(), venue.operatingStatus(), serialize(venue.sources()), actor.admin().getId());
+            jdbc.update("""
+                    insert into venue_overture_draft_reviews
+                    (hall_id, source_facts, effective_website, effective_operating_status)
+                    values (?, ?::jsonb, ?, ?)
+                    """, hall.getId(), serialize(OvertureDraftReviewResponse.Facts.from(hall, venue.website(), venue.operatingStatus())),
+                    venue.website(), venue.operatingStatus() == null ? "unknown" : venue.operatingStatus());
             audit.record(new AuditCommand(actor.userId(), actor.role(), AuditAction.OVERTURE_VENUE_DRAFT_CREATED,
                     "HALL", String.valueOf(hall.getId()), "Application venue draft created", null,
                     Map.of("status", "DRAFT", "listingOrigin", "APPLICATION"),
@@ -76,21 +82,25 @@ public class OvertureOnboardingStore {
     public Page<Draft> drafts(int page, int size) {
         Long total = jdbc.queryForObject("""
                 select count(*) from venue_overture_imports i join halls h on h.id=i.hall_id
+                join venue_overture_draft_reviews r on r.hall_id=h.id
                 where h.listing_origin='APPLICATION' and h.status='DRAFT'
                 """, Long.class);
         List<Draft> content = jdbc.query("""
                 select h.id, i.source_id::text, h.name, h.city, h.area, h.address_line, i.category, i.release,
-                       i.imported_at, i.sources::text, h.contact_number, i.source_website,
-                       h.cover_image_url, h.capacity_max, h.full_day_amount, i.source_operating_status
+                       i.imported_at, i.sources::text, h.contact_number, r.effective_website,
+                       h.cover_image_url, h.capacity_max, h.full_day_amount, r.effective_operating_status,
+                       r.review_status, r.review_version
                 from venue_overture_imports i join halls h on h.id=i.hall_id
+                join venue_overture_draft_reviews r on r.hall_id=h.id
                 where h.listing_origin='APPLICATION' and h.status='DRAFT'
                 order by i.imported_at desc, i.id desc limit ? offset ?
                 """, (row, index) -> new Draft(row.getLong("id"), row.getString("source_id"), row.getString("name"),
                 row.getString("city"), row.getString("area"), row.getString("address_line"), row.getString("category"),
                 row.getString("release"), row.getTimestamp("imported_at").toInstant(), sources(row.getString("sources")),
-                missingFields(row.getString("source_operating_status"), row.getString("city"), row.getString("area"), row.getString("address_line"),
-                        row.getString("contact_number"), row.getString("source_website"), row.getString("cover_image_url"),
-                        row.getObject("capacity_max"), row.getObject("full_day_amount")), "DRAFT"), size, (long) page * size);
+                missingFields(row.getString("effective_operating_status"), row.getString("city"), row.getString("area"), row.getString("address_line"),
+                        row.getString("contact_number"), row.getString("effective_website"), row.getString("cover_image_url"),
+                        row.getObject("capacity_max"), row.getObject("full_day_amount")), "DRAFT",
+                OvertureDraftReviewResponse.ReviewStatus.valueOf(row.getString("review_status")), row.getLong("review_version")), size, (long) page * size);
         long count = total == null ? 0 : total;
         return new Page<>(content, page, size, count, (int) ((count + size - 1) / size));
     }

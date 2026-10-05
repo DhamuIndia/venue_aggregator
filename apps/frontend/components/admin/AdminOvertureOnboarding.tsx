@@ -10,6 +10,7 @@ import {
   type OverturePreview, type OvertureSettings, type OvertureSource, type OvertureVenue
 } from "@/features/admin/overture-client";
 import { ApiError } from "@/lib/api-client";
+import { AdminOvertureDraftReview } from "@/components/admin/AdminOvertureDraftReview";
 
 const buttonStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50";
@@ -66,7 +67,7 @@ function Pagination({ page, totalPages, totalElements, busy, onChange }: {
 }
 
 export function AdminOvertureOnboarding() {
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const [view, setView] = useState<"catalog" | "drafts">("catalog");
   const [settings, setSettings] = useState<OvertureSettings | null>(null);
   const [settingsError, setSettingsError] = useState("");
@@ -87,6 +88,7 @@ export function AdminOvertureOnboarding() {
   const [action, setAction] = useState<"preview" | "import" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [editingHallId, setEditingHallId] = useState<number | null>(null);
   const generation = useRef(0);
   const actionInFlight = useRef(false);
 
@@ -101,9 +103,10 @@ export function AdminOvertureOnboarding() {
     setAction(null);
     setError("");
     setNotice("");
+    setEditingHallId(null);
     actionInFlight.current = false;
     return () => { generation.current += 1; };
-  }, [accessToken]);
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -154,7 +157,7 @@ export function AdminOvertureOnboarding() {
   const readiness = settingsError ? "The onboarding configuration could not be checked."
     : !settings ? "Checking onboarding configuration…"
     : !settings.enabled ? "Application onboarding is disabled."
-    : !settings.ready ? "No prepared venue catalog is available yet. A server administrator must load an Overture catalog."
+    : !settings.ready ? "No prepared venue catalog is available. Existing created drafts remain available for review; a server administrator must load a catalog for new imports."
     : `The ${settings.city || "prepared"} catalog is ready with ${settings.recordCount} venue${settings.recordCount === 1 ? "" : "s"}.`;
 
   function clearSelection() {
@@ -328,11 +331,14 @@ export function AdminOvertureOnboarding() {
           <p className="mt-3 break-words text-sm">{draft.address || "Address not provided"}</p><p className="mt-1 text-sm text-muted-foreground">{[draft.city, draft.area].filter(Boolean).join(" / ") || "City and area not provided"}</p>
           <p className="mt-3 text-xs text-muted-foreground">Created: {date(draft.importedAt)} · Overture release: {draft.release}</p>
           <div className="mt-3 rounded-md bg-amber-50 p-3"><p className="text-xs font-medium text-amber-900">Needs completion</p><p className="mt-1 text-sm text-amber-900">{draft.missingFields.length ? draft.missingFields.map(readable).join(", ") : "Review source information before completing the listing."}</p></div>
+          <p className="mt-3 text-xs font-medium text-muted-foreground">Last saved review: {draft.reviewStatus === "VERIFIED" ? "Facts reviewed — still private" : draft.reviewStatus === "DUPLICATE" ? "Confirmed duplicate — still private" : draft.reviewStatus === "IN_REVIEW" ? "In progress" : "Not reviewed"}</p>
+          <button className={`${buttonStyle} mt-3`} data-overture-review-hall-id={draft.hallId} onClick={() => setEditingHallId(draft.hallId)} type="button"><FileCheck2 size={16} /> Edit and review draft</button>
           <SourceAttribution sources={draft.sources} />
         </article>)}</div>}
         <Pagination busy={busy || draftLoading} onChange={setDraftPage} page={drafts.page} totalElements={drafts.totalElements} totalPages={drafts.totalPages} />
       </> : null}
     </div> : null}
+    {editingHallId !== null && settings?.enabled ? <AdminOvertureDraftReview hallId={editingHallId} key={`${user?.id}-${editingHallId}`} onClose={() => setEditingHallId(null)} onSaved={() => setRevision((value) => value + 1)} token={accessToken} /> : null}
   </section>;
 }
 

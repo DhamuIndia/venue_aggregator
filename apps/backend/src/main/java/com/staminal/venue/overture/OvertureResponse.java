@@ -28,7 +28,13 @@ public final class OvertureResponse {
 
     public record Draft(long hallId, String sourceId, String name, String city, String area,
             String address, String category, String release, Instant importedAt, List<Source> sources,
-            List<String> missingFields, String status) { }
+            List<String> missingFields, String status, OvertureDraftReviewResponse.ReviewStatus reviewStatus, long reviewVersion) {
+        public Draft(long hallId, String sourceId, String name, String city, String area, String address, String category,
+                String release, Instant importedAt, List<Source> sources, List<String> missingFields, String status) {
+            this(hallId, sourceId, name, city, area, address, category, release, importedAt, sources, missingFields, status,
+                    OvertureDraftReviewResponse.ReviewStatus.UNREVIEWED, 0);
+        }
+    }
 
     public record Page<T>(List<T> content, int page, int size, long totalElements, int totalPages) { }
 }
