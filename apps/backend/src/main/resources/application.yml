@@ -22,6 +22,10 @@ jwt:
   refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
 
 app:
+  overture-onboarding:
+    enabled: ${OVERTURE_ONBOARDING_ENABLED:false}
+    catalog-path: ${OVERTURE_CATALOG_PATH:}
+    max-batch-size: ${OVERTURE_MAX_BATCH_SIZE:20}
   features:
     marketplace-requirements-enabled: ${MARKETPLACE_REQUIREMENTS_ENABLED:false}
     venue-discovery-enabled: ${VENUE_DISCOVERY_ENABLED:false}

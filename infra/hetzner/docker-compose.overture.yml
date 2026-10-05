@@ -1,0 +1,7 @@
+# Optional prepared-catalog mount. Do not add this override until the catalog exists.
+services:
+  backend:
+    volumes:
+      - ./overture:/app/overture:ro
+    environment:
+      OVERTURE_CATALOG_PATH: /app/overture/catalog.json

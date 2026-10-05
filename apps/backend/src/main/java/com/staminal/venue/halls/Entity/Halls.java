@@ -22,6 +22,13 @@ import jakarta.persistence.Table;
 @Table(name = "halls")
 public class Halls {
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "listing_origin", nullable = false)
+    private HallListingOrigin listingOrigin = HallListingOrigin.OWNER;
+
+    public HallListingOrigin getListingOrigin() { return listingOrigin; }
+    public void setListingOrigin(HallListingOrigin listingOrigin) { this.listingOrigin = listingOrigin; }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
