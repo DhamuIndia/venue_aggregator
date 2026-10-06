@@ -35,6 +35,7 @@ app:
       bucket: ${OVERTURE_DRAFT_MEDIA_BUCKET:venue-draft-media-private}
     publication:
       enabled: ${OVERTURE_PUBLICATION_ENABLED:false}
+      licensed-photos-enabled: ${OVERTURE_LICENSED_PHOTO_PUBLICATION_ENABLED:false}
   features:
     marketplace-requirements-enabled: ${MARKETPLACE_REQUIREMENTS_ENABLED:false}
     venue-discovery-enabled: ${VENUE_DISCOVERY_ENABLED:false}

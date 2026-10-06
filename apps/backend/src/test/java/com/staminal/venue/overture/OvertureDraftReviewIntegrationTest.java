@@ -115,7 +115,7 @@ class OvertureDraftReviewIntegrationTest {
     }
 
     @Test @Order(1) void migrationBackfillsSourceFactsAndAllowsReviewWithoutCatalogFile() {
-        assertEquals(45, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
+        assertEquals(46, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
         assertFalse(onboarding.settings(auth()).ready());
         var detail = review.detail(draftHallId, auth());
         assertEquals(0, detail.reviewVersion());

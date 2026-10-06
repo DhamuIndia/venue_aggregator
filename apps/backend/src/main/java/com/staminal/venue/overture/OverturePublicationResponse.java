@@ -17,5 +17,13 @@ public final class OverturePublicationResponse {
             List<OvertureResponse.Source> sourceAttribution, String sourceRelease, List<History> history) { }
     /** Internal presentation data; no usage evidence, object identifiers or credentials. */
     public record PublicListing(long publicationVersion, List<String> galleryUrls,
-            List<OvertureResponse.Source> sourceAttribution, String sourceRelease, Set<String> verifiedFields) { }
+            List<OvertureResponse.Source> sourceAttribution, String sourceRelease, Set<String> verifiedFields,
+            List<PublicPhoto> applicationPhotos) {
+        public PublicListing(long publicationVersion, List<String> galleryUrls,
+                List<OvertureResponse.Source> sourceAttribution, String sourceRelease, Set<String> verifiedFields) {
+            this(publicationVersion, galleryUrls, sourceAttribution, sourceRelease, verifiedFields, List.of());
+        }
+    }
+    public record PublicPhoto(long photoId, String url, boolean requiresCredit,
+            OverturePhotoCreditResponse.PublicCredit credit) { }
 }

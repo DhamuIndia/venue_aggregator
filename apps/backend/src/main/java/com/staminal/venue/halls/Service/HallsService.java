@@ -510,6 +510,7 @@ public class HallsService {
         response.setSourceAttribution(published.sourceAttribution()); response.setSourceRelease(published.sourceRelease());
         response.setVenueType(hall.getHallType());
         response.setGalleryUrls(published.galleryUrls());
+        response.setApplicationPhotos(published.applicationPhotos());
         response.setImageUrl(published.galleryUrls().getFirst()); response.setCoverImageUrl(published.galleryUrls().getFirst());
         response.setRatings(0.0); response.setRating(0.0); response.setReviewCount(0); response.setReviews(List.of());
         response.setVerified(false); response.setIsVerified(false); response.setAvailableThisMonth(false);

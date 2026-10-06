@@ -196,8 +196,18 @@ public class OvertureDraftMediaService {
         List<State> states = jdbc.query("select media_version,cover_media_id from venue_overture_media_state where hall_id=?",
                 (row, index) -> new State(row.getLong("media_version"), row.getObject("cover_media_id", Long.class)), hallId);
         State state = states.isEmpty() ? new State(0, null) : states.getFirst();
-        List<Photo> photos = jdbc.query("select * from venue_overture_draft_photos where hall_id=? order by sort_order,id limit 101",
-                (row, index) -> read(row, state.cover()).photo(), hallId);
+        List<Photo> photos = jdbc.query("""
+                select p.*,c.credit_version,c.review_status as credit_status,c.title as credit_title,c.creator as credit_creator,
+                    c.creator_url as credit_creator_url,c.source_url as credit_source_url,c.license_code as credit_license_code,
+                    c.changes_notice as credit_changes_notice,c.required_notices as credit_required_notices,
+                    c.changed_by as credit_changed_by,c.admin_name as credit_admin_name,c.changed_at as credit_changed_at,
+                    c.reviewed_by as credit_reviewed_by,c.reviewer_name as credit_reviewer_name,c.reviewed_at as credit_reviewed_at,
+                    c.review_reason as credit_review_reason
+                from venue_overture_draft_photos p left join lateral (
+                    select * from venue_overture_photo_credits credit where credit.hall_id=p.hall_id and credit.photo_id=p.id
+                    order by credit_version desc limit 1
+                ) c on true where p.hall_id=? order by p.sort_order,p.id limit 101
+                """, (row, index) -> read(row, state.cover(), true).photo(), hallId);
         if (photos.size() > MAX_LIFETIME_PHOTOS) throw new IllegalStateException("Stored private photo count is invalid");
         return new Gallery(state.version(), state.cover(), List.copyOf(photos), new Limits(OvertureDraftImageProcessor.MAX_INPUT_BYTES,
                 OvertureDraftImageProcessor.MAX_OUTPUT_BYTES, MAX_ACTIVE_PHOTOS, MAX_RETAINED_BYTES, MAX_LIFETIME_PHOTOS),
@@ -206,11 +216,11 @@ public class OvertureDraftMediaService {
     private Stored photo(long hallId, long mediaId) {
         if (mediaId <= 0) throw notFound();
         List<Stored> rows = jdbc.query("select * from venue_overture_draft_photos where hall_id=? and id=?",
-                (row, index) -> read(row, null), hallId, mediaId);
+                (row, index) -> read(row, null, false), hallId, mediaId);
         if (rows.isEmpty()) throw notFound();
         return rows.getFirst();
     }
-    private Stored read(ResultSet row, Long cover) throws SQLException {
+    private Stored read(ResultSet row, Long cover, boolean includeCredit) throws SQLException {
         long id = row.getLong("id");
         return new Stored(new Photo(id, row.getLong("hall_id"), PhotoStatus.valueOf(row.getString("status")), row.getString("caption"),
                 SourceKind.valueOf(row.getString("source_kind")), row.getString("source_reference"), RightsBasis.valueOf(row.getString("rights_basis")),
@@ -218,7 +228,8 @@ public class OvertureDraftMediaService {
                 new Actor(row.getLong("uploaded_by"), row.getString("uploader_name")), instant(row, "uploaded_at"), row.getInt("width"), row.getInt("height"),
                 row.getInt("size_bytes"), row.getString("sha256"), row.getInt("sort_order"), actor(row, "reviewed_by", "reviewer_name"),
                 instant(row, "reviewed_at"), row.getString("review_reason"), actor(row, "archived_by", "archiver_name"),
-                instant(row, "archived_at"), row.getString("archive_reason"), Long.valueOf(id).equals(cover)), row.getString("storage_key"));
+                instant(row, "archived_at"), row.getString("archive_reason"), Long.valueOf(id).equals(cover),
+                includeCredit ? OverturePhotoCreditResponse.readGallery(row) : null), row.getString("storage_key"));
     }
     private static Actor actor(ResultSet row, String id, String name) throws SQLException {
         Long value = row.getObject(id, Long.class); return value == null ? null : new Actor(value, row.getString(name));

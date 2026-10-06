@@ -12,6 +12,7 @@ function loadClient(file, responder = async () => null, env = {}, localRecords =
     if (name === "@/lib/api-client") return { ApiError, API_BASE_URL: "https://api.qa.invalid/api/v1", apiRequest: (url, options) => { calls.push({ url, options }); return responder(url, options); } };
     if (name === "@/lib/display-format") return { toTitleCase: (value) => value };
     if (name === "./mock-data") return { halls: [mock], getHallById: () => mock };
+    if (name === "./photo-credit") return loadClient("features/halls/photo-credit.ts").client;
     throw new Error(`Unexpected dependency ${name}`);
   }, mod, mod.exports, { env }, { localStorage: { getItem: () => JSON.stringify(localRecords), setItem: (...args) => writes.push(args) } });
   return { client: mod.exports, calls, writes };
@@ -24,6 +25,31 @@ test("APPLICATION records never invent prices, ratings, photos, amenities or ava
 test("APPLICATION photos use API origin with version and source/category stay truthful", () => {
   const { client } = loadClient("features/halls/hall-client.ts"); const result = client.toHallSummary({ ...hall, venueType: "exhibition_and_trade_fair_venue", coverImageUrl: "/api/v1/halls/71/application-photos/6?publicationVersion=3", galleryUrls: ["/api/v1/halls/71/application-photos/6?publicationVersion=3", "/api/v1/halls/71/application-photos/7?publicationVersion=3"] });
   assert.equal(result.venueType, "Exhibition and Trade Fair Venue"); assert.equal(result.imageUrl, "https://api.qa.invalid/api/v1/halls/71/application-photos/6?publicationVersion=3"); assert.equal(result.galleryUrls.length, 2); assert.equal(result.publicationVersion, 3); assert.deepEqual(result.sourceAttribution, hall.sourceAttribution);
+});
+const publicCredit = { title: "Venue exterior", creator: "Photo creator", creatorUrl: null, sourceUrl: "https://commons.wikimedia.org/wiki/File:Venue.jpg", licenseCode: "CC_BY_4_0", licenseLabel: "CC BY 4.0", licenseUrl: "https://creativecommons.org/licenses/by/4.0/", changesNotice: "No prior changes reported.", processingNotice: "VenueMart normalized this image to JPEG and may have resized it.", requiredNotices: "Copyright Photo creator" };
+const photoUrl = (id = 6, version = 3) => `/api/v1/halls/71/application-photos/${id}?publicationVersion=${version}`;
+test("licensed public photos expose only reviewed credit fields and matching publication-revision URLs", () => {
+  const { client } = loadClient("features/halls/hall-client.ts");
+  const result = client.toHallSummary({ ...hall, coverImageUrl: photoUrl(), applicationPhotos: [{ photoId: 6, url: photoUrl(), requiresCredit: true, credit: { ...publicCredit, reviewReason: "PRIVATE REASON", permissionEvidence: "PRIVATE EVIDENCE", changedBy: { adminName: "Private actor" } } }, { photoId: 7, url: photoUrl(7), requiresCredit: false, credit: null }] });
+  assert.equal(result.imageUrl, "https://api.qa.invalid" + photoUrl()); assert.equal(result.applicationPhotos.length, 2); assert.deepEqual(result.applicationPhotos[0].credit, publicCredit); assert.equal(result.applicationPhotos[1].credit, null);
+  assert.doesNotMatch(JSON.stringify(result.applicationPhotos), /PRIVATE|Private actor|reviewReason|permissionEvidence|changedBy/);
+});
+test("missing, unsupported, unsafe or malformed required public credits suppress images without gallery fallback", () => {
+  const { client } = loadClient("features/halls/hall-client.ts");
+  for (const credit of [null, {}, { ...publicCredit, creator: "" }, { ...publicCredit, licenseCode: "CC_BY_SA_4_0" }, { ...publicCredit, licenseUrl: "https://example.org/wrong" }, { ...publicCredit, sourceUrl: "https://photos.example.org/a?private=token" }, { ...publicCredit, creatorUrl: "https://user@example.org/a" }, { ...publicCredit, requiredNotices: "Notice\u202e" }, { ...publicCredit, processingNotice: "" }]) {
+    const result = client.toHallSummary({ ...hall, coverImageUrl: photoUrl(), galleryUrls: [photoUrl()], applicationPhotos: [{ photoId: 6, url: photoUrl(), requiresCredit: true, credit }] });
+    assert.equal(result.imageUrl, ""); assert.deepEqual(result.galleryUrls, []); assert.deepEqual(result.applicationPhotos, []);
+  }
+  for (const value of [{}, "malformed", [{ photoId: 6, url: photoUrl(6, 2), requiresCredit: true, credit: publicCredit }], [{ photoId: 6, url: "https://example.org/photo.jpg", requiresCredit: true, credit: publicCredit }], [{ photoId: 6, url: photoUrl(), requiresCredit: "true", credit: publicCredit }], [{ photoId: 6, url: photoUrl(), requiresCredit: false, credit: publicCredit }]]) {
+    const result = client.toHallSummary({ ...hall, coverImageUrl: photoUrl(), galleryUrls: [photoUrl()], applicationPhotos: value }); assert.equal(result.imageUrl, ""); assert.deepEqual(result.galleryUrls, []);
+  }
+});
+test("CC0 canonical credits are accepted while legacy team and OWNER photos remain unchanged", () => {
+  const { client } = loadClient("features/halls/hall-client.ts");
+  const credit = { ...publicCredit, licenseCode: "CC0_1_0", licenseLabel: "CC0 1.0", licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/", requiredNotices: null };
+  assert.deepEqual(client.toHallSummary({ ...hall, coverImageUrl: photoUrl(), applicationPhotos: [{ photoId: 6, url: photoUrl(), requiresCredit: true, credit }] }).applicationPhotos[0].credit, credit);
+  for (const legacy of [undefined, null]) { const result = client.toHallSummary({ ...hall, coverImageUrl: photoUrl(), applicationPhotos: legacy }); assert.equal(result.imageUrl, "https://api.qa.invalid" + photoUrl()); assert.equal(result.applicationPhotos, undefined); }
+  const owner = client.toHallSummary({ ...hall, listingOrigin: "OWNER", coverImageUrl: "https://owner.example.org/original.jpg", applicationPhotos: [{ malformed: true }] }); assert.equal(owner.imageUrl, "https://owner.example.org/original.jpg"); assert.equal(owner.applicationPhotos, undefined);
 });
 test("public API errors fail closed rather than fabricating listings; explicit mock mode still works", async () => {
   const { client, calls } = loadClient("features/halls/hall-client.ts", async () => { throw new ApiError(404, "Unpublished"); });

@@ -119,6 +119,16 @@ public class OverturePublicationService {
         for(int index=0;index<before.approvedPhotoIds().size();index++) jdbc.update("""
                 insert into venue_overture_publication_photos(hall_id,photo_id,publication_version,sort_order) values (?,?,?,?)
                 """,hallId,before.approvedPhotoIds().get(index),version,index);
+        // Only a whitelisted, reviewed public subset is snapshotted; private evidence never leaves its table.
+        for(LicensedCredit credit:licensedCredits(hallId)) {
+            if(!properties.isLicensedPhotosEnabled() || !credit.ready()) throw conflict("Licensed photo credits changed; reload before publishing");
+            if(jdbc.update("""
+                    insert into venue_overture_publication_photo_credits(hall_id,publication_version,photo_id,credit_version,credit_snapshot)
+                    select ?,?,?,?,overture_public_photo_credit_snapshot(?,?,?)
+                    where overture_photo_credit_ready(?,?,?)
+                    """,hallId,version,credit.photoId(),credit.version(),hallId,credit.photoId(),credit.version(),hallId,credit.photoId(),credit.version())!=1)
+                throw conflict("Licensed photo credits changed; reload before publishing");
+        }
         jdbc.update("update halls set status='APPROVED',approved_by=?,approved_at=?,updated_at=? where id=? and status='DRAFT'",
                 actor.admin().getId(),java.sql.Timestamp.from(now),java.sql.Timestamp.from(now),hallId);
         history(hallId,version,State.PUBLISHED,before,actor,now,reason);
@@ -160,13 +170,21 @@ public class OverturePublicationService {
         List<Published> rows=publicRows(hallId,null);
         if(rows.isEmpty()) throw notFound();
         Published published=rows.getFirst();
-        List<Long> ids=jdbc.query("""
-                select photo_id from venue_overture_publication_photos where hall_id=? and publication_version=?
-                order by (photo_id=? ) desc,sort_order,photo_id
-                """,(row,index)->row.getLong(1),hallId,published.version(),published.cover());
+        List<PublicPhoto> photos=jdbc.query("""
+                select pp.photo_id,dp.source_kind,pc.credit_snapshot::text
+                from venue_overture_publication_photos pp join venue_overture_draft_photos dp on dp.hall_id=pp.hall_id and dp.id=pp.photo_id
+                left join venue_overture_publication_photo_credits pc on pc.hall_id=pp.hall_id and pc.photo_id=pp.photo_id and pc.publication_version=pp.publication_version
+                where pp.hall_id=? and pp.publication_version=? order by (pp.photo_id=? ) desc,pp.sort_order,pp.photo_id
+                """,(row,index)->{
+                    boolean requiresCredit="LICENSED_IMAGE".equals(row.getString("source_kind"));
+                    String snapshot=row.getString("credit_snapshot");
+                    if(requiresCredit && snapshot==null) throw notFound();
+                    return new PublicPhoto(row.getLong("photo_id"),photoUrl(hallId,row.getLong("photo_id"),published.version()),requiresCredit,
+                            requiresCredit?readJson(snapshot,new TypeReference<OverturePhotoCreditResponse.PublicCredit>(){}):null);
+                },hallId,published.version(),published.cover());
         Set<String> verifiedFields=readJson(published.verifications(),new TypeReference<Map<String,OvertureDraftReviewResponse.Verification>>(){}).keySet();
-        return new PublicListing(published.version(),ids.stream().map(id->photoUrl(hallId,id,published.version())).toList(),
-                readJson(published.sources(),new TypeReference<List<OvertureResponse.Source>>(){}),published.release(),Set.copyOf(verifiedFields));
+        return new PublicListing(published.version(),photos.stream().map(PublicPhoto::url).toList(),
+                readJson(published.sources(),new TypeReference<List<OvertureResponse.Source>>(){}),published.release(),Set.copyOf(verifiedFields),List.copyOf(photos));
     }
 
     @Transactional
@@ -188,9 +206,8 @@ public class OverturePublicationService {
         Media state=media(hallId);
         List<Long> approved=jdbc.query("select id from venue_overture_draft_photos where hall_id=? and status='APPROVED' order by sort_order,id limit 21",
                 (row,index)->row.getLong(1),hallId);
-        boolean needsPublicCredit=!jdbc.query("select source_kind from venue_overture_draft_photos where hall_id=? and status='APPROVED' and source_kind='LICENSED_IMAGE' limit 1",
-                (row,index)->row.getString(1),hallId).isEmpty();
-        List<String> blockers=blockers(assessment,state,approved,publication,needsPublicCredit);
+        List<LicensedCredit> licensed=licensedCredits(hallId);
+        List<String> blockers=blockers(assessment,state,approved,publication,licensed);
         List<History> history=jdbc.query("""
                 select * from venue_overture_publication_history where hall_id=? order by publication_version desc limit 100
                 """,(row,index)->new History(row.getLong("publication_version"),State.valueOf(row.getString("publication_state")),
@@ -200,7 +217,7 @@ public class OverturePublicationService {
                 publication.version(),assessment.reviewVersion(),state.version(),blockers.isEmpty(),List.copyOf(blockers),state.cover(),List.copyOf(approved),
                 assessment.sources(),assessment.release(),List.copyOf(history));
     }
-    private List<String> blockers(OvertureDraftReviewResponse.Detail facts,Media state,List<Long> photos,Publication publication,boolean needsPublicCredit) {
+    private List<String> blockers(OvertureDraftReviewResponse.Detail facts,Media state,List<Long> photos,Publication publication,List<LicensedCredit> licensed) {
         List<String> blockers=new ArrayList<>();
         if(!onboarding.isEnabled()) blockers.add("Overture onboarding is disabled");
         if(!media.isEnabled()) blockers.add("Private venue photos are disabled");
@@ -215,7 +232,8 @@ public class OverturePublicationService {
             blockers.add("Resolve the complete current duplicate match set as distinct");
         if(photos.isEmpty()) blockers.add("Approve at least one permitted venue photo");
         if(photos.size()>20) blockers.add("No more than 20 approved photos may be published");
-        if(needsPublicCredit) blockers.add("Licensed images need a public credit workflow; archive them before publishing this venue");
+        if(!licensed.isEmpty() && !properties.isLicensedPhotosEnabled()) blockers.add("Licensed photo publication is disabled; public credit remains private");
+        if(licensed.stream().anyMatch(credit->!credit.ready())) blockers.add("Every licensed photo needs its latest approved public credit with a matching supported license");
         if(state.cover()==null || !photos.contains(state.cover())) blockers.add("Select an approved cover photo");
         return blockers;
     }
@@ -261,13 +279,27 @@ public class OverturePublicationService {
                     and exists(select 1 from venue_overture_publication_photos pp join venue_overture_draft_photos dp on dp.hall_id=pp.hall_id and dp.id=pp.photo_id
                         where pp.hall_id=h.id and pp.publication_version=p.publication_version and pp.photo_id=p.cover_media_id and dp.status='APPROVED')
                     and not exists(select 1 from venue_overture_publication_photos pp join venue_overture_draft_photos dp on dp.hall_id=pp.hall_id and dp.id=pp.photo_id
-                        where pp.hall_id=h.id and pp.publication_version=p.publication_version and (dp.status<>'APPROVED' or dp.source_kind='LICENSED_IMAGE'))
+                        where pp.hall_id=h.id and pp.publication_version=p.publication_version and (dp.status<>'APPROVED'
+                            or (dp.source_kind='LICENSED_IMAGE' and (not ?::boolean or not overture_publication_photo_credit_valid(h.id,dp.id,p.publication_version)))))
+                    and not exists(select 1 from venue_overture_publication_photo_credits pc
+                        left join venue_overture_publication_photos pp on pp.hall_id=pc.hall_id and pp.photo_id=pc.photo_id and pp.publication_version=pc.publication_version
+                        left join venue_overture_draft_photos dp on dp.hall_id=pc.hall_id and dp.id=pc.photo_id
+                        where pc.hall_id=h.id and pc.publication_version=p.publication_version and (pp.photo_id is null or dp.source_kind<>'LICENSED_IMAGE'))
                     and (select count(*) from venue_overture_publication_photos pp where pp.hall_id=h.id and pp.publication_version=p.publication_version)
                         =(select count(*) from venue_overture_draft_photos dp where dp.hall_id=h.id and dp.status='APPROVED')
                     and not exists(select 1 from venue_overture_publication_photos pp join venue_overture_draft_photos dp on dp.hall_id=pp.hall_id and dp.id=pp.photo_id
                         where pp.hall_id=h.id and pp.publication_version=p.publication_version and pp.sort_order<>(select count(*) from venue_overture_draft_photos previous
                             where previous.hall_id=h.id and previous.status='APPROVED' and (previous.sort_order,previous.id)<(dp.sort_order,dp.id)))
-                """,(row,index)->new Published(row.getLong("publication_version"),row.getLong("cover_media_id"),row.getString("sources"),row.getString("release"),row.getString("verifications")),hallId,version,version);
+                """,(row,index)->new Published(row.getLong("publication_version"),row.getLong("cover_media_id"),row.getString("sources"),row.getString("release"),row.getString("verifications")),hallId,version,version,properties.isLicensedPhotosEnabled());
+    }
+    private List<LicensedCredit> licensedCredits(long hallId) {
+        return jdbc.query("""
+                select dp.id,coalesce(c.credit_version,0) credit_version,
+                    overture_photo_credit_ready(dp.hall_id,dp.id,c.credit_version) credit_ready
+                from venue_overture_draft_photos dp left join lateral
+                    (select credit_version from venue_overture_photo_credits where hall_id=dp.hall_id and photo_id=dp.id order by credit_version desc limit 1) c on true
+                where dp.hall_id=? and dp.status='APPROVED' and dp.source_kind='LICENSED_IMAGE' order by dp.id limit 21
+                """,(row,index)->new LicensedCredit(row.getLong("id"),row.getLong("credit_version"),row.getBoolean("credit_ready")),hallId);
     }
     private Stored storedPhoto(long hallId,long photoId) {
         List<Stored> photos=jdbc.query("select storage_key,size_bytes,sha256 from venue_overture_draft_photos where hall_id=? and id=? and status='APPROVED'",
@@ -300,6 +332,7 @@ public class OverturePublicationService {
     private record Media(long version,Long cover) { }
     private record Published(long version,long cover,String sources,String release,String verifications) { }
     private record Stored(String key,int size,String sha256) { }
+    private record LicensedCredit(long photoId,long version,boolean ready) { }
     private static ResponseStatusException bad(String message){return new ResponseStatusException(HttpStatus.BAD_REQUEST,message);}
     private static ResponseStatusException conflict(String message){return new ResponseStatusException(HttpStatus.CONFLICT,message);}
     private static ResponseStatusException notFound(){return new ResponseStatusException(HttpStatus.NOT_FOUND,"Application venue not found");}

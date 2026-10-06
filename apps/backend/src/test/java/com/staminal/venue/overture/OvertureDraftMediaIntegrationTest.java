@@ -131,7 +131,7 @@ class OvertureDraftMediaIntegrationTest {
     private Gallery gallery() { return media.gallery(draftHallId, auth()); }
 
     @Test @Order(1) void upgradeBackfillsPrivateStateWithoutChangingExistingData() {
-        assertEquals(45, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
+        assertEquals(46, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
         storage.ensurePrivate();
         var result = gallery(); assertEquals(0, result.mediaVersion()); assertTrue(result.items().isEmpty());
         assertNull(result.coverMediaId()); assertEquals(0, result.retainedBytes());

@@ -7,6 +7,7 @@ import java.util.List;
 import com.staminal.venue.availability.Dto.AvailabilitySummary;
 import com.staminal.venue.reviews.HallReview.Dto.PublicReviewResponse;
 import com.staminal.venue.overture.OvertureResponse;
+import com.staminal.venue.overture.OverturePublicationResponse;
 
 public class HallResponse {
 
@@ -16,6 +17,9 @@ public class HallResponse {
     private Long publicationVersion;
     private List<OvertureResponse.Source> sourceAttribution;
     private String sourceRelease;
+    private List<OverturePublicationResponse.PublicPhoto> applicationPhotos;
+    public List<OverturePublicationResponse.PublicPhoto> getApplicationPhotos() { return applicationPhotos; }
+    public void setApplicationPhotos(List<OverturePublicationResponse.PublicPhoto> value) { applicationPhotos = value; }
     public String getListingOrigin() { return listingOrigin; }
     public void setListingOrigin(String value) { listingOrigin = value; }
     public boolean isEnquiryOnly() { return enquiryOnly; }
