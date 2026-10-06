@@ -82,6 +82,8 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/v1/public/**")
                                                 .permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/v1/halls/*/application-photos/*")
+                                                .permitAll()
                                                 .requestMatchers(
                                                                 "/v1/admin/**",
                                                                 "/admin",

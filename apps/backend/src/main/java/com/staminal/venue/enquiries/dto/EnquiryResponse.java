@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.staminal.venue.enums.EnquiryStatus;
 import com.staminal.venue.enums.SlotType;
+import com.staminal.venue.enquiries.EnquiryRoutingTarget;
 
 public record EnquiryResponse(
         String id,
@@ -25,5 +26,8 @@ public record EnquiryResponse(
         Instant submittedAt,
         Instant updatedAt,
         String ownerResponseMessage,
-        Long version) {
+        Long version,
+        EnquiryRoutingTarget routingTarget,
+        Long publicationVersion,
+        String responseMessage) {
 }

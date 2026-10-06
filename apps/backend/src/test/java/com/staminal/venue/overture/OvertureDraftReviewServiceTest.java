@@ -9,6 +9,8 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -126,7 +128,29 @@ class OvertureDraftReviewServiceTest {
         assertTrue(detail.duplicates().isEmpty());
     }
 
+    @ParameterizedTest @ValueSource(ints={101,201})
+    void publicationManagementSurvivesExactDuplicateLimitsWhileFactualEditorRemainsStrict(int duplicateCount) throws Exception {
+        ResultSet state=row(10); when(state.getString("review_status")).thenReturn("VERIFIED");
+        mockDetail(state,duplicateCount);
+        when(jdbc.queryForObject("select status from halls where id=?",String.class,55L)).thenReturn("APPROVED");
+        assertEquals(HttpStatus.CONFLICT,assertThrows(ResponseStatusException.class,()->service.detail(55,authentication)).getStatusCode());
+        var detail=service.publicationAssessment(55);
+        assertEquals("APPROVED",detail.status()); assertTrue(detail.duplicateAssessmentLimited());
+        assertEquals(ReviewStatus.IN_REVIEW,detail.reviewStatus()); assertEquals(DuplicateDecision.NOT_REVIEWED,detail.duplicateDecision());
+        assertTrue(detail.duplicates().isEmpty()); assertTrue(detail.reviewedDuplicateHallIds().isEmpty()); assertNull(detail.duplicateNotes());
+        assertEquals(10,detail.reviewVersion()); verify(jdbc,never()).update(anyString(),any(Object[].class)); verifyNoInteractions(audit);
+    }
+
+    @Test void publicationManagementDoesNotSwallowOtherDataFailures() throws Exception {
+        ResultSet state=row(10); mockDetail(state,false);
+        when(jdbc.queryForObject("select status from halls where id=?",String.class,55L)).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("Connection lost"));
+        assertThrows(org.springframework.dao.DataAccessResourceFailureException.class,()->service.publicationAssessment(55));
+    }
+
     private void mockDetail(ResultSet state, boolean withDuplicate) throws Exception {
+        mockDetail(state,withDuplicate?1:0);
+    }
+    private void mockDetail(ResultSet state, int duplicateCount) throws Exception {
         Halls hall = OvertureOnboardingStore.draft(OvertureFixtures.snapshot().venues().getFirst());
         hall.setId(55);
         when(halls.findById(55L)).thenReturn(java.util.Optional.of(hall));
@@ -143,7 +167,9 @@ class OvertureDraftReviewServiceTest {
                     String sql = invocation.getArgument(0);
                     RowMapper<?> rowMapper = invocation.getArgument(1);
                     if (sql.contains("select r.*")) return List.of(rowMapper.mapRow(state, 0));
-                    return withDuplicate ? List.of(rowMapper.mapRow(match, 0)) : List.of();
+                    List<Object> matches=new java.util.ArrayList<>();
+                    for(int index=0;index<duplicateCount;index++) matches.add(rowMapper.mapRow(match,index));
+                    return matches;
                 });
     }
     private ResultSet row(long version) throws Exception {

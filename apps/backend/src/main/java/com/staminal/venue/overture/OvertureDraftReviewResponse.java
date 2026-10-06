@@ -44,5 +44,16 @@ public final class OvertureDraftReviewResponse {
             Map<String, String> fieldOrigins, Map<String, Verification> verifications, List<String> missingFields,
             List<String> unverifiedFields, List<Duplicate> duplicates, DuplicateDecision duplicateDecision,
             String duplicateNotes, List<Long> reviewedDuplicateHallIds, String reviewNotes, Reviewer lastReviewedBy,
-            Instant lastReviewedAt) { }
+            Instant lastReviewedAt, boolean duplicateAssessmentLimited) {
+        public Detail(long hallId, String sourceId, String status, long reviewVersion, ReviewStatus reviewStatus,
+                Facts facts, Facts sourceFacts, List<OvertureResponse.Source> sources, String release, Instant importedAt,
+                Map<String, String> fieldOrigins, Map<String, Verification> verifications, List<String> missingFields,
+                List<String> unverifiedFields, List<Duplicate> duplicates, DuplicateDecision duplicateDecision,
+                String duplicateNotes, List<Long> reviewedDuplicateHallIds, String reviewNotes, Reviewer lastReviewedBy,
+                Instant lastReviewedAt) {
+            this(hallId,sourceId,status,reviewVersion,reviewStatus,facts,sourceFacts,sources,release,importedAt,fieldOrigins,
+                    verifications,missingFields,unverifiedFields,duplicates,duplicateDecision,duplicateNotes,
+                    reviewedDuplicateHallIds,reviewNotes,lastReviewedBy,lastReviewedAt,false);
+        }
+    }
 }

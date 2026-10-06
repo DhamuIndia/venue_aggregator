@@ -78,6 +78,22 @@ public class Enquiry {
     @Enumerated(EnumType.STRING)
     private EnquiryStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "routing_target", nullable = false, updatable = false)
+    private EnquiryRoutingTarget routingTarget = EnquiryRoutingTarget.OWNER;
+
+    @Column(name = "publication_version", updatable = false)
+    private Long publicationVersion;
+
+    @Column(name = "team_response_message")
+    private String teamResponseMessage;
+
+    @Column(name = "last_team_update_reason")
+    private String lastTeamUpdateReason;
+
+    @Column(name = "team_updated_by")
+    private Long teamUpdatedBy;
+
     @Column(name = "owner_response_message")
     private String ownerResponseMessage;
 
@@ -229,6 +245,46 @@ public class Enquiry {
 
     public void setStatus(EnquiryStatus status) {
         this.status = status;
+    }
+
+    public EnquiryRoutingTarget getRoutingTarget() {
+        return routingTarget;
+    }
+
+    public void setRoutingTarget(EnquiryRoutingTarget routingTarget) {
+        this.routingTarget = routingTarget;
+    }
+
+    public Long getPublicationVersion() {
+        return publicationVersion;
+    }
+
+    public void setPublicationVersion(Long publicationVersion) {
+        this.publicationVersion = publicationVersion;
+    }
+
+    public String getTeamResponseMessage() {
+        return teamResponseMessage;
+    }
+
+    public void setTeamResponseMessage(String teamResponseMessage) {
+        this.teamResponseMessage = teamResponseMessage;
+    }
+
+    public String getLastTeamUpdateReason() {
+        return lastTeamUpdateReason;
+    }
+
+    public void setLastTeamUpdateReason(String lastTeamUpdateReason) {
+        this.lastTeamUpdateReason = lastTeamUpdateReason;
+    }
+
+    public Long getTeamUpdatedBy() {
+        return teamUpdatedBy;
+    }
+
+    public void setTeamUpdatedBy(Long teamUpdatedBy) {
+        this.teamUpdatedBy = teamUpdatedBy;
     }
 
     public String getOwnerResponseMessage() {

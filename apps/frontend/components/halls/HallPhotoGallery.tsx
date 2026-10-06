@@ -8,9 +8,10 @@ type HallPhotoGalleryProps = {
   coverImage: string;
   galleryImages: string[];
   hallName: string;
+  unoptimized?: boolean;
 };
 
-export function HallPhotoGallery({ coverImage, galleryImages, hallName }: HallPhotoGalleryProps) {
+export function HallPhotoGallery({ coverImage, galleryImages, hallName, unoptimized = false }: HallPhotoGalleryProps) {
   const images = [coverImage, ...galleryImages]
     .filter((image, index, urls) => Boolean(image) && urls.indexOf(image) === index);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -64,7 +65,7 @@ export function HallPhotoGallery({ coverImage, galleryImages, hallName }: HallPh
           onClick={() => openPhoto(0)}
           type="button"
         >
-          <Image alt={`${hallName} main hall`} className="object-cover" fill priority sizes="(max-width: 1280px) 100vw, 1280px" src={coverImage} />
+          <Image alt={`${hallName} venue photo`} className="object-cover" fill priority sizes="(max-width: 1280px) 100vw, 1280px" src={coverImage} unoptimized={unoptimized} />
           <span className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-md bg-black/70 px-3 py-2 text-xs font-semibold text-white transition group-hover:bg-black/85">
             <Expand aria-hidden="true" size={15} /> View full size
           </span>
@@ -80,7 +81,7 @@ export function HallPhotoGallery({ coverImage, galleryImages, hallName }: HallPh
                 onClick={() => openPhoto(index + 1)}
                 type="button"
               >
-                <Image alt={`${hallName} gallery view ${index + 1}`} className="object-cover transition duration-200 group-hover:scale-[1.02]" fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" src={image} />
+                <Image alt={`${hallName} gallery view ${index + 1}`} className="object-cover transition duration-200 group-hover:scale-[1.02]" fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" src={image} unoptimized={unoptimized} />
                 <span className="absolute inset-0 grid place-items-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100">
                   <Expand aria-hidden="true" size={24} />
                 </span>
@@ -101,7 +102,7 @@ export function HallPhotoGallery({ coverImage, galleryImages, hallName }: HallPh
           role="dialog"
         >
           <div className="relative h-[calc(100vh-6rem)] w-full max-w-7xl">
-            <Image alt={`${hallName} photo ${selectedIndex + 1} full size`} className="object-contain" fill priority sizes="100vw" src={selectedImage} />
+            <Image alt={`${hallName} photo ${selectedIndex + 1} full size`} className="object-contain" fill priority sizes="100vw" src={selectedImage} unoptimized={unoptimized} />
           </div>
 
           <div className="absolute left-3 top-3 rounded-md bg-black/60 px-3 py-2 text-sm font-medium text-white sm:left-6 sm:top-6">
