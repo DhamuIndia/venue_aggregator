@@ -11,6 +11,7 @@ import {
 } from "@/features/admin/overture-client";
 import { ApiError } from "@/lib/api-client";
 import { AdminOvertureDraftReview } from "@/components/admin/AdminOvertureDraftReview";
+import { AdminOvertureDraftMedia } from "@/components/admin/AdminOvertureDraftMedia";
 
 const buttonStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50";
@@ -89,6 +90,7 @@ export function AdminOvertureOnboarding() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editingHallId, setEditingHallId] = useState<number | null>(null);
+  const [editingMediaHallId, setEditingMediaHallId] = useState<number | null>(null);
   const generation = useRef(0);
   const actionInFlight = useRef(false);
 
@@ -104,6 +106,7 @@ export function AdminOvertureOnboarding() {
     setError("");
     setNotice("");
     setEditingHallId(null);
+    setEditingMediaHallId(null);
     actionInFlight.current = false;
     return () => { generation.current += 1; };
   }, [user?.id, user?.role]);
@@ -327,18 +330,20 @@ export function AdminOvertureOnboarding() {
       {draftError ? <ErrorNotice text={draftError} /> : null}
       {drafts ? <>
         {!drafts.content.length ? <EmptyNotice text="No Overture venue drafts have been created yet. Preview venues in the catalog to create your first drafts." /> : <div className="grid gap-3 lg:grid-cols-2">{drafts.content.map((draft) => <article className="min-w-0 rounded-lg border border-border bg-white p-4" key={draft.hallId}>
-          <div className="flex items-start gap-3"><div aria-label="Venue photo not provided" className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-slate-100 text-muted-foreground"><ImagePlus size={21} /></div><div className="min-w-0"><h3 className="break-words font-semibold">{draft.name}</h3><p className="mt-1 text-sm text-muted-foreground">Venue #{draft.hallId} · {categoryLabel(draft.category)}</p><span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">Draft</span></div></div>
+          <div className="flex items-start gap-3"><div aria-label="Private draft photo placeholder" className="grid h-14 w-14 shrink-0 place-items-center rounded-md bg-slate-100 text-muted-foreground"><ImagePlus size={21} /></div><div className="min-w-0"><h3 className="break-words font-semibold">{draft.name}</h3><p className="mt-1 text-sm text-muted-foreground">Venue #{draft.hallId} · {categoryLabel(draft.category)}</p><span className="mt-2 inline-block rounded-full bg-slate-100 px-2 py-1 text-xs font-medium">Draft</span></div></div>
           <p className="mt-3 break-words text-sm">{draft.address || "Address not provided"}</p><p className="mt-1 text-sm text-muted-foreground">{[draft.city, draft.area].filter(Boolean).join(" / ") || "City and area not provided"}</p>
           <p className="mt-3 text-xs text-muted-foreground">Created: {date(draft.importedAt)} · Overture release: {draft.release}</p>
           <div className="mt-3 rounded-md bg-amber-50 p-3"><p className="text-xs font-medium text-amber-900">Needs completion</p><p className="mt-1 text-sm text-amber-900">{draft.missingFields.length ? draft.missingFields.map(readable).join(", ") : "Review source information before completing the listing."}</p></div>
           <p className="mt-3 text-xs font-medium text-muted-foreground">Last saved review: {draft.reviewStatus === "VERIFIED" ? "Facts reviewed — still private" : draft.reviewStatus === "DUPLICATE" ? "Confirmed duplicate — still private" : draft.reviewStatus === "IN_REVIEW" ? "In progress" : "Not reviewed"}</p>
           <button className={`${buttonStyle} mt-3`} data-overture-review-hall-id={draft.hallId} onClick={() => setEditingHallId(draft.hallId)} type="button"><FileCheck2 size={16} /> Edit and review draft</button>
+          <button className={`${buttonStyle} ml-0 mt-3 sm:ml-2`} data-overture-media-hall-id={draft.hallId} onClick={() => setEditingMediaHallId(draft.hallId)} type="button"><ImagePlus size={16} /> Review private photos</button>
           <SourceAttribution sources={draft.sources} />
         </article>)}</div>}
         <Pagination busy={busy || draftLoading} onChange={setDraftPage} page={drafts.page} totalElements={drafts.totalElements} totalPages={drafts.totalPages} />
       </> : null}
     </div> : null}
     {editingHallId !== null && settings?.enabled ? <AdminOvertureDraftReview hallId={editingHallId} key={`${user?.id}-${editingHallId}`} onClose={() => setEditingHallId(null)} onSaved={() => setRevision((value) => value + 1)} token={accessToken} /> : null}
+    {editingMediaHallId !== null && settings?.enabled ? <AdminOvertureDraftMedia hallId={editingMediaHallId} key={`media-${user?.id}-${editingMediaHallId}`} onClose={() => setEditingMediaHallId(null)} token={accessToken} /> : null}
   </section>;
 }
 

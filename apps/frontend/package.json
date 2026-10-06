@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:discovery": "node --test tests/discovery-client.test.cjs",
-    "test:overture": "node --test tests/overture-client.test.cjs tests/overture-review-form.test.cjs"
+    "test:overture": "node --test tests/overture-client.test.cjs tests/overture-review-form.test.cjs",
+    "test:overture-media": "node --test tests/overture-media-client.test.cjs tests/overture-media-form.test.cjs tests/api-client-multipart.test.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
