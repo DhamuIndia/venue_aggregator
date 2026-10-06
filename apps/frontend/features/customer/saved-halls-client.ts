@@ -2,6 +2,7 @@ import { ApiError, apiRequest } from "@/lib/api-client";
 import { toTitleCase } from "@/lib/display-format";
 import { getHallById, halls as mockHalls } from "@/features/halls/mock-data";
 import type { HallSummary, VenueType } from "@/features/halls/types";
+import { toHallSummary as toPublicHallSummary } from "@/features/halls/hall-client";
 
 const STORAGE_KEY = "venue-aggregator-saved-halls";
 export const SAVED_HALLS_CHANGED_EVENT = "venue-aggregator-saved-halls-changed";
@@ -61,6 +62,7 @@ export async function saveCustomerHall(hall: HallSummary, accessToken?: string |
     saveLocalHall(savedHall);
     return savedHall;
   } catch (exception) {
+    if (hall.listingOrigin === "APPLICATION") throw exception;
     if (exception instanceof ApiError && [401, 403, 404].includes(exception.status)) {
       throw exception;
     }
@@ -121,7 +123,7 @@ function getLocalSavedHalls() {
 
   try {
     const parsed = JSON.parse(stored) as unknown;
-    return extractSavedHalls(parsed);
+    return extractSavedHalls(parsed).filter((hall) => hall.listingOrigin !== "APPLICATION");
   } catch {
     return defaultSavedHalls;
   }
@@ -129,7 +131,7 @@ function getLocalSavedHalls() {
 
 function saveLocalSavedHalls(savedHalls: HallSummary[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(dedupeHalls(savedHalls)));
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(dedupeHalls(savedHalls).filter((hall) => hall.listingOrigin !== "APPLICATION")));
 }
 
 function notifySavedHallsChanged() {
@@ -153,6 +155,7 @@ function extractSavedHalls(response: unknown): HallSummary[] {
 function toHallSummary(value: unknown): HallSummary | undefined {
   const record = unwrapHallRecord(value);
   if (!record) return undefined;
+  if (record.listingOrigin === "APPLICATION") return toPublicHallSummary(record);
 
   const id = stringValue(record, ["id", "slug", "hallId", "hall_id"]);
   if (!id) return undefined;

@@ -102,11 +102,11 @@ export function VenueCompare({ halls }: VenueCompareProps) {
               </tr>
             </thead>
             <tbody>
-              <CompareRow label="Capacity" halls={selectedHalls} render={(hall) => <span className="inline-flex items-center gap-1.5"><UsersRound size={15} /> {formatGuestCount(hall.capacity)} guests</span>} />
-              <CompareRow label="Starting price" halls={selectedHalls} render={(hall) => `INR ${formatMoney(hall.startingPrice)}`} />
-              <CompareRow label="Rating" halls={selectedHalls} render={(hall) => <span className="inline-flex items-center gap-1.5"><Star className="fill-amber-400 text-amber-400" size={15} /> {hall.rating} ({hall.reviewCount})</span>} />
+              <CompareRow label="Capacity" halls={selectedHalls} render={(hall) => <span className="inline-flex items-center gap-1.5"><UsersRound size={15} /> {hall.capacity === null ? "To be confirmed" : `${formatGuestCount(hall.capacity)} guests`}</span>} />
+              <CompareRow label="Starting price" halls={selectedHalls} render={(hall) => hall.startingPrice === null ? "Request pricing" : `INR ${formatMoney(hall.startingPrice)}`} />
+              <CompareRow label="Rating" halls={selectedHalls} render={(hall) => hall.rating === null ? "No customer reviews" : <span className="inline-flex items-center gap-1.5"><Star className="fill-amber-400 text-amber-400" size={15} /> {hall.rating} ({hall.reviewCount})</span>} />
               <CompareRow label="Venue type" halls={selectedHalls} render={(hall) => hall.venueType} />
-              <CompareRow label="Availability" halls={selectedHalls} render={(hall) => hall.availableThisMonth ? <span className="text-emerald-700">Dates available</span> : <span className="text-muted-foreground">Limited dates</span>} />
+              <CompareRow label="Availability" halls={selectedHalls} render={(hall) => hall.listingOrigin === "APPLICATION" ? "Request availability — unconfirmed" : hall.availableThisMonth ? <span className="text-emerald-700">Dates available</span> : <span className="text-muted-foreground">Limited dates</span>} />
               <tr className="border-t border-border">
                 <th className="bg-muted/60 px-4 py-4 align-top font-semibold">Amenities</th>
                 {selectedHalls.map((hall) => (
@@ -123,7 +123,7 @@ export function VenueCompare({ halls }: VenueCompareProps) {
                   <td className="px-4 py-4 align-top" key={hall.id}>
                     <div className="flex flex-wrap gap-2">
                       <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold hover:border-primary hover:text-primary" href={`/halls/${hall.id}`}>Details <ArrowRight size={15} /></Link>
-                      <Link className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" href={`/halls/${hall.id}#enquiry`}>Enquire</Link>
+                      <Link className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-white" href={`/halls/${hall.id}#enquiry`}>{hall.listingOrigin === "APPLICATION" ? "Request availability" : "Enquire"}</Link>
                     </div>
                   </td>
                 ))}

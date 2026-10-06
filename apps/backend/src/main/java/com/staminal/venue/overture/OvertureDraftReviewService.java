@@ -98,15 +98,26 @@ public class OvertureDraftReviewService {
     private Halls hall(long id) {
         return halls.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Application venue draft not found"));
     }
-    private State state(long hallId, boolean lock) {
+    /** Internal read used by publication after its hall/review locks are acquired. */
+    Detail publicationAssessment(long hallId) {
+        Detail value = detail(hall(hallId), state(hallId, false, true), true);
+        // Publication uses JDBC to change status; do not reuse a cached JPA status in this transaction.
+        String status = jdbc.queryForObject("select status from halls where id=?", String.class, hallId);
+        return new Detail(value.hallId(), value.sourceId(), status, value.reviewVersion(), value.reviewStatus(), value.facts(),
+                value.sourceFacts(), value.sources(), value.release(), value.importedAt(), value.fieldOrigins(), value.verifications(),
+                value.missingFields(), value.unverifiedFields(), value.duplicates(), value.duplicateDecision(), value.duplicateNotes(),
+                value.reviewedDuplicateHallIds(), value.reviewNotes(), value.lastReviewedBy(), value.lastReviewedAt(), value.duplicateAssessmentLimited());
+    }
+    private State state(long hallId, boolean lock) { return state(hallId, lock, false); }
+    private State state(long hallId, boolean lock, boolean includePublished) {
         if (hallId <= 0) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Application venue draft not found");
         List<State> rows = jdbc.query("""
                 select r.*, i.source_id::text, i.sources::text, i.release, i.imported_at
                 from venue_overture_draft_reviews r join venue_overture_imports i on i.hall_id=r.hall_id
                 join halls h on h.id=r.hall_id
-                where r.hall_id=? and h.listing_origin='APPLICATION' and h.status='DRAFT'
+                where r.hall_id=? and h.listing_origin='APPLICATION' and %s
                     and h.owner_user_id is null and h.owner_name is null
-                """ + (lock ? " for update of r, h" : ""), (row, index) -> read(row), hallId);
+                """.formatted(includePublished ? "h.status in ('DRAFT','APPROVED')" : "h.status='DRAFT'") + (lock ? " for update of r, h" : ""), (row, index) -> read(row), hallId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Application venue draft not found");
         return rows.getFirst();
     }
@@ -124,6 +135,9 @@ public class OvertureDraftReviewService {
                 row.getTimestamp("last_reviewed_at") == null ? null : row.getTimestamp("last_reviewed_at").toInstant());
     }
     private Detail detail(Halls hall, State state) {
+        return detail(hall,state,false);
+    }
+    private Detail detail(Halls hall, State state, boolean tolerateDuplicateLimit) {
         Facts facts = Facts.from(hall, state.website(), state.operatingStatus());
         Map<String, Object> fields = facts.fields(), source = state.sourceFacts().fields();
         Map<String, String> origins = new LinkedHashMap<>();
@@ -132,17 +146,24 @@ public class OvertureDraftReviewService {
         List<String> missing = fields.entrySet().stream().filter(entry -> OvertureDraftReviewPolicy.missing(entry.getKey(), entry.getValue())).map(Map.Entry::getKey).toList();
         List<String> unverified = fields.entrySet().stream().filter(entry -> !OvertureDraftReviewPolicy.missing(entry.getKey(), entry.getValue())
                 && !state.verifications().containsKey(entry.getKey())).map(Map.Entry::getKey).toList();
-        List<Duplicate> duplicates = duplicates(hall.getId(), facts);
-        boolean staleDecision = state.decision() != DuplicateDecision.NOT_REVIEWED
+        List<Duplicate> duplicates;
+        boolean assessmentLimited=false;
+        try { duplicates=duplicates(hall.getId(),facts); }
+        catch(DuplicateAssessmentLimitException exception) {
+            if(!tolerateDuplicateLimit) throw exception;
+            // Management/withdrawal must remain usable, but this is never a complete reviewed match set.
+            duplicates=List.of(); assessmentLimited=true;
+        }
+        boolean staleDecision = assessmentLimited || state.decision() != DuplicateDecision.NOT_REVIEWED
                 && !state.acknowledged().stream().sorted().toList().equals(duplicates.stream().map(Duplicate::hallId).sorted().toList());
         boolean unresolvedVerified = state.status() == ReviewStatus.VERIFIED && !duplicates.isEmpty()
                 && (staleDecision || state.decision() != DuplicateDecision.DISTINCT);
-        return new Detail(hall.getId(), state.sourceId(), "DRAFT", state.version(),
-                unresolvedVerified || staleDecision && (state.status() == ReviewStatus.VERIFIED || state.status() == ReviewStatus.DUPLICATE)
+        return new Detail(hall.getId(), state.sourceId(), hall.getStatus().name(), state.version(),
+                assessmentLimited || unresolvedVerified || staleDecision && (state.status() == ReviewStatus.VERIFIED || state.status() == ReviewStatus.DUPLICATE)
                         ? ReviewStatus.IN_REVIEW : state.status(), facts, state.sourceFacts(),
                 state.sources(), state.release(), state.importedAt(), Map.copyOf(origins), state.verifications(), missing, unverified, duplicates,
                 staleDecision ? DuplicateDecision.NOT_REVIEWED : state.decision(), staleDecision ? null : state.duplicateNotes(),
-                staleDecision ? List.of() : state.acknowledged(), state.reviewNotes(), state.reviewer(), state.reviewedAt());
+                staleDecision ? List.of() : state.acknowledged(), state.reviewNotes(), state.reviewer(), state.reviewedAt(), assessmentLimited);
     }
 
     /** Indexed spatial bounding box plus normalized name/city, followed by exact 75 metre assessment. */
@@ -164,11 +185,14 @@ public class OvertureDraftReviewService {
                 hallId, name, city, city, latitude, latitude == null ? null : latitude - latMargin,
                 latitude == null ? null : latitude + latMargin, longitude, lonMargin, longitude, lonMargin);
         // Fail closed instead of silently binding an assessment to a partial match set.
-        if (candidates.size() > 200) throw new ResponseStatusException(HttpStatus.CONFLICT, "Too many possible matches; narrow the venue identity before reviewing");
+        if (candidates.size() > 200) throw new DuplicateAssessmentLimitException("Too many possible matches; narrow the venue identity before reviewing");
         List<Duplicate> matches = candidates.stream().filter(candidate -> candidate.matches(facts)).map(candidate ->
                 new Duplicate(candidate.id(), candidate.name(), candidate.city(), candidate.area(), candidate.status(), candidate.origin(), candidate.distance(facts))).toList();
-        if (matches.size() > 100) throw new ResponseStatusException(HttpStatus.CONFLICT, "Too many duplicate matches to review in one assessment");
+        if (matches.size() > 100) throw new DuplicateAssessmentLimitException("Too many duplicate matches to review in one assessment");
         return matches;
+    }
+    private static final class DuplicateAssessmentLimitException extends ResponseStatusException {
+        private DuplicateAssessmentLimitException(String reason) { super(HttpStatus.CONFLICT,reason); }
     }
     private record Match(long id, String name, String city, String area, String status, String origin, Double latitude, Double longitude) {
         boolean matches(Facts facts) {

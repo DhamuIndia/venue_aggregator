@@ -38,6 +38,10 @@ import com.staminal.venue.halls.Service.HallsService;
 import com.staminal.venue.reviews.HallReview.ReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
+import com.staminal.venue.overture.OverturePublicationService;
+import com.staminal.venue.overture.OverturePublicationResponse;
+import com.staminal.venue.overture.OvertureResponse;
+import com.staminal.venue.halls.Entity.HallListingOrigin;
 
 @ExtendWith(MockitoExtension.class)
 class HallsServiceTest {
@@ -57,6 +61,9 @@ class HallsServiceTest {
     @Mock
     ReviewRepository reviewRepository;
 
+    @Mock
+    OverturePublicationService publications;
+
     private HallsService hallsService;
 
     private ObjectMapper objectMapper;
@@ -64,7 +71,7 @@ class HallsServiceTest {
     @BeforeEach
     void setUp() {
         hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository, reviewRepository,
-                availabilityService, objectMapper);
+                availabilityService, objectMapper, publications);
     }
 
     @Test
@@ -95,6 +102,39 @@ class HallsServiceTest {
         assertThat(response.content().get(0).getGalleryUrls())
                 .containsExactly("https://cdn.example.com/emerald-cover.jpg");
         assertThat(draftHall.getStatus()).isEqualTo(HallStatus.DRAFT);
+    }
+
+    @Test
+    void applicationApprovedStatusWithoutExplicitPublicationIsNeitherSearchableNorReadable() {
+        Halls app = hall(11L, 301L, HallStatus.APPROVED);
+        app.setListingOrigin(HallListingOrigin.APPLICATION); app.setOwnerUserId(null); app.setOwnerName(null);
+        when(hallRepository.findByStatus(HallStatus.APPROVED)).thenReturn(List.of(app));
+        when(hallRepository.findById(11L)).thenReturn(Optional.of(app));
+        assertThat(hallsService.searchPublicHalls(null,null,null,null,null,null,null,0,20).content()).isEmpty();
+        assertThatThrownBy(()->hallsService.getPublicHall("11")).isInstanceOf(ResponseStatusException.class).hasMessageContaining("404 NOT_FOUND");
+        assertThatThrownBy(()->hallsService.toPublicResponse(app)).isInstanceOf(ResponseStatusException.class).hasMessageContaining("404 NOT_FOUND");
+        org.mockito.Mockito.verifyNoInteractions(hallMediaRepository,availabilityService,reviewRepository);
+    }
+
+    @Test
+    void applicationPresentationUsesOnlyPublishedPhotosAndVerifiedFactsWithoutInventedCommerce() {
+        Halls app=hall(11L,301L,HallStatus.APPROVED); app.setListingOrigin(HallListingOrigin.APPLICATION);
+        app.setOwnerUserId(null); app.setOwnerName(null); app.setContactNumber("+919999999999"); app.setWhatsappNumber("+918888888888");
+        app.setHallType("event_venue");
+        when(hallRepository.findById(11L)).thenReturn(Optional.of(app)); when(publications.isPublic(app)).thenReturn(true);
+        String photo="/api/v1/halls/11/application-photos/9?publicationVersion=1";
+        when(publications.publicListing(11L)).thenReturn(new OverturePublicationResponse.PublicListing(1,List.of(photo),
+                List.of(new OvertureResponse.Source("OpenStreetMap","ODbL-1.0","fixture")),"2026-09-23.0",java.util.Set.of("amenities.ac")));
+        HallResponse response=hallsService.getPublicHall("11");
+        assertThat(response.getListingOrigin()).isEqualTo("APPLICATION"); assertThat(response.isEnquiryOnly()).isTrue();
+        assertThat(response.getEnquiryRoutingTarget()).isEqualTo("VENUEMART"); assertThat(response.getPublicationVersion()).isEqualTo(1);
+        assertThat(response.getGalleryUrls()).containsExactly(photo); assertThat(response.getImageUrl()).isEqualTo(photo);
+        assertThat(response.getDescription()).isNull(); assertThat(response.getAmenities()).containsExactly("Air conditioned");
+        assertThat(response.getContactNumber()).isNull(); assertThat(response.getWhatsappNumber()).isNull(); assertThat(response.getOwnerName()).isNull();
+        assertThat(response.getStartingPrice()).isNull(); assertThat(response.getPricing()).isNull(); assertThat(response.getAvailabilitySummary()).isNull();
+        assertThat(response.getAvailableThisMonth()).isFalse(); assertThat(response.getVerified()).isFalse(); assertThat(response.getRating()).isZero();
+        assertThat(response.getReviews()).isEmpty(); assertThat(response.getSourceRelease()).isEqualTo("2026-09-23.0");
+        org.mockito.Mockito.verifyNoInteractions(hallMediaRepository,availabilityService,reviewRepository);
     }
 
     @Test

@@ -1,4 +1,4 @@
-export type VenueType = "Marriage Hall" | "Banquet Hall" | "Mini Hall" | "Convention Centre";
+export type VenueType = "Marriage Hall" | "Banquet Hall" | "Mini Hall" | "Convention Centre" | "Event Venue" | "Exhibition and Trade Fair Venue";
 
 export type PublicHallReview = {
   customerName: string;
@@ -12,9 +12,9 @@ export type HallSummary = {
   name: string;
   city: string;
   area: string;
-  capacity: number;
-  startingPrice: number;
-  rating: number;
+  capacity: number | null;
+  startingPrice: number | null;
+  rating: number | null;
   reviewCount: number;
   imageUrl: string;
   galleryUrls: string[];
@@ -24,4 +24,10 @@ export type HallSummary = {
   availableThisMonth: boolean;
   description: string;
   reviews?: PublicHallReview[];
+  listingOrigin?: "OWNER" | "APPLICATION";
+  enquiryOnly?: boolean;
+  enquiryRoutingTarget?: "OWNER" | "VENUEMART";
+  publicationVersion?: number;
+  sourceRelease?: string;
+  sourceAttribution?: { dataset: string; license: string; recordId?: string | null }[];
 };

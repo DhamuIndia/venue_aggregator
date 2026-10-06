@@ -29,6 +29,7 @@ import { RejectionDialog } from "@/components/admin/RejectionDialog";
 import { AdminLeadNotificationMonitor } from "@/components/admin/AdminLeadNotificationMonitor";
 import { AdminVenueDiscovery } from "@/components/admin/AdminVenueDiscovery";
 import { AdminOvertureOnboarding } from "@/components/admin/AdminOvertureOnboarding";
+import { AdminApplicationVenueEnquiries } from "@/components/admin/AdminApplicationVenueEnquiries";
 import { VenueDetailsDrawer } from "@/components/admin/VenueDetailsDrawer";
 import { VendorDetailsDrawer } from "@/components/admin/VendorDetailsDrawer";
 import { emptyAdminAnalytics, getAdminAnalytics, type AdminAnalytics } from "@/features/analytics/analytics-client";
@@ -64,8 +65,9 @@ import {
 import { useAuth } from "@/features/auth/AuthProvider";
 import type { AuthRole } from "@/features/auth/types";
 import type { EnquiryStatus } from "@/features/enquiries/types";
+import { venueMartEnquiryStatus } from "@/features/enquiries/enquiry-display";
 
-type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "vendorReviews" | "enquiries" | "leadNotifications" | "venueDiscovery" | "overtureOnboarding";
+type AdminTab = "overview" | "venues" | "vendors" | "users" | "reports" | "reviews" | "vendorReviews" | "enquiries" | "leadNotifications" | "venueDiscovery" | "overtureOnboarding" | "application-enquiries";
 type RejectTarget = { kind: "venue" | "vendor"; id: string; name: string };
 
 const tabs: { id: AdminTab; label: string }[] = [
@@ -73,6 +75,7 @@ const tabs: { id: AdminTab; label: string }[] = [
   { id: "venues", label: "Venue approvals" },
   { id: "venueDiscovery", label: "Venue discovery" },
   { id: "overtureOnboarding", label: "Application onboarding" },
+  { id: "application-enquiries", label: "VenueMart team enquiries" },
   { id: "vendors", label: "Vendor approvals" },
   { id: "users", label: "Users" },
   { id: "reports", label: "Reports" },
@@ -90,6 +93,8 @@ const moderationStyle: Record<ModerationStatus, string> = {
 
 const enquiryStyle: Record<EnquiryStatus, string> = {
   NEW: "bg-blue-50 text-blue-700",
+  CONTACTED: "bg-blue-50 text-blue-700",
+  CLOSED: "bg-muted text-muted-foreground",
   PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-800",
   DECLINED: "bg-rose-50 text-rose-700",
@@ -137,6 +142,10 @@ function VenueImage({ venue, sizes }: { venue: VenueApplication; sizes: string }
 export function AdminDashboard() {
   const { accessToken, user: authUser } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    if (tabs.some((tab) => tab.id === requested)) setActiveTab(requested as AdminTab);
+  }, []);
   const [venues, setVenues] = useState<VenueApplication[]>([]);
   const [vendors, setVendors] = useState<VendorApplication[]>([]);
   const [reviews, setReviews] = useState<ReportedReview[]>([]);
@@ -1021,11 +1030,11 @@ export function AdminDashboard() {
               {isLoadingQueues ? [1, 2, 3].map((item) => <div className="h-[72px] animate-pulse border-b border-border bg-white last:border-0" key={item} />) : filteredEnquiries.map((enquiry) => (
                 <article className="grid gap-x-5 gap-y-3 border-b border-border px-5 py-4 last:border-0 lg:grid-cols-[minmax(6.5rem,0.9fr)_minmax(6rem,0.75fr)_minmax(11rem,1.55fr)_minmax(9rem,1.2fr)_minmax(7rem,0.85fr)_minmax(7.5rem,0.9fr)] lg:items-center" key={`${enquiry.source ?? "HALL"}-${enquiry.id}`}>
                   <p className="text-sm font-medium lg:truncate" title={enquiry.id}>{enquiry.id}</p>
-                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${enquiry.source === "VENDOR" ? "bg-violet-50 text-violet-700" : "bg-blue-50 text-blue-700"}`}>{enquiry.source === "VENDOR" ? "Vendor lead" : "Hall"}</span>
+                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${enquiry.source === "VENDOR" ? "bg-violet-50 text-violet-700" : "bg-blue-50 text-blue-700"}`}>{enquiry.source === "VENDOR" ? "Vendor lead" : enquiry.routingTarget === "VENUEMART" ? "VenueMart venue" : "Hall"}</span>
                   <div className="min-w-0"><p className="truncate font-medium" title={enquiry.hallName}>{enquiry.hallName}</p><p className="mt-1 text-xs text-muted-foreground lg:hidden">Submitted {enquiry.submittedAt}</p></div>
                   <p className="truncate text-sm" title={enquiry.customerName}>{enquiry.customerName}</p>
                   <p className="text-sm text-muted-foreground">{enquiry.eventDate}</p>
-                  <span className={`inline-flex w-fit whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{readableStatus(enquiry.status)}</span>
+                  <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium ${enquiryStyle[enquiry.status]}`}>{enquiry.routingTarget === "VENUEMART" ? venueMartEnquiryStatus(enquiry.status) : readableStatus(enquiry.status)}</span>
                 </article>
               ))}
               {!isLoadingQueues && filteredEnquiries.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No enquiries match this filter.</p>}
@@ -1036,6 +1045,7 @@ export function AdminDashboard() {
         {activeTab === "leadNotifications" && <AdminLeadNotificationMonitor />}
         {activeTab === "venueDiscovery" && <AdminVenueDiscovery />}
         {activeTab === "overtureOnboarding" && <AdminOvertureOnboarding />}
+        {activeTab === "application-enquiries" && <AdminApplicationVenueEnquiries />}
       </div>
 
       {rejectTarget && <RejectionDialog onClose={() => setRejectTarget(null)} onReject={rejectWithReason} subject={rejectTarget.name} />}

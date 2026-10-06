@@ -18,22 +18,21 @@ import { HallAvailabilityCalendar } from "@/components/halls/HallAvailabilityCal
 import { HallPhotoGallery } from "@/components/halls/HallPhotoGallery";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { getPublicHall } from "@/features/halls/hall-client";
-import { halls } from "@/features/halls/mock-data";
 import { formatGuestCount } from "@/lib/display-format";
+
+// Publication withdrawal must take effect on the next request, including HTML.
+export const dynamic = "force-dynamic";
 
 type HallDetailPageProps = {
   params: Promise<{ id: string }>;
 };
-
-export function generateStaticParams() {
-  return halls.map((hall) => ({ id: hall.id }));
-}
 
 export default async function HallDetailPage({ params }: HallDetailPageProps) {
   const { id } = await params;
   const hall = await getPublicHall(id);
 
   if (!hall) notFound();
+  const applicationManaged = hall.listingOrigin === "APPLICATION";
 
   return (
     <div className="min-h-screen bg-background">
@@ -49,7 +48,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
           </div>
         </div>
 
-        <HallPhotoGallery coverImage={hall.imageUrl} galleryImages={hall.galleryUrls} hallName={hall.name} />
+        {hall.imageUrl ? <HallPhotoGallery coverImage={hall.imageUrl} galleryImages={hall.galleryUrls} hallName={hall.name} unoptimized={applicationManaged} /> : <p className="mt-5 rounded-lg bg-muted p-8 text-center">Venue photo not provided.</p>}
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div>
@@ -64,21 +63,22 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
                   <MapPin aria-hidden="true" size={17} /> {hall.area}, {hall.city}
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold">
+              {hall.rating !== null && <div className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-semibold">
                 <Star aria-hidden="true" className="fill-amber-400 text-amber-400" size={17} />
                 {hall.rating} <span className="font-normal text-muted-foreground">({hall.reviewCount})</span>
-              </div>
+              </div>}
             </div>
 
             <section className="border-b border-border py-7">
               <h2 className="text-xl font-semibold">Venue overview</h2>
               <p className="mt-3 max-w-3xl leading-7 text-muted-foreground">{hall.description}</p>
               <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div className="flex items-center gap-3"><UsersRound className="text-primary" size={20} /><span className="text-sm"><strong className="block">{formatGuestCount(hall.capacity)}</strong>Guests</span></div>
-                <div className="flex items-center gap-3"><Snowflake className="text-primary" size={20} /><span className="text-sm"><strong className="block">Available</strong>Air conditioning</span></div>
+                <div className="flex items-center gap-3"><UsersRound className="text-primary" size={20} /><span className="text-sm"><strong className="block">{hall.capacity === null ? "To be confirmed" : formatGuestCount(hall.capacity)}</strong>Guests</span></div>
+                {!applicationManaged && <><div className="flex items-center gap-3"><Snowflake className="text-primary" size={20} /><span className="text-sm"><strong className="block">Available</strong>Air conditioning</span></div>
                 <div className="flex items-center gap-3"><Car className="text-primary" size={20} /><span className="text-sm"><strong className="block">On site</strong>Parking</span></div>
-                <div className="flex items-center gap-3"><CalendarDays className="text-primary" size={20} /><span className="text-sm"><strong className="block">3 slots</strong>Event timings</span></div>
+                <div className="flex items-center gap-3"><CalendarDays className="text-primary" size={20} /><span className="text-sm"><strong className="block">3 slots</strong>Event timings</span></div></>}
               </div>
+              {applicationManaged && <p className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">VenueMart-managed listing. Availability, pricing and arrangements are not confirmed. Request availability from our team; this is not an online booking and no payment is accepted.</p>}
             </section>
 
             <section className="border-b border-border py-7">
@@ -91,11 +91,14 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
                   </div>
                 ))}
               </div>
+              {applicationManaged && !hall.amenities.length && <p className="mt-3 text-sm text-muted-foreground">Amenities have not been confirmed.</p>}
             </section>
 
-            <HallAvailabilityCalendar hallId={hall.id} />
+            {!applicationManaged && <HallAvailabilityCalendar hallId={hall.id} />}
 
-            <section className="py-7">
+            {applicationManaged && <section className="border-b border-border py-7"><h2 className="text-xl font-semibold">Listing sources</h2><p className="mt-3 text-sm text-muted-foreground">Overture Maps Places{hall.sourceRelease ? ` · Release ${hall.sourceRelease}` : ""}. Source records support venue discovery, not a partnership or availability guarantee.</p><ul className="mt-3 space-y-2 text-sm text-muted-foreground">{hall.sourceAttribution?.map((source, index) => <li className="break-words" key={index}>{source.dataset} · {source.license}{source.recordId ? ` · Record ${source.recordId}` : ""}</li>)}</ul><a className="mt-3 inline-block text-sm text-primary underline" href="https://docs.overturemaps.org/attribution/" rel="noopener noreferrer" target="_blank">Overture attribution</a></section>}
+
+            {!applicationManaged && <section className="py-7">
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-xl font-semibold">Verified customer reviews</h2>
                 <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700"><BadgeCheck size={17} /> Verified service</span>
@@ -122,7 +125,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
                   No verified customer reviews yet.
                 </p>
               )}
-            </section>
+            </section>}
           </div>
 
           <EnquiryPanel hall={hall} />

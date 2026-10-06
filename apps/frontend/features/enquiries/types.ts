@@ -2,6 +2,8 @@ import type { HallSlot, HallSlotRequest } from "@/features/halls/slot-model";
 
 export type EnquiryStatus =
   | "NEW"
+  | "CONTACTED"
+  | "CLOSED"
   | "PENDING_OWNER_RESPONSE"
   | "CONFIRMED"
   | "DECLINED"
@@ -19,6 +21,7 @@ export type CreateEnquiryPayload = {
   slot: EnquirySlot;
   slotRequests?: HallSlotRequest[];
   notes?: string;
+  routingTarget?: "OWNER" | "VENUEMART";
 };
 
 export type StoredEnquiry = CreateEnquiryPayload & {
@@ -34,4 +37,6 @@ export type StoredEnquiry = CreateEnquiryPayload & {
   updatedAt?: string;
   ownerResponseMessage?: string;
   version?: number;
+  publicationVersion?: number;
+  responseMessage?: string;
 };

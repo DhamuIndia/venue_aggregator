@@ -124,7 +124,7 @@ class OvertureWorkflowIntegrationTest {
         var before = preserved.stream().collect(java.util.stream.Collectors.toMap(table -> table, this::count));
         var oldHall = jdbc.queryForMap("select * from halls where id=?", existingHallId);
         assertEquals("OWNER", oldHall.get("listing_origin"));
-        assertEquals(43, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
+        assertEquals(45, jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success", Integer.class));
         var settings = service.settings(auth);
         assertTrue(settings.ready());
         assertEquals("2026-09-23.0", settings.release());
@@ -160,8 +160,9 @@ class OvertureWorkflowIntegrationTest {
                     () -> publicHalls.getPublicHall(String.valueOf(draft.hallId()))).getStatusCode());
         }
         assertEquals(1, moderation.getHalls(null, 0, 20).totalElements());
-        assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
+        var approvalFailure = assertThrows(org.springframework.dao.DataAccessException.class, () -> jdbc.update(
                 "update halls set status='APPROVED' where id=?", drafts.content().getFirst().hallId()));
+        assertTrue(approvalFailure.getMessage().contains("requires a consistent explicit publication"));
         assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
                 "update halls set owner_user_id=null where id=?", existingHallId));
         assertEquals(oldHall, jdbc.queryForMap("select * from halls where id=?", existingHallId));

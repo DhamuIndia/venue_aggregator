@@ -30,6 +30,7 @@ import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.reviews.HallReview.Review;
 import com.staminal.venue.reviews.HallReview.ReviewRepository;
 import com.staminal.venue.reviews.HallReview.Dto.PublicReviewResponse;
+import com.staminal.venue.overture.OverturePublicationService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -45,6 +46,7 @@ public class HallsService {
     private final ReviewRepository reviewRepository;
     private final AvailabilityService availabilityService;
     private final ObjectMapper objectMapper;
+    private final OverturePublicationService publications;
 
     public HallResponse createHall(CreateHallRequest request, Authentication authentication) {
         User owner = currentUser(authentication);
@@ -231,6 +233,7 @@ public class HallsService {
 
         List<Halls> filtered = hallRepository.findByStatus(HallStatus.APPROVED)
                 .stream()
+                .filter(this::isPublic)
                 .filter(hall -> matchesText(hall, q))
                 .filter(hall -> matchesEquals(hall.getCity(), city))
                 .filter(hall -> matchesEquals(hall.getArea(), area))
@@ -258,7 +261,13 @@ public class HallsService {
     }
 
     public HallResponse toPublicResponse(Halls hall) {
+        if (!isPublic(hall)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found");
         return mapToResponse(hall, true);
+    }
+
+    public boolean isPublic(Halls hall) {
+        if (hall == null || hall.getStatus() != HallStatus.APPROVED) return false;
+        return !OverturePublicationService.isApplication(hall) || publications.isPublic(hall);
     }
 
     private void applyRequest(Halls hall, CreateHallRequest request) {
@@ -359,11 +368,12 @@ public class HallsService {
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"))
                 : hallRepository.findByStatus(HallStatus.APPROVED)
                         .stream()
+                        .filter(this::isPublic)
                         .filter(candidate -> slugify(candidate.getName()).equals(slugify(hallId)))
                         .findFirst()
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"));
 
-        if (hall.getStatus() != HallStatus.APPROVED) {
+        if (!isPublic(hall)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found");
         }
         return hall;
@@ -391,7 +401,12 @@ public class HallsService {
     }
 
     private HallResponse mapToResponse(Halls hall, boolean includeMedia) {
+        if (OverturePublicationService.isApplication(hall)) return applicationResponse(hall);
         HallResponse response = new HallResponse();
+        response.setListingOrigin("OWNER");
+        response.setEnquiryOnly(false);
+        response.setEnquiryRoutingTarget("OWNER");
+        response.setSourceAttribution(List.of());
         response.setId(hall.getId());
         response.setName(hall.getName());
         response.setDescription(hall.getDescription());
@@ -476,6 +491,44 @@ public class HallsService {
             }
         }
 
+        return response;
+    }
+
+    private HallResponse applicationResponse(Halls hall) {
+        var published = publications.publicListing(hall.getId());
+        var verified = published.verifiedFields();
+        HallResponse response = new HallResponse();
+        response.setId(hall.getId()); response.setName(hall.getName());
+        response.setAddressLine(hall.getAddressLine()); response.setAddress(hall.getAddressLine());
+        response.setCity(hall.getCity()); response.setArea(hall.getArea());
+        response.setLatitude(hall.getLatitude()); response.setLongitude(hall.getLongitude());
+        response.setPincode(verified.contains("postcode") ? hall.getPincode() : null);
+        response.setCapacityMax(hall.getCapacityMax()); response.setCapacity(hall.getCapacityMax());
+        response.setDescription(verified.contains("description") ? hall.getDescription() : null);
+        response.setListingOrigin("APPLICATION"); response.setEnquiryOnly(true); response.setEnquiryRoutingTarget("VENUEMART");
+        response.setPublicationVersion(published.publicationVersion());
+        response.setSourceAttribution(published.sourceAttribution()); response.setSourceRelease(published.sourceRelease());
+        response.setVenueType(hall.getHallType());
+        response.setGalleryUrls(published.galleryUrls());
+        response.setImageUrl(published.galleryUrls().getFirst()); response.setCoverImageUrl(published.galleryUrls().getFirst());
+        response.setRatings(0.0); response.setRating(0.0); response.setReviewCount(0); response.setReviews(List.of());
+        response.setVerified(false); response.setIsVerified(false); response.setAvailableThisMonth(false);
+        response.setStatus("APPROVED"); response.setListingStatus("APPROVED"); response.setPendingUpdate(false);
+        response.setAcAvailable(verified.contains("amenities.ac") ? hall.getAcAvailable() : null);
+        response.setCarParking(verified.contains("amenities.carParking") ? hall.getCarParking() : null);
+        response.setBikeParking(verified.contains("amenities.bikeParking") ? hall.getBikeParking() : null);
+        response.setDiningAvailable(verified.contains("amenities.dining") ? hall.getDiningAvailable() : null);
+        response.setGeneratorAvailable(verified.contains("amenities.generator") ? hall.getGeneratorAvailable() : null);
+        response.setLiftAvailable(verified.contains("amenities.lift") ? hall.getLiftAvailable() : null);
+        response.setBridalRoomAvailable(verified.contains("amenities.bridalRoom") ? hall.getBridalRoomAvailable() : null);
+        response.setCateringKitchenAvailable(verified.contains("amenities.cateringKitchen") ? hall.getCateringKitchenAvailable() : null);
+        List<String> amenities = new ArrayList<>();
+        addAmenity(amenities,response.getAcAvailable(),"Air conditioned"); addAmenity(amenities,response.getCarParking(),"Parking");
+        addAmenity(amenities,response.getBikeParking(),"Bike parking"); addAmenity(amenities,response.getDiningAvailable(),"Dining hall");
+        addAmenity(amenities,response.getGeneratorAvailable(),"Generator"); addAmenity(amenities,response.getLiftAvailable(),"Lift");
+        addAmenity(amenities,response.getBridalRoomAvailable(),"Bridal room"); addAmenity(amenities,response.getCateringKitchenAvailable(),"Catering kitchen");
+        response.setAmenities(List.copyOf(amenities));
+        // No owner account, public contact, invented prices, paid booking or real-time availability claims.
         return response;
     }
 
@@ -588,6 +641,7 @@ public class HallsService {
     }
 
     private BigDecimal startingPrice(Halls hall) {
+        if (OverturePublicationService.isApplication(hall)) return null;
         BigDecimal price = minPositive(hall.getMorningAmount(), hall.getEveningAmount());
         return minPositive(price, hall.getFullDayAmount());
     }

@@ -20,6 +20,7 @@ import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Dto.BlockedDateResponse;
 import com.staminal.venue.halls.Entity.HallBlockedDate;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.overture.OverturePublicationService;
 import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.users.Entity.User;
@@ -68,6 +69,11 @@ public class AvailabilityService {
         public AvailabilityResponse getPublicAvailability(String hallId) {
 
                 Halls hall = getApprovedHall(hallId);
+
+                if (OverturePublicationService.isApplication(hall)) {
+                        throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                        "Application venue availability must be requested from VenueMart");
+                }
 
                 List<HallBlockedDate> blockedDates = hallBlockedDateRepository.findByHallId_Id(hall.getId());
 

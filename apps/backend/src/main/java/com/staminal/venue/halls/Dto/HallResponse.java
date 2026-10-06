@@ -6,8 +6,28 @@ import java.util.List;
 
 import com.staminal.venue.availability.Dto.AvailabilitySummary;
 import com.staminal.venue.reviews.HallReview.Dto.PublicReviewResponse;
+import com.staminal.venue.overture.OvertureResponse;
 
 public class HallResponse {
+
+    private String listingOrigin;
+    private boolean enquiryOnly;
+    private String enquiryRoutingTarget;
+    private Long publicationVersion;
+    private List<OvertureResponse.Source> sourceAttribution;
+    private String sourceRelease;
+    public String getListingOrigin() { return listingOrigin; }
+    public void setListingOrigin(String value) { listingOrigin = value; }
+    public boolean isEnquiryOnly() { return enquiryOnly; }
+    public void setEnquiryOnly(boolean value) { enquiryOnly = value; }
+    public String getEnquiryRoutingTarget() { return enquiryRoutingTarget; }
+    public void setEnquiryRoutingTarget(String value) { enquiryRoutingTarget = value; }
+    public Long getPublicationVersion() { return publicationVersion; }
+    public void setPublicationVersion(Long value) { publicationVersion = value; }
+    public List<OvertureResponse.Source> getSourceAttribution() { return sourceAttribution; }
+    public void setSourceAttribution(List<OvertureResponse.Source> value) { sourceAttribution = value; }
+    public String getSourceRelease() { return sourceRelease; }
+    public void setSourceRelease(String value) { sourceRelease = value; }
 
     private String addressLine;
     private String pincode;

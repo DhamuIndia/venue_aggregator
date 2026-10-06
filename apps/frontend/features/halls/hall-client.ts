@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api-client";
+import { API_BASE_URL, apiRequest } from "@/lib/api-client";
 import { toTitleCase } from "@/lib/display-format";
 import { getHallById as getMockHallById, halls as mockHalls } from "./mock-data";
 import type { HallSummary, PublicHallReview, VenueType } from "./types";
@@ -27,7 +27,7 @@ export async function searchPublicHalls(filters: HallSearchFilters = {}): Promis
   if (useMockHalls) return searchMockHalls(filters);
 
   try {
-    const response = await apiRequest<unknown>(`/public/halls${toQueryString(filters)}`);
+    const response = await apiRequest<unknown>(`/public/halls${toQueryString(filters)}`, { cache: "no-store" });
     const records = extractHallRecords(response);
     const halls = records.map(toHallSummary).filter(Boolean) as HallSummary[];
     return {
@@ -36,7 +36,7 @@ export async function searchPublicHalls(filters: HallSearchFilters = {}): Promis
       source: "api"
     };
   } catch {
-    return searchMockHalls(filters);
+    return { halls: [], total: 0, source: "api" };
   }
 }
 
@@ -44,10 +44,10 @@ export async function getPublicHall(hallId: string): Promise<HallSummary | undef
   if (useMockHalls) return getMockHallById(hallId);
 
   try {
-    const response = await apiRequest<unknown>(`/public/halls/${encodeURIComponent(hallId)}`);
+    const response = await apiRequest<unknown>(`/public/halls/${encodeURIComponent(hallId)}`, { cache: "no-store" });
     return toHallSummary(response);
   } catch {
-    return getMockHallById(hallId);
+    return undefined;
   }
 }
 
@@ -70,7 +70,7 @@ function searchMockHalls(filters: HallSearchFilters): HallSearchResult {
     const matchesLocation =
       !query ||
       `${hall.name} ${hall.city} ${hall.area}`.toLowerCase().includes(query);
-    const matchesGuests = !filters.minCapacity || hall.capacity >= filters.minCapacity;
+    const matchesGuests = !filters.minCapacity || (hall.capacity !== null && hall.capacity >= filters.minCapacity);
     const matchesType = !filters.venueType || hall.venueType === filters.venueType;
     return matchesLocation && matchesGuests && matchesType;
   });
@@ -81,10 +81,10 @@ function searchMockHalls(filters: HallSearchFilters): HallSearchResult {
 
 function sortHalls(halls: HallSummary[], sort: HallSort = "recommended") {
   return [...halls].sort((first, second) => {
-    if (sort === "rating") return second.rating - first.rating;
-    if (sort === "price-low") return first.startingPrice - second.startingPrice;
-    if (sort === "capacity") return second.capacity - first.capacity;
-    return Number(second.isVerified) - Number(first.isVerified) || second.rating - first.rating;
+    if (sort === "rating") return (second.rating ?? 0) - (first.rating ?? 0);
+    if (sort === "price-low") return (first.startingPrice ?? Infinity) - (second.startingPrice ?? Infinity);
+    if (sort === "capacity") return (second.capacity ?? 0) - (first.capacity ?? 0);
+    return Number(second.isVerified) - Number(first.isVerified) || (second.rating ?? 0) - (first.rating ?? 0);
   });
 }
 
@@ -102,12 +102,28 @@ function extractTotal(response: unknown) {
   return numberValue(response, ["total", "totalElements", "totalCount", "count"]);
 }
 
-function toHallSummary(value: unknown): HallSummary | undefined {
+export function toHallSummary(value: unknown): HallSummary | undefined {
   if (!isRecord(value)) return undefined;
 
   const id = stringValue(value, ["id", "slug", "hallId"]);
   const name = stringValue(value, ["name", "hallName", "title"]);
   if (!id || !name) return undefined;
+
+  if (value.listingOrigin === "APPLICATION") {
+    const imageUrl = publicPhotoUrl(stringValue(value, ["coverImageUrl"]));
+    const sourceAttribution = Array.isArray(value.sourceAttribution) ? value.sourceAttribution.filter(isRecord).map((source) => ({
+      dataset: stringValue(source, ["dataset"]) ?? "Unknown dataset", license: stringValue(source, ["license"]) ?? "Not provided", recordId: stringValue(source, ["recordId"]) ?? null
+    })) : [];
+    return {
+      id, name: toTitleCase(name), city: toTitleCase(stringValue(value, ["city"]) ?? ""), area: toTitleCase(stringValue(value, ["area"]) ?? ""),
+      capacity: numberValue(value, ["capacity", "capacityMax"]) ?? null, startingPrice: null, rating: null, reviewCount: 0,
+      imageUrl, galleryUrls: uniqueUrls(galleryUrls(value, imageUrl, []).map(publicPhotoUrl).filter(Boolean)),
+      venueType: venueType(value) ?? "Event Venue", amenities: amenities(value, []),
+      isVerified: false, availableThisMonth: false, description: stringValue(value, ["description"]) ?? "Details are being confirmed by the VenueMart team.", reviews: [],
+      listingOrigin: "APPLICATION", enquiryOnly: true, enquiryRoutingTarget: "VENUEMART",
+      publicationVersion: numberValue(value, ["publicationVersion"]), sourceRelease: stringValue(value, ["sourceRelease"]), sourceAttribution
+    };
+  }
 
   const fallback = getMockHallById(id) ?? mockHalls[0];
   const city = stringValue(value, ["city"]) ?? fallback.city;
@@ -134,6 +150,12 @@ function toHallSummary(value: unknown): HallSummary | undefined {
     description: stringValue(value, ["description", "summary"]) ?? fallback.description,
     reviews: publicReviews(value)
   };
+}
+
+function publicPhotoUrl(value?: string) {
+  if (!value) return "";
+  if (value.startsWith("/api/v1/halls/")) return `${API_BASE_URL.replace(/\/api\/v1\/?$/, "")}${value}`;
+  return value;
 }
 
 function galleryUrls(record: ApiHallRecord, coverImageUrl: string, fallback: string[]) {
@@ -163,6 +185,8 @@ function venueType(record: ApiHallRecord): VenueType | undefined {
   if (normalized === "BANQUET_HALL") return "Banquet Hall";
   if (normalized === "MINI_HALL") return "Mini Hall";
   if (normalized === "CONVENTION_CENTRE" || normalized === "CONVENTION_CENTER") return "Convention Centre";
+  if (normalized === "EVENT_VENUE") return "Event Venue";
+  if (normalized === "EXHIBITION_AND_TRADE_FAIR_VENUE") return "Exhibition and Trade Fair Venue";
   if (value === "Marriage Hall" || value === "Banquet Hall" || value === "Mini Hall" || value === "Convention Centre") return value;
   return undefined;
 }

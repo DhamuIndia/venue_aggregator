@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BadgeCheck,
   CalendarDays,
   LoaderCircle,
   Map,
@@ -91,10 +90,10 @@ export function HallDiscovery() {
           <div className="max-w-3xl">
             <p className="text-sm font-semibold text-primary">Find the right venue</p>
             <h1 className="mt-2 text-3xl font-semibold text-foreground sm:text-4xl">
-              Halls for every kind of celebration
+              Halls and event venues for every celebration
             </h1>
             <p className="mt-3 text-base text-muted-foreground">
-              Compare verified halls, pricing, capacity, and available dates in one place.
+              Compare venue details and photos, then enquire with an owner or the VenueMart team. Availability and pricing need confirmation.
             </p>
           </div>
 
@@ -188,7 +187,7 @@ export function HallDiscovery() {
               {total} {total === 1 ? "venue" : "venues"} found
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Verified listings with transparent starting prices
+              VenueMart-managed listings accept availability enquiries only. Their pricing and dates are unconfirmed.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -265,23 +264,23 @@ export function HallDiscovery() {
         <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.5fr] lg:items-start">
           <div>
             <p className="text-sm font-semibold text-primary">How it works</p>
-            <h2 className="mt-2 text-2xl font-semibold text-foreground">Shortlist, enquire, and confirm with confidence</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-foreground">Shortlist venues and ask about your event</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="border-l-2 border-primary pl-4">
               <Search aria-hidden="true" className="text-primary" size={20} />
               <h3 className="mt-3 font-semibold">Compare</h3>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">Filter by location, capacity, pricing, photos, and live slot availability.</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Browse locations, photos and supplied venue details. Ask for pricing or capacity when it is not provided.</p>
             </div>
             <div className="border-l-2 border-primary pl-4">
               <Send aria-hidden="true" className="text-primary" size={20} />
               <h3 className="mt-3 font-semibold">Enquire</h3>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">Select the date and slots you need, including evening plus next morning.</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Request your preferred date and timings. For VenueMart-managed listings, our team handles the enquiry; it is not a confirmed booking.</p>
             </div>
             <div className="border-l-2 border-primary pl-4">
-              <BadgeCheck aria-hidden="true" className="text-primary" size={20} />
-              <h3 className="mt-3 font-semibold">Verify</h3>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">Work with approved owners and vendors, then leave verified reviews after service.</p>
+              <UsersRound aria-hidden="true" className="text-primary" size={20} />
+              <h3 className="mt-3 font-semibold">Follow up</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">Review the owner’s or VenueMart team’s response before making arrangements. VenueMart-managed listings do not accept online bookings or payments.</p>
             </div>
           </div>
         </div>

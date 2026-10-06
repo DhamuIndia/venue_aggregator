@@ -12,6 +12,7 @@ import {
 import { ApiError } from "@/lib/api-client";
 import { AdminOvertureDraftReview } from "@/components/admin/AdminOvertureDraftReview";
 import { AdminOvertureDraftMedia } from "@/components/admin/AdminOvertureDraftMedia";
+import { AdminOverturePublications } from "@/components/admin/AdminOverturePublications";
 
 const buttonStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
 const primaryStyle = "inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50";
@@ -69,7 +70,7 @@ function Pagination({ page, totalPages, totalElements, busy, onChange }: {
 
 export function AdminOvertureOnboarding() {
   const { accessToken, user } = useAuth();
-  const [view, setView] = useState<"catalog" | "drafts">("catalog");
+  const [view, setView] = useState<"catalog" | "drafts" | "publications">("catalog");
   const [settings, setSettings] = useState<OvertureSettings | null>(null);
   const [settingsError, setSettingsError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -179,7 +180,7 @@ export function AdminOvertureOnboarding() {
     else { setResult(null); setNotice(""); }
   }
 
-  function changeView(next: "catalog" | "drafts") {
+  function changeView(next: "catalog" | "drafts" | "publications") {
     if (busy) return;
     clearSelection();
     setView(next);
@@ -271,6 +272,7 @@ export function AdminOvertureOnboarding() {
     <div aria-label="Onboarding views" className="flex flex-wrap gap-2" role="tablist">
       <button aria-selected={view === "catalog"} className={`${buttonStyle} ${view === "catalog" ? "border-primary text-primary" : ""}`} disabled={busy} onClick={() => changeView("catalog")} role="tab" type="button"><Database size={16} /> Venue catalog</button>
       <button aria-selected={view === "drafts"} className={`${buttonStyle} ${view === "drafts" ? "border-primary text-primary" : ""}`} disabled={busy} onClick={() => changeView("drafts")} role="tab" type="button"><FileCheck2 size={16} /> Created drafts</button>
+      <button aria-selected={view === "publications"} className={`${buttonStyle} ${view === "publications" ? "border-primary text-primary" : ""}`} disabled={busy} onClick={() => changeView("publications")} role="tab" type="button"><FileCheck2 size={16} /> Publication</button>
     </div>
 
     {view === "catalog" && ready ? <div className="space-y-4">
@@ -342,6 +344,7 @@ export function AdminOvertureOnboarding() {
         <Pagination busy={busy || draftLoading} onChange={setDraftPage} page={drafts.page} totalElements={drafts.totalElements} totalPages={drafts.totalPages} />
       </> : null}
     </div> : null}
+    {view === "publications" && <AdminOverturePublications />}
     {editingHallId !== null && settings?.enabled ? <AdminOvertureDraftReview hallId={editingHallId} key={`${user?.id}-${editingHallId}`} onClose={() => setEditingHallId(null)} onSaved={() => setRevision((value) => value + 1)} token={accessToken} /> : null}
     {editingMediaHallId !== null && settings?.enabled ? <AdminOvertureDraftMedia hallId={editingMediaHallId} key={`media-${user?.id}-${editingMediaHallId}`} onClose={() => setEditingMediaHallId(null)} token={accessToken} /> : null}
   </section>;
