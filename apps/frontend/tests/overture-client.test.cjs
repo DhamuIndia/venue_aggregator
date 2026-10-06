@@ -143,6 +143,7 @@ test("the venue facts display shows supplied HTTP text and keeps HTTPS websites 
   new Function("require", "module", "exports", `${compiled}\nmodule.exports.VenueFacts = VenueFacts;`)((name) => {
     if (name === "@/features/admin/overture-client") return client;
     if (name === "@/components/admin/AdminOvertureDraftReview") return { AdminOvertureDraftReview: () => null };
+    if (name === "@/components/admin/AdminOvertureDraftMedia") return { AdminOvertureDraftMedia: () => null };
     if (name === "@/features/auth/AuthProvider") return { useAuth: () => ({ accessToken: null }) };
     if (name === "@/lib/api-client") return { ApiError: class ApiError extends Error {} };
     return frontendRequire(name);

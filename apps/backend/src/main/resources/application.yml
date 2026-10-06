@@ -15,6 +15,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
 
 jwt:
   secret: ${JWT_SECRET:staminal-super-secret-key-for-venue-app-2026}
@@ -26,6 +30,9 @@ app:
     enabled: ${OVERTURE_ONBOARDING_ENABLED:false}
     catalog-path: ${OVERTURE_CATALOG_PATH:}
     max-batch-size: ${OVERTURE_MAX_BATCH_SIZE:20}
+    media:
+      enabled: ${OVERTURE_DRAFT_MEDIA_ENABLED:false}
+      bucket: ${OVERTURE_DRAFT_MEDIA_BUCKET:venue-draft-media-private}
   features:
     marketplace-requirements-enabled: ${MARKETPLACE_REQUIREMENTS_ENABLED:false}
     venue-discovery-enabled: ${VENUE_DISCOVERY_ENABLED:false}
