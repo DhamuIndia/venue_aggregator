@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:discovery": "node --test tests/discovery-client.test.cjs",
+    "test:overture": "node --test tests/overture-client.test.cjs tests/overture-review-form.test.cjs",
+    "test:overture-media": "node --test tests/overture-media-client.test.cjs tests/overture-media-form.test.cjs tests/api-client-multipart.test.cjs",
+    "test:overture-publication": "node --test tests/overture-publication-client.test.cjs tests/application-public-client.test.cjs tests/application-public-ui.test.cjs",
+    "test:overture-credits": "node --test tests/overture-credit-client.test.cjs tests/overture-credit-form.test.cjs tests/photo-credit-ui.test.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

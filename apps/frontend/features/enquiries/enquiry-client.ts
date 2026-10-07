@@ -15,7 +15,8 @@ export type EnquiryListResult = {
 export function getLocalEnquiries(): StoredEnquiry[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]") as StoredEnquiry[];
+    const stored: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]");
+    return Array.isArray(stored) ? stored.filter((item) => isRecord(item) && item.routingTarget !== "VENUEMART") as StoredEnquiry[] : [];
   } catch {
     return [];
   }
@@ -26,6 +27,7 @@ export function getLocalEnquiry(id: string) {
 }
 
 export async function createEnquiry(payload: CreateEnquiryPayload, accessToken?: string | null): Promise<StoredEnquiry> {
+  if (payload.routingTarget === "VENUEMART" && (useMockEnquiries || !accessToken)) throw new Error("Sign in to submit a real request to the VenueMart team.");
   if (useMockEnquiries || !accessToken) return createLocalEnquiry(payload);
 
   try {
@@ -44,10 +46,18 @@ export async function createEnquiry(payload: CreateEnquiryPayload, accessToken?:
       })
     });
 
-    const enquiry = toStoredEnquiry(response, payload) ?? createStoredFromFallback(payload);
-    cacheLocalEnquiry(enquiry);
-    return enquiry;
+    const enquiry = toStoredEnquiry(response, payload);
+    if (payload.routingTarget === "VENUEMART") {
+      if (!enquiry || enquiry.routingTarget !== "VENUEMART" || !["NEW", "CONTACTED", "CLOSED"].includes(enquiry.status) || enquiry.publicationVersion === undefined) {
+        throw new Error("The server did not confirm receipt by VenueMart. Please reload your enquiries before trying again.");
+      }
+      return enquiry;
+    }
+    const stored = enquiry ?? createStoredFromFallback(payload);
+    cacheLocalEnquiry(stored);
+    return stored;
   } catch (exception) {
+    if (payload.routingTarget === "VENUEMART") throw exception;
     if (exception instanceof ApiError && [400, 401, 403].includes(exception.status)) {
       throw exception;
     }
@@ -125,6 +135,7 @@ export async function updateOwnerEnquiryStatus(enquiryId: string, status: Enquir
 }
 
 export function createLocalEnquiry(payload: CreateEnquiryPayload): StoredEnquiry {
+  if (payload.routingTarget === "VENUEMART") throw new Error("VenueMart team requests require a server-confirmed submission.");
   const enquiry: StoredEnquiry = {
     ...payload,
     id: `ENQ-${Date.now().toString().slice(-6)}`,
@@ -144,7 +155,7 @@ export function updateLocalEnquiryStatus(id: string, status: EnquiryStatus) {
 }
 
 function cacheLocalEnquiry(enquiry: StoredEnquiry) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || enquiry.routingTarget === "VENUEMART") return;
   const existing = getLocalEnquiries().filter((item) => item.id !== enquiry.id);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify([enquiry, ...existing]));
 }
@@ -158,9 +169,9 @@ function extractEnquiries(response: unknown, fallback?: EnquiryFallback) {
   return Array.isArray(list) ? list.map((item) => toStoredEnquiry(item, fallback)).filter(Boolean) as StoredEnquiry[] : [];
 }
 
-function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnquiry | undefined {
+export function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnquiry | undefined {
   if (!isRecord(value)) {
-    return hasCompleteFallback(fallback) ? createStoredFromFallback(fallback) : undefined;
+    return fallback?.routingTarget !== "VENUEMART" && hasCompleteFallback(fallback) ? createStoredFromFallback(fallback) : undefined;
   }
 
   const hallId = stringValue(value, ["hallId", "hall_id"]) ?? fallback?.hallId;
@@ -172,7 +183,7 @@ function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnqu
   const id = stringValue(value, ["id", "enquiryId", "enquiry_id"]);
 
   if (!id || !hallId || !hallName || !eventDate || !eventType || !isSlot(slot)) {
-    return hasCompleteFallback(fallback) ? createStoredFromFallback(fallback) : undefined;
+    return fallback?.routingTarget !== "VENUEMART" && value.routingTarget !== "VENUEMART" && hasCompleteFallback(fallback) ? createStoredFromFallback(fallback) : undefined;
   }
 
   return {
@@ -238,7 +249,10 @@ function toStoredEnquiry(value: unknown, fallback?: EnquiryFallback): StoredEnqu
       "owner_response_message"
     ]),
 
-    version: numberValue(value, ["version"])
+    version: numberValue(value, ["version"]),
+    routingTarget: value.routingTarget === "VENUEMART" ? "VENUEMART" : "OWNER",
+    publicationVersion: numberValue(value, ["publicationVersion"]),
+    responseMessage: stringValue(value, ["responseMessage"])
   };
 }
 
@@ -272,8 +286,8 @@ function statusValue(record: Record<string, unknown>): EnquiryStatus | undefined
     return value;
   }
   if (value === "AWAITING_RESPONSE") return "PENDING_OWNER_RESPONSE";
-  if (value === "CONTACTED") return "PENDING_OWNER_RESPONSE";
-  if (value === "CLOSED") return "COMPLETED";
+  if (value === "CONTACTED") return record.routingTarget === "VENUEMART" ? "CONTACTED" : "PENDING_OWNER_RESPONSE";
+  if (value === "CLOSED") return record.routingTarget === "VENUEMART" ? "CLOSED" : "COMPLETED";
   return undefined;
 }
 

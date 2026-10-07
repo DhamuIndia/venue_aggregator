@@ -1,0 +1,2 @@
+# Temporary/offline extraction tool only; no application runtime dependency.
+duckdb==1.4.1

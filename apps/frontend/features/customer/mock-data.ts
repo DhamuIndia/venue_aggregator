@@ -13,6 +13,8 @@ export type CustomerEnquiry = {
   budget?: number;
   notes?: string;
   declineReason?: string;
+  routingTarget?: "OWNER" | "VENUEMART";
+  responseMessage?: string;
 };
 
 export const customerEnquiries: CustomerEnquiry[] = [
