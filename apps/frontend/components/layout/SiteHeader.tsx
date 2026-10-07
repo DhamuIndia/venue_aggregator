@@ -30,7 +30,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-6 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-4 sm:gap-6 sm:px-6">
         <Link className="flex items-center gap-2 font-semibold text-foreground" href="/" onClick={() => setIsMenuOpen(false)}>
           <VenueMartLogo />
         </Link>
@@ -43,7 +43,7 @@ export function SiteHeader() {
           {user && <NotificationBell />}
           {!isLoading && user ? (
             <>
-              <Link aria-label="My account" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted" href={accountHref}><span className="grid size-6 place-items-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800">{user.fullName.charAt(0)}</span><span className="hidden sm:inline">My account</span></Link>
+              <Link aria-label="My account" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-2 text-sm font-medium hover:bg-muted sm:px-3" href={accountHref}><span className="grid size-6 place-items-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800">{user.fullName.charAt(0)}</span><span className="hidden sm:inline">My account</span></Link>
               <button aria-label="Sign out" className="grid size-10 place-items-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground" onClick={signOut} title="Sign out" type="button"><LogOut aria-hidden="true" size={18} /></button>
             </>
           ) : (

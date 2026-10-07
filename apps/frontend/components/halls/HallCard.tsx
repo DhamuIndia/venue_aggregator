@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SaveHallButton } from "@/components/customer/SaveHallButton";
 import type { HallSummary } from "@/features/halls/types";
 import { formatGuestCount } from "@/lib/display-format";
+import { PublicPhotoCredit } from "@/components/halls/PublicPhotoCredit";
 
 type HallCardProps = {
   hall: HallSummary;
@@ -40,6 +41,8 @@ export function HallCard({ hall, initialSaved, onSavedChange }: HallCardProps) {
         </Link>
         <SaveHallButton className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-white text-foreground shadow-sm hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60" hall={hall} initialSaved={initialSaved} onSavedChange={onSavedChange} />
       </div>
+
+      {hall.listingOrigin === "APPLICATION" && <PublicPhotoCredit className="border-b border-border bg-slate-50 px-4 py-3 text-muted-foreground" credit={hall.applicationPhotos?.find((photo) => photo.url === hall.imageUrl)?.credit} />}
 
       <div className="p-4">
         <div className="flex items-start justify-between gap-4">

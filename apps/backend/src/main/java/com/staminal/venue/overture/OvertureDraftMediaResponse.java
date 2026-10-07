@@ -14,7 +14,18 @@ public final class OvertureDraftMediaResponse {
             String sourceReference, RightsBasis rightsBasis, String licenseName, String permissionEvidence,
             boolean rightsConfirmed, Actor uploadedBy, Instant uploadedAt, int width, int height, int sizeBytes,
             String sha256, int sortOrder, Actor reviewedBy, Instant reviewedAt, String reviewReason,
-            Actor archivedBy, Instant archivedAt, String archiveReason, boolean isCover) { }
+            Actor archivedBy, Instant archivedAt, String archiveReason, boolean isCover,
+            OverturePhotoCreditResponse.Credit credit) {
+        public Photo(long id, long hallId, PhotoStatus status, String caption, SourceKind sourceKind,
+                String sourceReference, RightsBasis rightsBasis, String licenseName, String permissionEvidence,
+                boolean rightsConfirmed, Actor uploadedBy, Instant uploadedAt, int width, int height, int sizeBytes,
+                String sha256, int sortOrder, Actor reviewedBy, Instant reviewedAt, String reviewReason,
+                Actor archivedBy, Instant archivedAt, String archiveReason, boolean isCover) {
+            this(id, hallId, status, caption, sourceKind, sourceReference, rightsBasis, licenseName, permissionEvidence,
+                    rightsConfirmed, uploadedBy, uploadedAt, width, height, sizeBytes, sha256, sortOrder,
+                    reviewedBy, reviewedAt, reviewReason, archivedBy, archivedAt, archiveReason, isCover, null);
+        }
+    }
     public record Gallery(long mediaVersion, Long coverMediaId, List<Photo> items, Limits limits,
             int activeCount, long retainedBytes) { }
 }

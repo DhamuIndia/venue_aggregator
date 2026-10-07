@@ -100,6 +100,27 @@ class OvertureDraftMediaServiceTest {
         assertFalse(json.contains("storageKey")); assertFalse(json.contains("drafts/55/")); assertFalse(json.contains("contentUrl"));
         assertEquals(100,gallery.limits().maxLifetimePhotos());
     }
+    @Test void galleryAlwaysProjectsLatestCreditRevisionEvenWhenItIsPending() throws Exception {
+        ResultSet photo = photo("APPROVED",3);
+        when(photo.getString("source_kind")).thenReturn("LICENSED_IMAGE");
+        when(photo.getString("rights_basis")).thenReturn("OPEN_LICENSE");
+        when(photo.getString("license_name")).thenReturn("CC BY 4.0");
+        when(photo.getObject("credit_version",Long.class)).thenReturn(3L);
+        when(photo.getString("credit_status")).thenReturn("PENDING");
+        when(photo.getString("credit_license_code")).thenReturn("CC_BY_4_0");
+        when(photo.getString("credit_title")).thenReturn("Corrected title");
+        when(photo.getString("credit_creator")).thenReturn("Credited author");
+        when(photo.getString("credit_source_url")).thenReturn("https://commons.wikimedia.org/wiki/File:Example.jpg");
+        when(photo.getString("credit_changes_notice")).thenReturn("No creative edits");
+        when(photo.getTimestamp("credit_changed_at")).thenReturn(Timestamp.from(Instant.parse("2026-10-06T10:00:00Z")));
+        mockState(3,List.of(photo),null);
+        var gallery=service.gallery(55,auth);
+        assertEquals(3,gallery.items().getFirst().credit().creditVersion());
+        assertEquals(OverturePhotoCreditResponse.Status.PENDING,gallery.items().getFirst().credit().status());
+        var sql=org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(jdbc,atLeastOnce()).query(sql.capture(),org.mockito.ArgumentMatchers.<RowMapper<?>>any(),any(Object[].class));
+        assertTrue(sql.getAllValues().stream().anyMatch(query -> query.contains("left join lateral") && query.contains("order by credit_version desc limit 1")));
+    }
     private HttpStatus failure(Runnable action) { return HttpStatus.valueOf(assertThrows(ResponseStatusException.class,action::run).getStatusCode().value()); }
     private void mockState(long version,List<ResultSet> galleryRows,ResultSet selected) throws Exception {
         ResultSet state = mock(ResultSet.class); when(state.getLong("media_version")).thenReturn(version);

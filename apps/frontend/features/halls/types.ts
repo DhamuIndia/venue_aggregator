@@ -7,6 +7,13 @@ export type PublicHallReview = {
   verifiedService: boolean;
 };
 
+export type PublicPhotoCredit = {
+  title: string; creator: string; creatorUrl: string | null; sourceUrl: string;
+  licenseCode: "CC_BY_4_0" | "CC0_1_0"; licenseLabel: string; licenseUrl: string;
+  changesNotice: string; processingNotice: string; requiredNotices: string | null;
+};
+export type ApplicationHallPhoto = { photoId: number; url: string; requiresCredit: boolean; credit: PublicPhotoCredit | null };
+
 export type HallSummary = {
   id: string;
   name: string;
@@ -30,4 +37,5 @@ export type HallSummary = {
   publicationVersion?: number;
   sourceRelease?: string;
   sourceAttribution?: { dataset: string; license: string; recordId?: string | null }[];
+  applicationPhotos?: ApplicationHallPhoto[];
 };

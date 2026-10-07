@@ -1,9 +1,19 @@
 import { API_BASE_URL, ApiError, apiRequest } from "@/lib/api-client";
+import type { PublicPhotoCredit } from "@/features/halls/types";
 
 export type OvertureMediaSourceKind = "TEAM_PHOTO" | "BUSINESS_PROVIDED" | "LICENSED_IMAGE";
 export type OvertureMediaRightsBasis = "TEAM_OWNED" | "BUSINESS_PERMISSION" | "OPEN_LICENSE";
 export type OvertureMediaStatus = "PENDING" | "APPROVED" | "REJECTED" | "ARCHIVED";
 export type OvertureMediaActor = { adminId: number; adminName: string };
+export type OverturePhotoCredit = PublicPhotoCredit & {
+  creditVersion: number; status: "PENDING" | "APPROVED" | "REJECTED";
+  changedBy: OvertureMediaActor; changedAt: string;
+  reviewedBy: OvertureMediaActor | null; reviewedAt: string | null; reviewReason: string | null;
+};
+export type OverturePhotoCreditSave = {
+  expectedVersion: number; expectedCreditVersion: number; title: string; creator: string; creatorUrl: string | null;
+  sourceUrl: string; licenseCode: PublicPhotoCredit["licenseCode"]; changesNotice: string; requiredNotices: string | null;
+};
 export type OvertureMediaItem = {
   id: number; hallId: number; sizeBytes: number; width: number; height: number; sha256: string;
   caption: string | null; sourceKind: OvertureMediaSourceKind; sourceReference: string | null;
@@ -12,6 +22,7 @@ export type OvertureMediaItem = {
   uploadedBy: OvertureMediaActor; uploadedAt: string;
   reviewedBy: OvertureMediaActor | null; reviewedAt: string | null; reviewReason: string | null;
   archivedBy: OvertureMediaActor | null; archivedAt: string | null; archiveReason: string | null;
+  credit?: OverturePhotoCredit | null;
 };
 export type OvertureMediaGallery = {
   mediaVersion: number; coverMediaId: number | null; items: OvertureMediaItem[];
@@ -54,6 +65,12 @@ export async function archiveOvertureMedia(hallId: number, id: number, expectedV
   return apiRequest<OvertureMediaGallery>(`${path(hallId)}/${id}/archive`, {
     method: "POST", token: authenticatedToken(token), cache: "no-store", body: JSON.stringify({ expectedVersion, reason })
   });
+}
+export async function saveOverturePhotoCredit(hallId: number, id: number, credit: OverturePhotoCreditSave, token?: string | null) {
+  return apiRequest<OvertureMediaGallery>(`${path(hallId)}/${id}/credits`, { method: "PUT", token: authenticatedToken(token), cache: "no-store", body: JSON.stringify(credit) });
+}
+export async function reviewOverturePhotoCredit(hallId: number, id: number, expectedVersion: number, expectedCreditVersion: number, status: "APPROVED" | "REJECTED", reason: string, rightsConfirmed: boolean, attributionConfirmed: boolean, token?: string | null) {
+  return apiRequest<OvertureMediaGallery>(`${path(hallId)}/${id}/credits/review`, { method: "POST", token: authenticatedToken(token), cache: "no-store", body: JSON.stringify({ expectedVersion, expectedCreditVersion, status, reason, rightsConfirmed, attributionConfirmed }) });
 }
 // Private bytes are fetched with bearer auth. No storage URL, public fallback,
 // browser persistence or image-optimizer request is part of this workflow.

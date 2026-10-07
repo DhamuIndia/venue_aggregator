@@ -130,7 +130,7 @@ class OverturePublicationWorkflowIntegrationTest {
     private long count(String table) {return jdbc.queryForObject("select count(*) from "+table,Long.class);}
 
     @Test @Order(1) void upgradeKeepsOwnerAndDraftPrivateUntilReadinessComplete() throws Exception {
-        assertEquals(45,jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success",Integer.class));
+        assertEquals(46,jdbc.queryForObject("select max(version::integer) from flyway_schema_history where success",Integer.class));
         ownerBefore=jdbc.queryForMap("select * from halls where id=?",ownerHallId);
         sourceBefore=jdbc.queryForObject("select source_facts::text from venue_overture_draft_reviews where hall_id=?",String.class,hallId);
         JsonNode initial=admin(get(publication()),200);

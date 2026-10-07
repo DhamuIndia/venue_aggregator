@@ -43,6 +43,8 @@ class OverturePublicationServiceTest {
     private Long cover=1L;
     private List<Long> approved=List.of(1L);
     private boolean needsPublicCredit;
+    private boolean creditReady;
+    private long creditVersion=2;
     private byte[] bytes=new byte[]{1,2,3};
     @BeforeEach void setup() {
         when(onboarding.isEnabled()).thenReturn(true); when(media.isEnabled()).thenReturn(true); when(properties.isEnabled()).thenReturn(true);
@@ -81,11 +83,40 @@ class OverturePublicationServiceTest {
         when(reviews.publicationAssessment(55)).thenReturn(assessment(ReviewStatus.VERIFIED,DuplicateDecision.DISTINCT,List.of(duplicate),List.of()));
         assertEquals(HttpStatus.CONFLICT,failure(()->service.publish(55,publish(),auth))); verifyNoInteractions(storage,audit);
     }
-    @Test void licensedImageStaysPrivateUntilSafePublicCreditWorkflowExists() throws Exception {
+    @Test void licensedImageStaysPrivateWhileSeparateLicensedRolloutFlagIsOff() throws Exception {
         mockWorkflow(); needsPublicCredit=true;
         var detail=service.detail(55,auth); assertFalse(detail.ready());
         assertTrue(detail.blockers().stream().anyMatch(v->v.contains("public credit")));
         assertEquals(HttpStatus.CONFLICT,failure(()->service.publish(55,publish(),auth))); verifyNoInteractions(storage,audit);
+    }
+    @Test void missingPendingRejectedAndUnsupportedLatestCreditsFailClosed() throws Exception {
+        mockWorkflow(); needsPublicCredit=true; when(properties.isLicensedPhotosEnabled()).thenReturn(true);
+        for(long currentVersion:List.of(0L,1L,2L,100L)) {
+            creditVersion=currentVersion; creditReady=false;
+            var detail=service.detail(55,auth); assertFalse(detail.ready());
+            assertTrue(detail.blockers().stream().anyMatch(value->value.contains("latest approved public credit")));
+            assertEquals(HttpStatus.CONFLICT,failure(()->service.publish(55,publish(),auth)));
+        }
+        verifyNoInteractions(storage,audit);
+    }
+    @Test void licensedPublicationSnapshotsOnlyTheCurrentApprovedSafeCredit() throws Exception {
+        mockWorkflow(); needsPublicCredit=true; creditReady=true; when(properties.isLicensedPhotosEnabled()).thenReturn(true);
+        assertTrue(service.detail(55,auth).ready());
+        var after=service.publish(55,publish(),auth); assertEquals(1,after.publicationVersion());
+        verify(jdbc).update(contains("insert into venue_overture_publication_photo_credits"),eq(55L),eq(1L),eq(1L),eq(2L),
+                eq(55L),eq(1L),eq(2L),eq(55L),eq(1L),eq(2L));
+        verify(storage).ensurePrivate(); verify(audit).record(any());
+    }
+    @Test void licensedKillSwitchDeniesPublicReadsButNotWithdrawal() throws Exception {
+        mockWorkflow(); needsPublicCredit=true; creditReady=true; published=true; publicationVersion=1;
+        when(properties.isLicensedPhotosEnabled()).thenReturn(false);
+        assertFalse(service.isPublic(application()));
+        assertEquals(HttpStatus.NOT_FOUND,failure(()->service.publicListing(55)));
+        assertEquals(HttpStatus.NOT_FOUND,failure(()->service.publicPhoto(55,1,1)));
+        assertEquals(HttpStatus.NOT_FOUND,failure(()->service.lockPublishedForEnquiry(55)));
+        var after=service.unpublish(55,new OverturePublicationRequest.Unpublish(1,"Withdraw licensed image immediately"),auth);
+        assertEquals(OverturePublicationResponse.State.UNPUBLISHED,after.publicationState());
+        verifyNoInteractions(storage);
     }
     @Test void allThreeVersionsAreCheckedBeforeAnyObjectDownloadOrPublicationWrite() throws Exception {
         mockWorkflow();
@@ -101,6 +132,7 @@ class OverturePublicationServiceTest {
         verify(storage).ensurePrivate(); verify(storage).read(anyString(),eq(3));
         verify(jdbc).update(contains("insert into venue_overture_publication_photos"),eq(55L),eq(1L),eq(1L),eq(0));
         verify(jdbc).update(contains("insert into venue_overture_publication_history"),any(Object[].class)); verify(audit).record(any());
+        verify(jdbc,never()).update(contains("insert into venue_overture_publication_photo_credits"),any(Object[].class));
         verify(storage,never()).put(anyString(),any(),anyString()); verify(storage,never()).delete(anyString());
     }
     @Test void corruptBytesBlockPublishWithoutSnapshotHistoryOrAudit() throws Exception {
@@ -137,9 +169,9 @@ class OverturePublicationServiceTest {
     @Test void publicGateRequiresMatchingExplicitSnapshotNotJustApprovedStatus() {
         assertFalse(service.isPublic(application()));
         var sql=org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(jdbc).query(sql.capture(),org.mockito.ArgumentMatchers.<RowMapper<?>>any(),eq(55L),isNull(),isNull());
+        verify(jdbc).query(sql.capture(),org.mockito.ArgumentMatchers.<RowMapper<?>>any(),eq(55L),isNull(),isNull(),eq(false));
         for(String invariant:List.of("publication_state='PUBLISHED'","published_review_version=r.review_version","published_media_version=m.media_version",
-                "venue_overture_publication_history","dp.status='APPROVED'","count(*)","pp.sort_order")) assertTrue(sql.getValue().contains(invariant));
+                "venue_overture_publication_history","dp.status='APPROVED'","count(*)","pp.sort_order","overture_publication_photo_credit_valid","not ?::boolean")) assertTrue(sql.getValue().contains(invariant));
         verifyNoInteractions(storage);
     }
     @Test void publicContentIsBoundedSelectedAndRevisionGatedWhileEnquiryGetsLockedRevision() throws Exception {
@@ -153,8 +185,21 @@ class OverturePublicationServiceTest {
         mockWorkflow(); published=true; publicationVersion=1;
         var value=service.publicListing(55);
         assertEquals(List.of("/api/v1/halls/55/application-photos/1?publicationVersion=1"),value.galleryUrls());
+        assertEquals(1,value.applicationPhotos().size()); assertFalse(value.applicationPhotos().getFirst().requiresCredit());
+        assertNull(value.applicationPhotos().getFirst().credit());
         String json=new ObjectMapper().writeValueAsString(value);
         for(String privateField:List.of("storage_key","drafts/55","permissionEvidence","reviewNotes","VenueMart Admin","verification evidence")) assertFalse(json.contains(privateField));
+    }
+    @Test void publicLicensedCreditsComeFromImmutableSnapshotAndDoNotExposePrivateHistory() throws Exception {
+        mockWorkflow(); needsPublicCredit=true; creditReady=true; published=true; publicationVersion=1;
+        when(properties.isLicensedPhotosEnabled()).thenReturn(true);
+        var listing=service.publicListing(55); var photo=listing.applicationPhotos().getFirst();
+        assertTrue(photo.requiresCredit()); assertEquals(1,photo.photoId()); assertEquals("Public venue image",photo.credit().title());
+        assertEquals("CC BY 4.0",photo.credit().licenseLabel()); assertEquals("https://creativecommons.org/licenses/by/4.0/",photo.credit().licenseUrl());
+        String json=new ObjectMapper().writeValueAsString(listing);
+        for(String privateField:List.of("permissionEvidence","sourceReference","reviewReason","reviewedBy","VenueMart Admin","rightsConfirmed","creditVersion","storage_key"))
+            assertFalse(json.contains(privateField));
+        verify(jdbc).query(contains("pc.credit_snapshot::text"),org.mockito.ArgumentMatchers.<RowMapper<?>>any(),eq(55L),eq(1L),eq(1L));
     }
     private void mockWorkflow() throws Exception {
         when(reviews.publicationAssessment(55)).thenAnswer(i->assessment(ReviewStatus.VERIFIED,DuplicateDecision.NOT_REVIEWED,List.of(),List.of()));
@@ -165,9 +210,16 @@ class OverturePublicationServiceTest {
             else if(sql.startsWith("select publication_version")) {when(row.getLong("publication_version")).thenReturn(publicationVersion); when(row.getString("publication_state")).thenReturn(published?"PUBLISHED":"UNPUBLISHED"); rows.add(row);}
             else if(sql.startsWith("select media_version")) {when(row.getLong("media_version")).thenReturn(3L); when(row.getObject("cover_media_id",Long.class)).thenReturn(cover); rows.add(row);}
             else if(sql.startsWith("select id from venue_overture_draft_photos")) {for(long id:approved) {ResultSet photo=mock(ResultSet.class);when(photo.getLong(1)).thenReturn(id);rows.add(photo);}}
-            else if(sql.startsWith("select source_kind") && needsPublicCredit) {when(row.getString(1)).thenReturn("LICENSED_IMAGE");rows.add(row);}
+            else if(sql.stripLeading().startsWith("select dp.id") && needsPublicCredit) {
+                when(row.getLong("id")).thenReturn(1L);when(row.getLong("credit_version")).thenReturn(creditVersion);
+                when(row.getBoolean("credit_ready")).thenReturn(creditReady);rows.add(row);
+            }
             else if(sql.startsWith("select storage_key")) {when(row.getString("storage_key")).thenReturn("drafts/55/00000000-0000-0000-0000-000000000001.jpg");when(row.getInt("size_bytes")).thenReturn(3);when(row.getString("sha256")).thenReturn(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));rows.add(row);}
-            else if(sql.startsWith("select p.publication_version") && published) {when(row.getLong("publication_version")).thenReturn(publicationVersion);when(row.getLong("cover_media_id")).thenReturn(1L);when(row.getString("sources")).thenReturn("[]");when(row.getString("release")).thenReturn("2026-09-23.0");when(row.getString("verifications")).thenReturn("{}");rows.add(row);}
+            else if(sql.startsWith("select p.publication_version") && published && (!needsPublicCredit || properties.isLicensedPhotosEnabled() && creditReady)) {when(row.getLong("publication_version")).thenReturn(publicationVersion);when(row.getLong("cover_media_id")).thenReturn(1L);when(row.getString("sources")).thenReturn("[]");when(row.getString("release")).thenReturn("2026-09-23.0");when(row.getString("verifications")).thenReturn("{}");rows.add(row);}
+            else if(sql.startsWith("select pp.photo_id") && published) {
+                when(row.getLong("photo_id")).thenReturn(1L);when(row.getString("source_kind")).thenReturn(needsPublicCredit?"LICENSED_IMAGE":"TEAM_PHOTO");
+                when(row.getString("credit_snapshot")).thenReturn("{\"title\":\"Public venue image\",\"creator\":\"Photographer\",\"creatorUrl\":null,\"sourceUrl\":\"https://images.example.com/photo/1\",\"licenseCode\":\"CC_BY_4_0\",\"licenseLabel\":\"CC BY 4.0\",\"licenseUrl\":\"https://creativecommons.org/licenses/by/4.0/\",\"changesNotice\":\"No earlier changes supplied\",\"processingNotice\":\"VenueMart normalized this image to JPEG and may have resized it.\",\"requiredNotices\":null}"); rows.add(row);
+            }
             else if(sql.startsWith("select photo_id") && published) {when(row.getLong(1)).thenReturn(1L);rows.add(row);}
             List<Object> result=new java.util.ArrayList<>(); for(ResultSet item:rows) result.add(rowMapper.mapRow(item,result.size()));return result;
         });

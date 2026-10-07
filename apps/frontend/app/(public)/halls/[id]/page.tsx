@@ -48,7 +48,7 @@ export default async function HallDetailPage({ params }: HallDetailPageProps) {
           </div>
         </div>
 
-        {hall.imageUrl ? <HallPhotoGallery coverImage={hall.imageUrl} galleryImages={hall.galleryUrls} hallName={hall.name} unoptimized={applicationManaged} /> : <p className="mt-5 rounded-lg bg-muted p-8 text-center">Venue photo not provided.</p>}
+        {hall.imageUrl ? <HallPhotoGallery coverImage={hall.imageUrl} galleryImages={hall.galleryUrls} hallName={hall.name} unoptimized={applicationManaged} applicationPhotos={hall.applicationPhotos} /> : <p className="mt-5 rounded-lg bg-muted p-8 text-center">Venue photo not provided.</p>}
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div>

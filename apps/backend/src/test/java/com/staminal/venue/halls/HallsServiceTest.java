@@ -101,6 +101,7 @@ class HallsServiceTest {
         assertThat(response.content().get(0).getVerified()).isTrue();
         assertThat(response.content().get(0).getGalleryUrls())
                 .containsExactly("https://cdn.example.com/emerald-cover.jpg");
+        assertThat(response.content().get(0).getApplicationPhotos()).isNull();
         assertThat(draftHall.getStatus()).isEqualTo(HallStatus.DRAFT);
     }
 
@@ -123,12 +124,17 @@ class HallsServiceTest {
         app.setHallType("event_venue");
         when(hallRepository.findById(11L)).thenReturn(Optional.of(app)); when(publications.isPublic(app)).thenReturn(true);
         String photo="/api/v1/halls/11/application-photos/9?publicationVersion=1";
+        var credit=new com.staminal.venue.overture.OverturePhotoCreditResponse.PublicCredit("Hall image","Photographer",null,
+                "https://images.example.com/photo/9","CC_BY_4_0","CC BY 4.0","https://creativecommons.org/licenses/by/4.0/",
+                "No earlier changes","VenueMart normalized this image to JPEG and may have resized it.",null);
+        var applicationPhoto=new OverturePublicationResponse.PublicPhoto(9,photo,true,credit);
         when(publications.publicListing(11L)).thenReturn(new OverturePublicationResponse.PublicListing(1,List.of(photo),
-                List.of(new OvertureResponse.Source("OpenStreetMap","ODbL-1.0","fixture")),"2026-09-23.0",java.util.Set.of("amenities.ac")));
+                List.of(new OvertureResponse.Source("OpenStreetMap","ODbL-1.0","fixture")),"2026-09-23.0",java.util.Set.of("amenities.ac"),List.of(applicationPhoto)));
         HallResponse response=hallsService.getPublicHall("11");
         assertThat(response.getListingOrigin()).isEqualTo("APPLICATION"); assertThat(response.isEnquiryOnly()).isTrue();
         assertThat(response.getEnquiryRoutingTarget()).isEqualTo("VENUEMART"); assertThat(response.getPublicationVersion()).isEqualTo(1);
         assertThat(response.getGalleryUrls()).containsExactly(photo); assertThat(response.getImageUrl()).isEqualTo(photo);
+        assertThat(response.getApplicationPhotos()).containsExactly(applicationPhoto);
         assertThat(response.getDescription()).isNull(); assertThat(response.getAmenities()).containsExactly("Air conditioned");
         assertThat(response.getContactNumber()).isNull(); assertThat(response.getWhatsappNumber()).isNull(); assertThat(response.getOwnerName()).isNull();
         assertThat(response.getStartingPrice()).isNull(); assertThat(response.getPricing()).isNull(); assertThat(response.getAvailabilitySummary()).isNull();

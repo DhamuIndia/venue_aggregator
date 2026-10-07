@@ -1,7 +1,8 @@
 import { API_BASE_URL, apiRequest } from "@/lib/api-client";
 import { toTitleCase } from "@/lib/display-format";
 import { getHallById as getMockHallById, halls as mockHalls } from "./mock-data";
-import type { HallSummary, PublicHallReview, VenueType } from "./types";
+import type { ApplicationHallPhoto, HallSummary, PublicHallReview, VenueType } from "./types";
+import { parsePublicPhotoCredit } from "./photo-credit";
 
 export type HallSort = "recommended" | "rating" | "price-low" | "capacity";
 
@@ -110,18 +111,26 @@ export function toHallSummary(value: unknown): HallSummary | undefined {
   if (!id || !name) return undefined;
 
   if (value.listingOrigin === "APPLICATION") {
-    const imageUrl = publicPhotoUrl(stringValue(value, ["coverImageUrl"]));
+    const suppliedCover = publicPhotoUrl(stringValue(value, ["coverImageUrl"]));
+    const applicationPhotos = Array.isArray(value.applicationPhotos) ? value.applicationPhotos.map((photo): ApplicationHallPhoto | undefined => {
+      if (!isRecord(photo) || !Number.isSafeInteger(photo.photoId) || Number(photo.photoId) <= 0 || typeof photo.url !== "string" || !photo.url || typeof photo.requiresCredit !== "boolean") return undefined;
+      if (!Number.isSafeInteger(value.publicationVersion) || Number(value.publicationVersion) < 1 || photo.url !== `/api/v1/halls/${id}/application-photos/${photo.photoId}?publicationVersion=${value.publicationVersion}`) return undefined;
+      const credit = photo.requiresCredit ? parsePublicPhotoCredit(photo.credit) : null;
+      if ((photo.requiresCredit && !credit) || (!photo.requiresCredit && photo.credit !== null)) return undefined;
+      return { photoId: Number(photo.photoId), url: publicPhotoUrl(photo.url), requiresCredit: photo.requiresCredit, credit: credit ?? null };
+    }).filter((photo): photo is ApplicationHallPhoto => Boolean(photo)) : value.applicationPhotos == null ? undefined : [];
+    const imageUrl = applicationPhotos ? applicationPhotos.find((photo) => photo.url === suppliedCover)?.url ?? "" : suppliedCover;
     const sourceAttribution = Array.isArray(value.sourceAttribution) ? value.sourceAttribution.filter(isRecord).map((source) => ({
       dataset: stringValue(source, ["dataset"]) ?? "Unknown dataset", license: stringValue(source, ["license"]) ?? "Not provided", recordId: stringValue(source, ["recordId"]) ?? null
     })) : [];
     return {
       id, name: toTitleCase(name), city: toTitleCase(stringValue(value, ["city"]) ?? ""), area: toTitleCase(stringValue(value, ["area"]) ?? ""),
       capacity: numberValue(value, ["capacity", "capacityMax"]) ?? null, startingPrice: null, rating: null, reviewCount: 0,
-      imageUrl, galleryUrls: uniqueUrls(galleryUrls(value, imageUrl, []).map(publicPhotoUrl).filter(Boolean)),
+      imageUrl, galleryUrls: applicationPhotos ? applicationPhotos.map((photo) => photo.url) : uniqueUrls(galleryUrls(value, imageUrl, []).map(publicPhotoUrl).filter(Boolean)),
       venueType: venueType(value) ?? "Event Venue", amenities: amenities(value, []),
       isVerified: false, availableThisMonth: false, description: stringValue(value, ["description"]) ?? "Details are being confirmed by the VenueMart team.", reviews: [],
       listingOrigin: "APPLICATION", enquiryOnly: true, enquiryRoutingTarget: "VENUEMART",
-      publicationVersion: numberValue(value, ["publicationVersion"]), sourceRelease: stringValue(value, ["sourceRelease"]), sourceAttribution
+      publicationVersion: numberValue(value, ["publicationVersion"]), sourceRelease: stringValue(value, ["sourceRelease"]), sourceAttribution, applicationPhotos
     };
   }
 
