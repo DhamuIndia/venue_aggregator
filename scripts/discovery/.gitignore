@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# Prepared source catalogs are configured files, not repository fixtures.
+catalog*.json

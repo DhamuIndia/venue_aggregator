@@ -34,6 +34,7 @@ import com.staminal.venue.halls.Repository.HallBlockedDateRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.notifications.NotificationService;
 import com.staminal.venue.notifications.NotificationType;
+import com.staminal.venue.overture.OverturePublicationService;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
 
@@ -61,6 +62,8 @@ public class EnquiryService {
     private final HallBlockedDateRepository hallBlockedDateRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final OverturePublicationService publicationService;
+    private final ApplicationVenueEnquiryNotifications applicationNotifications;
 
     public EnquiryResponse createHallEnquiry(CreateEnquiryRequest request, Authentication authentication) {
         User customer = currentUser(authentication, UserRole.CUSTOMER);
@@ -68,6 +71,8 @@ public class EnquiryService {
         List<EnquirySlotRequestDto> slotRequests = normalizeSlotRequests(request);
 
         Halls hall = findApprovedHallByIdentifier(request.hallId());
+        Long publicationVersion = OverturePublicationService.isApplication(hall)
+                ? publicationService.lockPublishedForEnquiry(hall.getId()) : null;
 
         Enquiry enquiry = new Enquiry();
         enquiry.setHall(hall);
@@ -83,7 +88,13 @@ public class EnquiryService {
                 .map(this::toSlotRequestEntity)
                 .toList());
         enquiry.setMessage(trimToNull(request.notes()));
-        enquiry.setStatus(EnquiryStatus.PENDING_OWNER_RESPONSE);
+        if (publicationVersion != null) {
+            enquiry.setRoutingTarget(EnquiryRoutingTarget.VENUEMART);
+            enquiry.setPublicationVersion(publicationVersion);
+            enquiry.setStatus(EnquiryStatus.NEW);
+        } else {
+            enquiry.setStatus(EnquiryStatus.PENDING_OWNER_RESPONSE);
+        }
 
         Enquiry saved = enquiryRepository.save(enquiry);
         notifyEnquiryCreated(saved);
@@ -115,6 +126,7 @@ public class EnquiryService {
         Halls hall = findHallForOwner(hallId, owner);
         return enquiryRepository.findByHall_IdOrderByCreatedAtDesc(hall.getId())
                 .stream()
+                .filter(enquiry -> enquiry.getRoutingTarget() != EnquiryRoutingTarget.VENUEMART)
                 .map(this::toResponse)
                 .toList();
     }
@@ -125,6 +137,9 @@ public class EnquiryService {
             Authentication authentication) {
         User owner = currentUser(authentication, UserRole.HALL_OWNER);
         Enquiry enquiry = findEnquiry(enquiryId);
+        if (enquiry.getRoutingTarget() == EnquiryRoutingTarget.VENUEMART) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "VenueMart team enquiries cannot be handled by an owner");
+        }
         if (enquiry.getHall() == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall enquiry not found");
         }
@@ -473,6 +488,10 @@ public class EnquiryService {
     }
 
     private void notifyEnquiryCreated(Enquiry enquiry) {
+        if (enquiry.getRoutingTarget() == EnquiryRoutingTarget.VENUEMART) {
+            applicationNotifications.created(enquiry);
+            return;
+        }
         Halls hall = enquiry.getHall();
         String hallName = hallName(hall);
 
@@ -535,7 +554,7 @@ public class EnquiryService {
         return value != null && !value.isBlank() ? value.trim() : fallback;
     }
 
-    private EnquiryResponse toResponse(Enquiry enquiry) {
+    EnquiryResponse toResponse(Enquiry enquiry) {
         Halls hall = enquiry.getHall();
         User customer = enquiry.getCustomer();
 
@@ -556,8 +575,12 @@ public class EnquiryService {
                 enquiry.getStatus(),
                 enquiry.getCreatedAt(),
                 enquiry.getUpdatedAt(),
-                enquiry.getOwnerResponseMessage(),
-                enquiry.getVersion());
+                enquiry.getRoutingTarget() == EnquiryRoutingTarget.VENUEMART ? null : enquiry.getOwnerResponseMessage(),
+                enquiry.getVersion(),
+                enquiry.getRoutingTarget(),
+                enquiry.getPublicationVersion(),
+                enquiry.getRoutingTarget() == EnquiryRoutingTarget.VENUEMART
+                        ? enquiry.getTeamResponseMessage() : enquiry.getOwnerResponseMessage());
     }
 
     private String formatEnquiryId(Long id) {
@@ -578,6 +601,7 @@ public class EnquiryService {
 
         return enquiryRepository.findAll()
                 .stream()
+                .filter(enquiry -> enquiry.getRoutingTarget() != EnquiryRoutingTarget.VENUEMART)
                 .map(this::toResponse)
                 .toList();
     }

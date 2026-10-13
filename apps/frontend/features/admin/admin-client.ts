@@ -696,7 +696,8 @@ function toAdminEnquiry(value: unknown): AdminEnquiry | undefined {
     eventDate: stringValue(value, ["eventDate", "event_date"]) ?? "",
     submittedAt: stringValue(value, ["submittedAt", "createdAt", "created_at"]) ?? "",
     status: enquiryStatus(value) ?? "PENDING_OWNER_RESPONSE",
-    source: "HALL"
+    source: "HALL",
+    routingTarget: value.routingTarget === "VENUEMART" ? "VENUEMART" : "OWNER"
   };
 }
 
@@ -830,6 +831,7 @@ function reviewStatus(record: Record<string, unknown>): ReportedReview["status"]
 
 function enquiryStatus(record: Record<string, unknown>): AdminEnquiry["status"] | undefined {
   const value = stringValue(record, ["status"]);
+  if (record.routingTarget === "VENUEMART" && (value === "NEW" || value === "CONTACTED" || value === "CLOSED")) return value;
   if (value === "NEW" || value === "PENDING_OWNER_RESPONSE" || value === "CONFIRMED" || value === "DECLINED" || value === "COMPLETED") return value;
   if (value === "AWAITING_RESPONSE" || value === "CONTACTED") return "PENDING_OWNER_RESPONSE";
   return undefined;

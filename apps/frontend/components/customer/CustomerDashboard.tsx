@@ -31,6 +31,7 @@ import { getVendorReviewEligibility, submitVendorReview, getCustomerReviewEligib
 import { getCustomerSavedHalls, subscribeToSavedHallChanges } from "@/features/customer/saved-halls-client";
 import { getCustomerEnquiries } from "@/features/enquiries/enquiry-client";
 import type { StoredEnquiry } from "@/features/enquiries/types";
+import { venueMartEnquiryStatus } from "@/features/enquiries/enquiry-display";
 import { halls } from "@/features/halls/mock-data";
 import { formatSlot } from "@/features/halls/slot-model";
 import type { HallSummary } from "@/features/halls/types";
@@ -58,6 +59,8 @@ const tabs: Array<{ id: DashboardTab; label: string }> = [
 
 const statusStyles = {
   NEW: "bg-blue-50 text-blue-700",
+  CONTACTED: "bg-blue-50 text-blue-700",
+  CLOSED: "bg-muted text-muted-foreground",
   PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
   AWAITING_RESPONSE: "bg-amber-50 text-amber-700",
@@ -700,7 +703,7 @@ export function CustomerDashboard() {
                   return (
                     <article className="rounded-lg border border-border bg-white p-5" key={enquiry.id}>
                       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
-                        <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{enquiry.venue}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[enquiry.status]}`}>{statusLabel(enquiry.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">Event: {enquiry.eventDate} | Enquiry {enquiry.id}</p></div>
+                        <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{enquiry.venue}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[enquiry.status]}`}>{enquiry.routingTarget === "VENUEMART" ? venueMartEnquiryStatus(enquiry.status as StoredEnquiry["status"]) : statusLabel(enquiry.status)}</span></div><p className="mt-2 text-sm text-muted-foreground">Event: {enquiry.eventDate} | Enquiry {enquiry.id}</p>{enquiry.routingTarget === "VENUEMART" && <p className="mt-2 text-xs text-muted-foreground">Handled by the VenueMart team. Availability and pricing are unconfirmed; no booking or payment.</p>}</div>
                         <button aria-expanded={isExpanded} className="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:border-primary" onClick={() => setExpandedEnquiryId(isExpanded ? null : enquiry.id)} type="button">{isExpanded ? "Close details" : "View details"} {isExpanded ? <X size={16} /> : <ChevronRight size={16} />}</button>
                       </div>
                       {isExpanded && (
@@ -709,7 +712,7 @@ export function CustomerDashboard() {
                             <EnquiryDetail label="Enquiry ID" value={enquiry.id} />
                             <EnquiryDetail label="Venue / provider" value={enquiry.venue} />
                             <EnquiryDetail label="Event date" value={enquiry.eventDate} />
-                            <EnquiryDetail label="Status" value={statusLabel(enquiry.status)} />
+                            <EnquiryDetail label="Status" value={enquiry.routingTarget === "VENUEMART" ? venueMartEnquiryStatus(enquiry.status as StoredEnquiry["status"]) : statusLabel(enquiry.status)} />
                             <EnquiryDetail label="Submitted" value={formatCustomerEventDate(enquiry.submittedAt)} />
                             {enquiry.eventType && <EnquiryDetail label="Event type" value={enquiry.eventType} />}
                             {enquiry.guestCount !== undefined && <EnquiryDetail label="Guests" value={formatGuestCount(enquiry.guestCount)} />}
@@ -718,6 +721,7 @@ export function CustomerDashboard() {
                             {enquiry.budget !== undefined && <EnquiryDetail label="Budget" value={`INR ${new Intl.NumberFormat("en-IN").format(enquiry.budget)}`} />}
                           </div>
                           {enquiry.notes && <div className="mt-4 rounded-md bg-muted/50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</p><p className="mt-1 text-sm leading-6">{enquiry.notes}</p></div>}
+                          {enquiry.routingTarget === "VENUEMART" && enquiry.responseMessage && <div className="mt-4 rounded-md bg-blue-50 p-4"><p className="text-xs font-medium text-blue-800">VenueMart team response</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{enquiry.responseMessage}</p></div>}
                           {enquiry.declineReason && <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-rose-700">Vendor response</p><p className="mt-1 text-sm leading-6 text-rose-800">{enquiry.declineReason}</p></div>}
                           {quote && <div className="mt-4"><CustomerQuoteCard isAccepting={acceptingQuoteId === quote.id} isUpdating={updatingShortlistQuoteId === quote.id} onAccept={setAcceptanceQuote} onToggleShortlist={toggleQuoteShortlist} quote={quote} /></div>}
                         </div>
@@ -829,7 +833,9 @@ function toCustomerEnquiry(enquiry: StoredEnquiry): CustomerEnquiry {
     eventType: enquiry.eventType,
     guestCount: enquiry.guestCount,
     slot: enquiry.slot,
-    notes: enquiry.notes
+    notes: enquiry.notes,
+    routingTarget: enquiry.routingTarget,
+    responseMessage: enquiry.responseMessage
   };
 }
 

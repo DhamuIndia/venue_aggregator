@@ -33,6 +33,8 @@ import com.staminal.venue.halls.Service.HallsService;
 import com.staminal.venue.reviews.HallReview.ReviewRepository;
 import com.staminal.venue.users.Entity.User;
 import com.staminal.venue.users.Repository.UserRepository;
+import com.staminal.venue.overture.OverturePublicationService;
+import com.staminal.venue.halls.Entity.HallListingOrigin;
 
 @ExtendWith(MockitoExtension.class)
 class CustomerSavedHallServiceTest {
@@ -58,12 +60,15 @@ class CustomerSavedHallServiceTest {
     @Mock
     private ObjectMapper objectMapper;
 
+    @Mock
+    private OverturePublicationService publications;
+
     private CustomerSavedHallService savedHallService;
 
     @BeforeEach
     void setUp() {
         HallsService hallsService = new HallsService(hallRepository, userRepository, hallMediaRepository,
-                reviewRepository, availabilityService, objectMapper);
+                reviewRepository, availabilityService, objectMapper, publications);
         savedHallService = new CustomerSavedHallService(savedHallRepository, hallRepository, hallsService,
                 userRepository);
     }
@@ -82,6 +87,24 @@ class CustomerSavedHallServiceTest {
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).getName()).isEqualTo("Emerald Convention Centre");
         assertThat(response.content()).isEqualTo(response.items());
+    }
+
+    @Test
+    void applicationVenueCannotBeSavedWhenExplicitPublicationIsDisabledOrWithdrawn() {
+        User customer=customer(); Halls app=approvedHall(); app.setListingOrigin(HallListingOrigin.APPLICATION);
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer)); when(hallRepository.findById(11L)).thenReturn(Optional.of(app));
+        assertThatThrownBy(()->savedHallService.saveHall("11",auth(101L,UserRole.CUSTOMER)))
+                .isInstanceOf(ResponseStatusException.class).hasMessageContaining("404 NOT_FOUND");
+        verify(savedHallRepository,never()).save(org.mockito.ArgumentMatchers.any(CustomerSavedHall.class));
+    }
+
+    @Test
+    void previouslySavedApplicationVenueIsHiddenImmediatelyWhenNoLongerPublic() {
+        User customer=customer(); Halls app=approvedHall(); app.setListingOrigin(HallListingOrigin.APPLICATION);
+        when(userRepository.findById(101L)).thenReturn(Optional.of(customer));
+        when(savedHallRepository.findByCustomer_IdOrderByCreatedAtDesc(101L)).thenReturn(List.of(savedHall(customer,app)));
+        assertThat(savedHallService.getSavedHalls(auth(101L,UserRole.CUSTOMER)).items()).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(hallMediaRepository,availabilityService,reviewRepository);
     }
 
     @Test

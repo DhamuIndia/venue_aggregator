@@ -86,6 +86,8 @@ const tabs: Array<{ id: OwnerTab; label: string }> = [
 
 const statusStyle: Record<EnquiryStatus, string> = {
   NEW: "bg-blue-50 text-blue-700",
+  CONTACTED: "bg-blue-50 text-blue-700",
+  CLOSED: "bg-muted text-muted-foreground",
   PENDING_OWNER_RESPONSE: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
   DECLINED: "bg-rose-50 text-rose-700",
@@ -439,7 +441,7 @@ export function OwnerDashboard() {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [updatingMediaId, setUpdatingMediaId] = useState<string | null>(null);
   const [reviews, setReviews] = useState<OwnerReview[]>(() => useOwnerReviewDemoFallback ? ownerReviews : []);
-  const [averageRating, setAverageRating] = useState(useOwnerReviewDemoFallback ? ownerHall.rating : 0);
+  const [averageRating, setAverageRating] = useState(useOwnerReviewDemoFallback ? ownerHall.rating ?? 0 : 0);
   const [totalReviews, setTotalReviews] = useState(useOwnerReviewDemoFallback ? ownerHall.reviewCount : 0);
   const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [reviewsError, setReviewsError] = useState("");
@@ -628,12 +630,12 @@ export function OwnerDashboard() {
         const response = await getOwnerHallReviews(activeHallId, accessToken, useOwnerReviewDemoFallback ? ownerReviews : []);
         if (!isCurrent) return;
         setReviews(response.reviews);
-        setAverageRating(response.averageRating || (useOwnerReviewDemoFallback ? ownerHall.rating : 0));
+        setAverageRating(response.averageRating || (useOwnerReviewDemoFallback ? ownerHall.rating ?? 0 : 0));
         setTotalReviews(response.totalReviews || response.reviews.length);
       } catch {
         if (!isCurrent) return;
         setReviews(useOwnerReviewDemoFallback ? ownerReviews : []);
-        setAverageRating(useOwnerReviewDemoFallback ? ownerHall.rating : 0);
+        setAverageRating(useOwnerReviewDemoFallback ? ownerHall.rating ?? 0 : 0);
         setTotalReviews(useOwnerReviewDemoFallback ? ownerHall.reviewCount : 0);
         setReviewsError("Could not load latest reviews.");
       } finally {
@@ -674,7 +676,7 @@ export function OwnerDashboard() {
   const listingViews = useOwnerDemoFallbacks ? "1,284" : "0";
   const listingHealthChecks = [
     Boolean(listing.name.trim() && listing.city.trim() && listing.area.trim() && listing.description.trim()),
-    Boolean(listing.capacity > 0 && listing.startingPrice > 0 && listing.amenities.length > 0),
+    Boolean((listing.capacity ?? 0) > 0 && (listing.startingPrice ?? 0) > 0 && listing.amenities.length > 0),
     Boolean(media.length >= 3 || listing.galleryUrls.length >= 3)
   ];
   const listingHealthScore = Math.round((listingHealthChecks.filter(Boolean).length / listingHealthChecks.length) * 100);

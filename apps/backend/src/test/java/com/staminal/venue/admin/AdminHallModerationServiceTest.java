@@ -25,6 +25,7 @@ import com.staminal.venue.audit.AuditService;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Entity.HallMedia;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Entity.HallListingOrigin;
 import com.staminal.venue.halls.Repository.HallMediaRepository;
 import com.staminal.venue.halls.Repository.HallRepository;
 import com.staminal.venue.halls.Service.HallsService;
@@ -63,6 +64,24 @@ class AdminHallModerationServiceTest {
                 adminRepository,
                 auditService,
                 hallsService);
+    }
+
+    @Test
+    void applicationDraftsAreExcludedFromGeneralModerationAndCannotBeApproved() {
+        Halls draft = new Halls();
+        draft.setId(909L);
+        draft.setName("Application draft");
+        draft.setListingOrigin(HallListingOrigin.APPLICATION);
+        draft.setStatus(HallStatus.DRAFT);
+        when(hallRepository.findAll()).thenReturn(List.of(draft));
+        AdminHallListResponse response = adminHallModerationService.getHalls(null, 0, 20);
+        assertThat(response.content()).isEmpty();
+        assertThat(response.totalElements()).isZero();
+        when(hallRepository.findById(909L)).thenReturn(Optional.of(draft));
+        assertThatThrownBy(() -> adminHallModerationService.reviewHall("909", new AdminReviewRequest("APPROVED", null), null))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Only pending hall listings can be reviewed");
+        org.mockito.Mockito.verifyNoInteractions(hallMediaRepository, auditService, userRepository, adminRepository, hallsService);
     }
 
     @Test

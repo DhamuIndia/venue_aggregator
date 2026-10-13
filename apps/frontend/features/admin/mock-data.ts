@@ -69,6 +69,7 @@ export type AdminEnquiry = {
   submittedAt: string;
   status: EnquiryStatus;
   source?: "HALL" | "VENDOR";
+  routingTarget?: "OWNER" | "VENUEMART";
 };
 
 export type AdminUserStatus = "ACTIVE" | "SUSPENDED" | "PENDING_VERIFICATION";

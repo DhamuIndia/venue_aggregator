@@ -16,6 +16,7 @@ import com.staminal.venue.admin.Dto.AdminHallResponse;
 import com.staminal.venue.admin.Dto.ReviewHallRequest;
 import com.staminal.venue.enums.HallStatus;
 import com.staminal.venue.halls.Entity.Halls;
+import com.staminal.venue.halls.Entity.HallListingOrigin;
 import com.staminal.venue.halls.Repository.HallRepository;
 
 @Service
@@ -32,6 +33,7 @@ public class AdminHallService {
         List<Halls> halls = hallRepository.findByStatus(status);
 
         return halls.stream()
+                .filter(hall -> hall.getListingOrigin() != HallListingOrigin.APPLICATION)
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -76,6 +78,10 @@ public class AdminHallService {
 
         Halls hall = hallRepository.findById(hallId)
                 .orElseThrow(() -> new RuntimeException("Hall not found"));
+
+        if (hall.getListingOrigin() == HallListingOrigin.APPLICATION) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Application venue drafts cannot be reviewed here");
+        }
 
         if (hall.getStatus() == HallStatus.APPROVED) {
             throw new ResponseStatusException(

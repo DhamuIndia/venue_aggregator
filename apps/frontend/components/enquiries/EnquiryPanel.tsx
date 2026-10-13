@@ -36,6 +36,7 @@ const EVENT_TYPE_OPTIONS = [
 ];
 
 export function EnquiryPanel({ hall }: EnquiryPanelProps) {
+  const applicationManaged = hall.listingOrigin === "APPLICATION";
   const { getValidAccessToken, user } = useAuth();
   const router = useRouter();
   const [eventDate, setEventDate] = useState("");
@@ -76,6 +77,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
 
   useEffect(() => {
     let isCurrent = true;
+    if (applicationManaged) { setUnavailableSlots([]); setIsAvailabilityLoading(false); return; }
 
     async function loadAvailability() {
       setIsAvailabilityLoading(true);
@@ -90,10 +92,11 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
     return () => {
       isCurrent = false;
     };
-  }, [hall.id]);
+  }, [hall.id, applicationManaged]);
 
   useEffect(() => {
     function handleSlotSelection(event: Event) {
+      if (applicationManaged) return;
       const detail = (event as CustomEvent<HallSlotSelectionDetail>).detail;
       if (!detail || detail.hallId !== hall.id) return;
 
@@ -105,12 +108,12 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
 
     window.addEventListener(HALL_SLOT_SELECTION_EVENT, handleSlotSelection);
     return () => window.removeEventListener(HALL_SLOT_SELECTION_EVENT, handleSlotSelection);
-  }, [hall.id]);
+  }, [hall.id, applicationManaged]);
 
   function validateCoreFields() {
     if (!eventDate) return "Choose an event date.";
     if (!guestCount || Number(guestCount) < 1) return "Enter the expected guest count.";
-    if (Number(guestCount) > hall.capacity) return `This venue supports up to ${formatGuestCount(hall.capacity)} guests.`;
+    if (hall.capacity !== null && Number(guestCount) > hall.capacity) return `This venue supports up to ${formatGuestCount(hall.capacity)} guests.`;
     return "";
   }
 
@@ -182,7 +185,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
 
     try {
       setIsSubmitting(true);
-      setAvailability("available");
+      if (!applicationManaged) setAvailability("available");
       const token = await getValidAccessToken();
       if (!token) {
         setError("Your session expired. Sign in again to send this enquiry.");
@@ -198,7 +201,8 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         guestCount: Number(guestCount),
         slot: representativeSlot(selectedSlotRequests),
         slotRequests: selectedSlotRequests,
-        notes: notes.trim() || undefined
+        notes: notes.trim() || undefined,
+        routingTarget: applicationManaged ? "VENUEMART" : "OWNER"
       }, token);
       router.push(`/enquiries/confirmation/${enquiry.id}`);
     } catch (exception) {
@@ -210,9 +214,9 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
 
   return (
     <aside className="h-fit rounded-lg border border-border bg-white p-5 shadow-sm lg:sticky lg:top-24" id="enquiry">
-      <p className="text-sm text-muted-foreground">Starting from</p>
-      <p className="mt-1 text-2xl font-semibold">INR {new Intl.NumberFormat("en-IN").format(hall.startingPrice)}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Final price depends on date, slot, and package.</p>
+      <p className="text-sm text-muted-foreground">{applicationManaged ? "VenueMart team enquiry" : "Starting from"}</p>
+      <p className="mt-1 text-2xl font-semibold">{hall.startingPrice === null ? "Request pricing" : `INR ${new Intl.NumberFormat("en-IN").format(hall.startingPrice)}`}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{applicationManaged ? "Our team will check availability and pricing. This request is not a booking or availability guarantee." : "Final price depends on date, slot, and package."}</p>
 
       <form className="mt-5 grid gap-4" onSubmit={submitEnquiry}>
         <div>
@@ -226,7 +230,7 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
               <ChevronRight size={17} />
             </button>
           </div>
-          <div className="mt-2 flex gap-2 overflow-x-auto" aria-label="Suggested available dates">
+          <div className="mt-2 flex gap-2 overflow-x-auto" aria-label={applicationManaged ? "Suggested event dates" : "Suggested available dates"}>
             {suggestedDates.map((date) => (
               <button aria-pressed={eventDate === date} className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium ${eventDate === date ? "border-primary bg-emerald-50 text-primary" : "border-border text-muted-foreground hover:border-primary"}`} key={date} onClick={() => updateDate(date)} type="button">{formatDisplayDate(date)}</button>
             ))}
@@ -271,17 +275,17 @@ export function EnquiryPanel({ hall }: EnquiryPanelProps) {
         ) : (
           <label className="text-sm font-medium">Event type<select className="mt-2 h-11 w-full rounded-md border border-border bg-white px-3 font-normal outline-none focus:border-primary" onChange={(event) => setEventType(event.target.value)} required value={eventType}><option value="">Select event</option>{EVENT_TYPE_OPTIONS.map((option) => <option key={option}>{option}</option>)}</select></label>
         )}
-        <label className="text-sm font-medium">Guest count<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" max={hall.capacity} min="1" onChange={(event) => setGuestCount(event.target.value)} placeholder={`Up to ${formatGuestCount(hall.capacity)}`} required type="number" value={guestCount} /></label>
+        <label className="text-sm font-medium">Guest count<input className="mt-2 h-11 w-full rounded-md border border-border px-3 font-normal outline-none focus:border-primary" max={hall.capacity ?? undefined} min="1" onChange={(event) => setGuestCount(event.target.value)} placeholder={hall.capacity === null ? "Expected guests" : `Up to ${formatGuestCount(hall.capacity)}`} required type="number" value={guestCount} /></label>
         <label className="text-sm font-medium">Message <span className="font-normal text-muted-foreground">(optional)</span><textarea className="mt-2 min-h-20 w-full resize-y rounded-md border border-border p-3 font-normal outline-none focus:border-primary" maxLength={300} onChange={(event) => setNotes(event.target.value)} placeholder="Package, catering, or timing requirements" value={notes} /></label>
 
         {error && <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
-        {availability === "available" && <p className="flex items-start gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700"><CalendarCheck2 className="mt-0.5 shrink-0" size={17} /><span>Selected slot combination is available for enquiry.</span></p>}
+        {availability === "available" && !applicationManaged && <p className="flex items-start gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700"><CalendarCheck2 className="mt-0.5 shrink-0" size={17} /><span>Selected slot combination is available for enquiry.</span></p>}
         {availability === "unavailable" && <p className="flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700"><CalendarX2 className="mt-0.5 shrink-0" size={17} /><span>One or more selected slots are blocked or booked. Try another date or combination.</span></p>}
 
-        <button className="h-11 rounded-md border border-primary text-sm font-semibold text-primary hover:bg-emerald-50 disabled:opacity-60" disabled={isAvailabilityLoading} onClick={checkAvailability} type="button">Check availability</button>
+        {!applicationManaged && <button className="h-11 rounded-md border border-primary text-sm font-semibold text-primary hover:bg-emerald-50 disabled:opacity-60" disabled={isAvailabilityLoading} onClick={checkAvailability} type="button">Check availability</button>}
         <button className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary text-sm font-semibold text-white disabled:opacity-60" disabled={isSubmitting} formNoValidate={!user} type="submit">
           {isSubmitting ? <LoaderCircle className="animate-spin" size={18} /> : user ? <Send size={17} /> : <LogIn size={17} />}
-          {user ? "Send enquiry" : "Log in to enquire"}
+          {user ? applicationManaged ? "Request availability" : "Send enquiry" : "Log in to enquire"}
         </button>
       </form>
 

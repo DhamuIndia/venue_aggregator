@@ -37,7 +37,7 @@ public class CustomerSavedHallService {
         List<HallResponse> halls = savedHallRepository.findByCustomer_IdOrderByCreatedAtDesc(customer.getId())
                 .stream()
                 .map(CustomerSavedHall::getHall)
-                .filter(hall -> hall.getStatus() == HallStatus.APPROVED)
+                .filter(hallsService::isPublic)
                 .map(hallsService::toPublicResponse)
                 .toList();
         return new CustomerSavedHallsResponse(halls, halls, halls.size());
@@ -73,11 +73,12 @@ public class CustomerSavedHallService {
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"))
                 : hallRepository.findByStatus(HallStatus.APPROVED)
                         .stream()
+                        .filter(hallsService::isPublic)
                         .filter(candidate -> slugify(candidate.getName()).equals(slugify(hallId)))
                         .findFirst()
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found"));
 
-        if (hall.getStatus() != HallStatus.APPROVED) {
+        if (!hallsService.isPublic(hall)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Hall not found");
         }
         return hall;
